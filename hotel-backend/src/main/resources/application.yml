@@ -1,0 +1,20 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: hotel-backend
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/hotel_management?useUnicode=true&characterEncoding=utf-8&serverTimezone=America/Toronto
+    username: root
+    password: Cyz20030522
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.johnny.hotel.entity
+
+logging:
+  level:
+    com.johnny.hotel: debug
