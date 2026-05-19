@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import com.johnny.hotel.vo.UserVO;
+import com.johnny.hotel.vo.LoginVO;
+import com.johnny.hotel.util.JwtUtil;
 
 @Service
 public class SysUserServiceImpl implements SysUserService {
@@ -20,22 +22,39 @@ public class SysUserServiceImpl implements SysUserService {
     private final SysRoleMapper sysRoleMapper;
     private final SysUserRoleMapper sysUserRoleMapper;
     private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
 
     public SysUserServiceImpl(SysUserMapper sysUserMapper,
                               SysRoleMapper sysRoleMapper,
                               SysUserRoleMapper sysUserRoleMapper,
-                              PasswordEncoder passwordEncoder) {
+                              PasswordEncoder passwordEncoder,
+                              JwtUtil JwtUtil) {
         this.sysUserMapper = sysUserMapper;
         this.sysRoleMapper = sysRoleMapper;
         this.sysUserRoleMapper = sysUserRoleMapper;
         this.passwordEncoder = passwordEncoder;
+        this.jwtUtil = JwtUtil;
     }
 
     @Override
     public SysUser getUserById(Long id) {
         return sysUserMapper.selectById(id);
     }
-
+    @Override
+    public UserVO getUserByEmail(String email) {
+        SysUser user = sysUserMapper.selectByEmail(email);
+        if (user == null) {
+            throw new RuntimeException("User not found");
+        }
+        return UserVO.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .realName(user.getRealName())
+                .phone(user.getPhone())
+                .email(user.getEmail())
+                .status(user.getStatus())
+                .build();
+    }
     @Override
     @Transactional
     public UserVO registerCustomer(RegisterCustomerRequest request) {
@@ -82,11 +101,11 @@ public class SysUserServiceImpl implements SysUserService {
                 .build();
     }
     @Override
-    public UserVO login(LoginRequest request) {
+    public LoginVO login(LoginRequest request) {
         SysUser user = sysUserMapper.selectByEmail(request.getEmail());
 
         if (user == null) {
-            throw new RuntimeException("email cannot be empty");
+            throw new RuntimeException("User doesn't exist");
         }
         if (user.getStatus() == null || user.getStatus() != 1) {
             throw new RuntimeException("Account is not active");
@@ -100,13 +119,23 @@ public class SysUserServiceImpl implements SysUserService {
             throw new RuntimeException("Invalid email or password");
         }
 
-        return UserVO.builder()
+        UserVO userVO = UserVO.builder()
                 .id(user.getId())
                 .username(user.getUsername())
                 .realName(user.getRealName())
                 .phone(user.getPhone())
                 .email(user.getEmail())
                 .status(user.getStatus())
+                .build();
+
+        String token = jwtUtil.generateToken(
+                user.getId(),
+                user.getEmail(),
+                user.getUsername()
+        );
+        return LoginVO.builder()
+                .token(token)
+                .user(userVO)
                 .build();
     }
 }
