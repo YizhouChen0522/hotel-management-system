@@ -14,6 +14,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.johnny.hotel.vo.UserVO;
 import com.johnny.hotel.vo.LoginVO;
 import com.johnny.hotel.util.JwtUtil;
+import com.johnny.hotel.exception.BusinessException;
+
+import java.util.List;
 
 @Service
 public class SysUserServiceImpl implements SysUserService {
@@ -44,7 +47,7 @@ public class SysUserServiceImpl implements SysUserService {
     public UserVO getUserByEmail(String email) {
         SysUser user = sysUserMapper.selectByEmail(email);
         if (user == null) {
-            throw new RuntimeException("User not found");
+            throw new BusinessException("User not found");
         }
         return UserVO.builder()
                 .id(user.getId())
@@ -61,19 +64,19 @@ public class SysUserServiceImpl implements SysUserService {
         SysUser existingUser = sysUserMapper.selectByUsername(request.getUsername());
 
         if (existingUser != null) {
-            throw new RuntimeException("Username already exists");
+            throw new BusinessException("Username already exists");
         }
 
         SysUser existingEmailUser = sysUserMapper.selectByEmail(request.getEmail());
 
         if (existingEmailUser != null) {
-            throw new RuntimeException("Email already exists");
+            throw new BusinessException("Email already exists");
         }
 
         SysRole customerRole = sysRoleMapper.selectByRoleCode("CUSTOMER");
 
         if (customerRole == null) {
-            throw new RuntimeException("CUSTOMER role does not exist");
+            throw new BusinessException("CUSTOMER role does not exist");
         }
 
         String encodedPassword = passwordEncoder.encode(request.getPassword());
@@ -105,10 +108,10 @@ public class SysUserServiceImpl implements SysUserService {
         SysUser user = sysUserMapper.selectByEmail(request.getEmail());
 
         if (user == null) {
-            throw new RuntimeException("User doesn't exist");
+            throw new BusinessException("User doesn't exist");
         }
         if (user.getStatus() == null || user.getStatus() != 1) {
-            throw new RuntimeException("Account is not active");
+            throw new BusinessException("Account is not active");
         }
         boolean passwordMatches = passwordEncoder.matches(
                 request.getPassword(),
@@ -116,8 +119,13 @@ public class SysUserServiceImpl implements SysUserService {
         );
 
         if (!passwordMatches) {
-            throw new RuntimeException("Invalid email or password");
+            throw new BusinessException("Invalid email or password");
         }
+        List<SysRole> roleList = sysRoleMapper.selectRolesByUserId(user.getId());
+
+        List<String> roles = roleList.stream()
+                .map(SysRole::getRoleCode)
+                .toList();
 
         UserVO userVO = UserVO.builder()
                 .id(user.getId())
@@ -131,11 +139,13 @@ public class SysUserServiceImpl implements SysUserService {
         String token = jwtUtil.generateToken(
                 user.getId(),
                 user.getEmail(),
-                user.getUsername()
+                user.getUsername(),
+                roles
         );
         return LoginVO.builder()
                 .token(token)
                 .user(userVO)
+                .roles(roles)
                 .build();
     }
 }
