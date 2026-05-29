@@ -3,6 +3,7 @@ package com.johnny.hotel.controller;
 import com.johnny.hotel.common.Result;
 import com.johnny.hotel.dto.RegisterCustomerRequest;
 import com.johnny.hotel.dto.LoginRequest;
+import com.johnny.hotel.dto.RegisterEmployeeRequest;
 import com.johnny.hotel.vo.LoginVO;
 import com.johnny.hotel.vo.UserVO;
 import com.johnny.hotel.service.SysUserService;
@@ -42,6 +43,10 @@ public class AuthController {
         String email = authentication.getName();
         UserVO user = sysUserService.getUserByEmail(email);
         return Result.success(user);
+    }
+    @PostMapping("/register/employee")
+    public Result<UserVO> registerEmployee(@Valid @RequestBody RegisterEmployeeRequest request) {
+        return Result.success(sysUserService.registerEmployee(request));
     }
 
 }

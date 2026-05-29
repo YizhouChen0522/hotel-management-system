@@ -21,6 +21,10 @@ public class SysUser implements Serializable {
     private String phone;
     private String email;
     private Integer status;
+    private String applyRoleCode;
+    private String applyReason;
+    private Long approvedBy;
+    private LocalDateTime approvedTime;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }
