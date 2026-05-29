@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
-public class RegisterCustomerRequest {
+public class RegisterEmployeeRequest {
     @NotBlank(message = "Username cannot be empty")
     private String username;
 
@@ -19,4 +19,11 @@ public class RegisterCustomerRequest {
     @NotBlank(message = "Email cannot be empty")
     @Email(message = "Invalid email format")
     private String email;
+
+    @NotBlank(message = "Applied Role code cannot be empty")
+    private String applyRoleCode;
+
+    private String applyReason;
 }
+
+
