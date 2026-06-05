@@ -49,6 +49,23 @@ public interface SysUserMapper {
     @Select("SELECT * FROM sys_user WHERE status = 2")
     List<SysUser> selectPendingUsers();
 
-    @Update("UPDATE sys_user SET status = #{status}, update_time = Now() WHERE id = #{id}")
-    int updateUserStatus(@Param("id") Long id, @Param("status") Integer status);
+    @Update("""
+        UPDATE sys_user
+        SET status = #{status},
+            approved_by = #{approvedBy},
+            approved_time = NOW(),
+            update_time = NOW()
+        WHERE id = #{id}
+        """)
+    int updateUserStatus(@Param("id") Long id,
+                         @Param("status") Integer status,
+                         @Param("approvedBy") Long approvedBy);
+    @Update("""
+        UPDATE sys_user
+        SET status = #{status},
+            update_time = NOW()
+        WHERE id = #{id}
+        """)
+    int updateStatusOnly(@Param("id") Long id,
+                         @Param("status") Integer status);
 }

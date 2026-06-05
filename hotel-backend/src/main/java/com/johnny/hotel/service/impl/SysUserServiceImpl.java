@@ -5,9 +5,11 @@ import com.johnny.hotel.dto.LoginRequest;
 import com.johnny.hotel.dto.RegisterEmployeeRequest;
 import com.johnny.hotel.entity.SysRole;
 import com.johnny.hotel.entity.SysUser;
+import com.johnny.hotel.entity.SysAuditLog;
 import com.johnny.hotel.mapper.SysRoleMapper;
 import com.johnny.hotel.mapper.SysUserMapper;
 import com.johnny.hotel.mapper.SysUserRoleMapper;
+import com.johnny.hotel.mapper.SysAuditLogMapper;
 import com.johnny.hotel.service.SysUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,17 +30,20 @@ public class SysUserServiceImpl implements SysUserService {
     private final SysUserRoleMapper sysUserRoleMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final SysAuditLogMapper sysAuditLogMapper;
 
     public SysUserServiceImpl(SysUserMapper sysUserMapper,
                               SysRoleMapper sysRoleMapper,
                               SysUserRoleMapper sysUserRoleMapper,
                               PasswordEncoder passwordEncoder,
-                              JwtUtil JwtUtil) {
+                              JwtUtil JwtUtil,
+                              SysAuditLogMapper sysAuditLogMapper) {
         this.sysUserMapper = sysUserMapper;
         this.sysRoleMapper = sysRoleMapper;
         this.sysUserRoleMapper = sysUserRoleMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = JwtUtil;
+        this.sysAuditLogMapper = sysAuditLogMapper;
     }
 
     @Override
@@ -209,10 +214,32 @@ public class SysUserServiceImpl implements SysUserService {
                         .build())
                 .toList();
     }
+    private boolean canApprove(String approverRole, String applyRoleCode) {
+        return switch (approverRole) {
+            case "HR_ADMIN" -> "STAFF".equals(applyRoleCode);
+            case "MANAGER" -> "STAFF".equals(applyRoleCode)
+                    || "HR_ADMIN".equals(applyRoleCode);
+            case "OWNER" -> "STAFF".equals(applyRoleCode)
+                    || "HR_ADMIN".equals(applyRoleCode)
+                    || "MANAGER".equals(applyRoleCode);
+            case "SUPER_ADMIN" -> true;
+            default -> false;
+        };
+    }
+    private void checkApprovalPermission(Long currentUserId, String applyRoleCode) {
+        List<SysRole> approverRoles = sysRoleMapper.selectRolesByUserId(currentUserId);
+
+        boolean allowed = approverRoles.stream()
+                .anyMatch(role -> canApprove(role.getRoleCode(), applyRoleCode));
+
+        if (!allowed) {
+            throw new BusinessException("You do not have permission to approve this application");
+        }
+    }
 
     @Override
     @Transactional
-    public void approveUser(Long userId) {
+    public void approveUser(Long userId, Long currentUserId) {
         SysUser user = sysUserMapper.selectById(userId);
 
         if (user == null) {
@@ -223,20 +250,34 @@ public class SysUserServiceImpl implements SysUserService {
             throw new BusinessException("User is not pending approval");
         }
 
-        SysRole role = sysRoleMapper.selectByRoleCode(user.getApplyRoleCode());
+        String applyRoleCode = user.getApplyRoleCode();
+
+        if (applyRoleCode == null || applyRoleCode.isBlank()) {
+            throw new BusinessException("Applied role is missing");
+        }
+
+        checkApprovalPermission(currentUserId, applyRoleCode);
+
+        SysRole role = sysRoleMapper.selectByRoleCode(applyRoleCode);
 
         if (role == null) {
             throw new BusinessException("Applied role does not exist");
         }
 
-        sysUserMapper.updateUserStatus(userId, 1);
+        sysUserMapper.updateUserStatus(userId, 1, currentUserId);
 
         sysUserRoleMapper.insertUserRole(userId, role.getId());
+        sysAuditLogMapper.insert(SysAuditLog.builder()
+                .operatorId(currentUserId)
+                .targetUserId(userId)
+                .action("APPROVE_USER")
+                .detail("Approved user application for role: " + applyRoleCode)
+                .build());
     }
 
     @Override
     @Transactional
-    public void rejectUser(Long userId) {
+    public void rejectUser(Long userId, Long currentUserId) {
         SysUser user = sysUserMapper.selectById(userId);
 
         if (user == null) {
@@ -247,6 +288,81 @@ public class SysUserServiceImpl implements SysUserService {
             throw new BusinessException("User is not pending approval");
         }
 
-        sysUserMapper.updateUserStatus(userId, 3);
+        String applyRoleCode = user.getApplyRoleCode();
+
+        if (applyRoleCode == null || applyRoleCode.isBlank()) {
+            throw new BusinessException("Applied role is missing");
+        }
+
+        checkApprovalPermission(currentUserId, applyRoleCode);
+
+        sysUserMapper.updateUserStatus(userId, 3, currentUserId);
+        sysAuditLogMapper.insert(SysAuditLog.builder()
+                .operatorId(currentUserId)
+                .targetUserId(userId)
+                .action("REJECT_USER")
+                .detail("Rejected user application for role: " + applyRoleCode)
+                .build());
+    }
+    private boolean canManage(String operatorRole, String targetRole) {
+        return switch (operatorRole) {
+            case "HR_ADMIN" -> "STAFF".equals(targetRole);
+            case "MANAGER" -> "STAFF".equals(targetRole)
+                    || "HR_ADMIN".equals(targetRole);
+            case "OWNER" -> "STAFF".equals(targetRole)
+                    || "HR_ADMIN".equals(targetRole)
+                    || "MANAGER".equals(targetRole);
+            case "SUPER_ADMIN" -> true;
+            default -> false;
+        };
+    }
+    private void checkUserManagePermission(Long currentUserId, Long targetUserId) {
+        List<SysRole> operatorRoles = sysRoleMapper.selectRolesByUserId(currentUserId);
+        List<SysRole> targetRoles = sysRoleMapper.selectRolesByUserId(targetUserId);
+
+        boolean allowed = operatorRoles.stream()
+                .anyMatch(operatorRole ->
+                        targetRoles.stream()
+                                .anyMatch(targetRole ->
+                                        canManage(operatorRole.getRoleCode(), targetRole.getRoleCode())
+                                )
+                );
+        if (!allowed) {
+            throw new BusinessException("You do not have permission to manage this user");
+        }
+    }
+    public void enableUser(Long userId, Long currentUserId) {
+        SysUser user = sysUserMapper.selectById(userId);
+
+        if (user == null) {
+            throw new BusinessException("User does not exist");
+        }
+
+        checkUserManagePermission(currentUserId, userId);
+
+        sysUserMapper.updateStatusOnly(userId, 1);
+        sysAuditLogMapper.insert(SysAuditLog.builder()
+                .operatorId(currentUserId)
+                .targetUserId(userId)
+                .action("ENABLE_USER")
+                .detail("Enabled user account")
+                .build());
+    }
+    public void disableUser(Long userId, Long currentUserId) {
+        SysUser user = sysUserMapper.selectById(userId);
+
+        if (user == null) {
+            throw new BusinessException("User does not exist");
+        }
+
+        checkUserManagePermission(currentUserId, userId);
+
+        sysUserMapper.updateStatusOnly(userId, 0);
+        sysAuditLogMapper.insert(SysAuditLog.builder()
+                .operatorId(currentUserId)
+                .targetUserId(userId)
+                .action("DISABLE_USER")
+                .detail("Disabled user account")
+                .build());
     }
 }

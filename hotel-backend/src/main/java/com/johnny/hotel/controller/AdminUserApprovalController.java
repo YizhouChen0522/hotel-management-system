@@ -5,6 +5,7 @@ import com.johnny.hotel.service.SysUserService;
 import com.johnny.hotel.vo.PendingUserVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,15 +24,36 @@ public class AdminUserApprovalController {
 
     @PostMapping("/{userId}/approve")
     @PreAuthorize("hasAnyRole('HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
-    public Result<Void> approveUser(@PathVariable Long userId) {
-        sysUserService.approveUser(userId);
+    public Result<Void> approveUser(@PathVariable Long userId,
+                                    Authentication authentication) {
+        Long currentUserId = (Long) authentication.getDetails();
+        sysUserService.approveUser(userId, currentUserId);
         return Result.success();
     }
 
     @PostMapping("/{userId}/reject")
     @PreAuthorize("hasAnyRole('HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
-    public Result<Void> rejectUser(@PathVariable Long userId) {
-        sysUserService.rejectUser(userId);
+    public Result<Void> rejectUser(@PathVariable Long userId,
+                                   Authentication authentication) {
+        Long currentUserId = (Long) authentication.getDetails();
+        sysUserService.rejectUser(userId, currentUserId);
+        return Result.success();
+    }
+    @PostMapping("/{userId}/disable")
+    @PreAuthorize("hasAnyRole('HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    public Result<Void> disableUser(@PathVariable Long userId,
+                                    Authentication authentication) {
+        Long currentUserId = (Long) authentication.getDetails();
+        sysUserService.disableUser(userId, currentUserId);
+        return Result.success();
+    }
+
+    @PostMapping("/{userId}/enable")
+    @PreAuthorize("hasAnyRole('HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    public Result<Void> enableUser(@PathVariable Long userId,
+                                   Authentication authentication) {
+        Long currentUserId = (Long) authentication.getDetails();
+        sysUserService.enableUser(userId, currentUserId);
         return Result.success();
     }
 }

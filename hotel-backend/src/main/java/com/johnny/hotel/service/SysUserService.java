@@ -17,6 +17,8 @@ public interface SysUserService {
     LoginVO login(LoginRequest request);
     UserVO registerEmployee(RegisterEmployeeRequest request);
     List<PendingUserVO> getPendingUsers();
-    void approveUser(Long userId);
-    void rejectUser(Long userId);
+    void approveUser(Long userId,Long currentUserId);
+    void rejectUser(Long userId, Long currentUserId);
+    void enableUser(Long userId, Long currentUserId);
+    void disableUser(Long userId, Long currentUserId);
 }
