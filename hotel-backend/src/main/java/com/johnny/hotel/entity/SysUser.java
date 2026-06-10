@@ -20,7 +20,7 @@ public class SysUser implements Serializable {
     private String realName;
     private String phone;
     private String email;
-    private Integer status;
+    private Integer status; // 0: inactive, 1: active, 2: pending approval, 3: rejected
     private String applyRoleCode;
     private String applyReason;
     private Long approvedBy;
