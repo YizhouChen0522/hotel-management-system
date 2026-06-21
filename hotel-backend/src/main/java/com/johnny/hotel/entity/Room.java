@@ -16,7 +16,7 @@ public class Room {
     private String roomNumber;
     private Long roomTypeId;
     private Integer floor;
-    private Integer status; // 0: disabled, 1：available
+    private Integer status; // 0: disabled, 1：available, 2: occupied, 3: under maintenance
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

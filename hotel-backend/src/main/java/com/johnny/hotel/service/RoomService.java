@@ -16,4 +16,5 @@ public interface RoomService {
     List<RoomVO> getRoomsByFloor(Integer floor);
     void enableRoom(Long id);
     void disableRoom(Long id);
+    void setRoomMaintenance(Long id);
 }
