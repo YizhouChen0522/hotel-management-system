@@ -144,4 +144,13 @@ public class RoomServiceImpl implements RoomService {
 
         roomMapper.updateStatus(id, 0);
     }
+    @Override
+    @Transactional
+    public void setRoomMaintenance(Long id) {
+        if (roomMapper.selectById(id) == null) {
+            throw new BusinessException("Room does not exist");
+        }
+
+        roomMapper.updateStatus(id, 3);
+    }
 }

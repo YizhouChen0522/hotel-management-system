@@ -67,4 +67,11 @@ public class AdminRoomController {
         roomService.enableRoom(id);
         return Result.success();
     }
+    @PostMapping("/{id}/maintenance")
+    @PreAuthorize("hasAnyRole('MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    public Result<Void> setRoomMaintenance(@PathVariable Long id) {
+        roomService.setRoomMaintenance(id);
+        return Result.success();
+    }
+
 }
