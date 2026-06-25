@@ -17,4 +17,7 @@ public interface RoomService {
     void enableRoom(Long id);
     void disableRoom(Long id);
     void setRoomMaintenance(Long id);
+    void setRoomBooked(Long id);
+    void setRoomOccupied(Long id);
+    void setRoomAvailable(Long id);
 }
