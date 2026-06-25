@@ -129,28 +129,94 @@ public class RoomServiceImpl implements RoomService {
     @Override
     @Transactional
     public void enableRoom(Long id) {
-        if (roomMapper.selectById(id) == null) {
+        Room room = roomMapper.selectById(id);
+
+        if (room == null) {
             throw new BusinessException("Room does not exist");
+        }
+
+        if (room.getStatus() != 0) {
+            throw new BusinessException("Only disabled rooms can be enabled");
         }
 
         roomMapper.updateStatus(id, 1);
     }
+
     @Override
     @Transactional
     public void disableRoom(Long id) {
-        if (roomMapper.selectById(id) == null) {
+        Room room = roomMapper.selectById(id);
+
+        if (room == null) {
             throw new BusinessException("Room does not exist");
+        }
+
+        if (room.getStatus() == 4) {
+            throw new BusinessException("Occupied rooms cannot be disabled");
         }
 
         roomMapper.updateStatus(id, 0);
     }
+
     @Override
     @Transactional
     public void setRoomMaintenance(Long id) {
-        if (roomMapper.selectById(id) == null) {
+        Room room = roomMapper.selectById(id);
+
+        if (room == null) {
             throw new BusinessException("Room does not exist");
+        }
+
+        if (room.getStatus() == 0) {
+            throw new BusinessException("Disabled rooms cannot be set to maintenance");
         }
 
         roomMapper.updateStatus(id, 3);
     }
+
+    @Override
+    @Transactional
+    public void setRoomBooked(Long id) {
+        Room room = roomMapper.selectById(id);
+        if (room == null) {
+            throw new BusinessException("Room does not exist");
+        }
+
+        if (room.getStatus() != 1) {
+            throw new BusinessException("Only available rooms can be booked");
+        }
+        roomMapper.updateStatus(id, 2);
+    }
+    @Override
+    @Transactional
+    public void setRoomOccupied(Long id) {
+        Room room = roomMapper.selectById(id);
+
+        if (room == null) {
+            throw new BusinessException("Room does not exist");
+        }
+
+        if (room.getStatus() != 1 && room.getStatus() != 2) {
+            throw new BusinessException("Only available or booked rooms can be checked in");
+        }
+
+        roomMapper.updateStatus(id, 4);
+    }
+
+    @Override
+    @Transactional
+    public void setRoomAvailable(Long id) {
+        Room room = roomMapper.selectById(id);
+
+        if (room == null) {
+            throw new BusinessException("Room does not exist");
+        }
+
+        if (room.getStatus() != 2 && room.getStatus() != 3) {
+            throw new BusinessException("Only booked or maintenance rooms can become available");
+        }
+
+        roomMapper.updateStatus(id, 1);
+    }
+
 }

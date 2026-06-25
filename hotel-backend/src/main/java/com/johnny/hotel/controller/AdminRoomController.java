@@ -68,9 +68,29 @@ public class AdminRoomController {
         return Result.success();
     }
     @PostMapping("/{id}/maintenance")
-    @PreAuthorize("hasAnyRole('MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
     public Result<Void> setRoomMaintenance(@PathVariable Long id) {
         roomService.setRoomMaintenance(id);
+        return Result.success();
+    }
+    @PostMapping("/{id}/booked")
+    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    public Result<Void> setRoomBooked(@PathVariable Long id) {
+        roomService.setRoomBooked(id);
+        return Result.success();
+    }
+
+    @PostMapping("/{id}/occupied")
+    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    public Result<Void> setRoomOccupied(@PathVariable Long id) {
+        roomService.setRoomOccupied(id);
+        return Result.success();
+    }
+
+    @PostMapping("/{id}/available")
+    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    public Result<Void> setRoomAvailable(@PathVariable Long id) {
+        roomService.setRoomAvailable(id);
         return Result.success();
     }
 
