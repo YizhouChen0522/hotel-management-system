@@ -2,6 +2,7 @@ package com.johnny.hotel.mapper;
 import com.johnny.hotel.entity.Booking;
 import org.apache.ibatis.annotations.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Mapper
@@ -78,4 +79,50 @@ public interface BookingMapper {
     int approveBooking(@Param("id") Long id,
                        @Param("assignedRoomId") Long assignedRoomId,
                        @Param("status") Integer status);
+
+    @Select("""
+        SELECT *
+        FROM booking
+        WHERE status = #{status}
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{pageSize}
+        """)
+    List<Booking> selectPageByStatus(@Param("status") Integer status,
+                                     @Param("offset") Integer offset,
+                                     @Param("pageSize") Integer pageSize);
+
+    @Select("""
+        SELECT *
+        FROM booking
+        WHERE user_id = #{userId}
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{pageSize}
+        """)
+    List<Booking> selectPageByUserId(@Param("userId") Long userId,
+                                     @Param("offset") Integer offset,
+                                     @Param("pageSize") Integer pageSize);
+
+    @Select("""
+        SELECT *
+        FROM booking
+        WHERE check_in_date BETWEEN #{startDate} AND #{endDate}
+        ORDER BY check_in_date ASC
+        LIMIT #{offset}, #{pageSize}
+        """)
+    List<Booking> selectPageByCheckInDateRange(@Param("startDate") LocalDate startDate,
+                                               @Param("endDate") LocalDate endDate,
+                                               @Param("offset") Integer offset,
+                                               @Param("pageSize") Integer pageSize);
+
+    @Select("""
+        SELECT *
+        FROM booking
+        WHERE check_out_date BETWEEN #{startDate} AND #{endDate}
+        ORDER BY check_out_date ASC
+        LIMIT #{offset}, #{pageSize}
+        """)
+    List<Booking> selectPageByCheckOutDateRange(@Param("startDate") LocalDate startDate,
+                                                @Param("endDate") LocalDate endDate,
+                                                @Param("offset") Integer offset,
+                                                @Param("pageSize") Integer pageSize);
 }
