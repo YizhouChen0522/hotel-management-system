@@ -4,10 +4,12 @@ import com.johnny.hotel.dto.CreateBookingRequest;
 import com.johnny.hotel.entity.Booking;
 import com.johnny.hotel.entity.Room;
 import com.johnny.hotel.entity.RoomType;
+import com.johnny.hotel.entity.SysAuditLog;
 import com.johnny.hotel.exception.BusinessException;
 import com.johnny.hotel.mapper.BookingMapper;
 import com.johnny.hotel.mapper.RoomMapper;
 import com.johnny.hotel.mapper.RoomTypeMapper;
+import com.johnny.hotel.mapper.SysAuditLogMapper;
 import com.johnny.hotel.service.BookingService;
 import com.johnny.hotel.vo.BookingVO;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -25,6 +28,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingMapper bookingMapper;
     private final RoomTypeMapper roomTypeMapper;
     private final RoomMapper roomMapper;
+    private final SysAuditLogMapper sysAuditLogMapper;
 
     private BookingVO toVO(com.johnny.hotel.entity.Booking booking) {
         RoomType roomType = roomTypeMapper.selectById(booking.getRoomTypeId());
@@ -59,6 +63,16 @@ public class BookingServiceImpl implements BookingService {
 
         return toVO(booking);
     }
+    private void validateDateRange(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            throw new BusinessException("Start date and end date are required");
+        }
+
+        if (endDate.isBefore(startDate)) {
+            throw new BusinessException("End date cannot be before start date");
+        }
+    }
+
     @Override
     public List<BookingVO> getMyBookings(Long currentUserId) {
         return bookingMapper.selectByUserId(currentUserId)
@@ -148,7 +162,7 @@ public class BookingServiceImpl implements BookingService {
     }
     @Override
     @Transactional
-    public BookingVO approveBooking(Long bookingId, ApproveBookingRequest request) {
+    public BookingVO approveBooking(Long bookingId, ApproveBookingRequest request, Long currentUserId) {
         Booking booking = bookingMapper.selectById(bookingId);
 
         if (booking == null) {
@@ -174,15 +188,47 @@ public class BookingServiceImpl implements BookingService {
         }
 
         bookingMapper.approveBooking(bookingId, request.getAssignedRoomId(), 1);
-
         roomMapper.updateStatus(request.getAssignedRoomId(), 2);
+
+        sysAuditLogMapper.insert(SysAuditLog.builder()
+                .operatorId(currentUserId)
+                .targetUserId(booking.getUserId())
+                .action("APPROVE_BOOKING")
+                .detail("Approved booking id: " + bookingId
+                        + ", assigned room id: " + request.getAssignedRoomId())
+                .build());
 
         return getBookingById(bookingId);
     }
 
     @Override
     @Transactional
-    public BookingVO checkIn(Long bookingId) {
+    public BookingVO rejectBooking(Long bookingId, Long currentUserId) {
+        Booking booking = bookingMapper.selectById(bookingId);
+
+        if (booking == null) {
+            throw new BusinessException("Booking does not exist");
+        }
+
+        if (booking.getStatus() != 0) {
+            throw new BusinessException("Only pending bookings can be rejected");
+        }
+
+        bookingMapper.updateStatus(bookingId, 5);
+
+        sysAuditLogMapper.insert(SysAuditLog.builder()
+                .operatorId(currentUserId)
+                .targetUserId(booking.getUserId())
+                .action("REJECT_BOOKING")
+                .detail("Rejected booking id: " + bookingId)
+                .build());
+
+        return getBookingById(bookingId);
+    }
+
+    @Override
+    @Transactional
+    public BookingVO checkIn(Long bookingId, Long currentUserId) {
         Booking booking = bookingMapper.selectById(bookingId);
 
         if (booking == null) {
@@ -210,12 +256,20 @@ public class BookingServiceImpl implements BookingService {
         bookingMapper.updateStatus(bookingId, 2);
         roomMapper.updateStatus(room.getId(), 4);
 
+        sysAuditLogMapper.insert(SysAuditLog.builder()
+                .operatorId(currentUserId)
+                .targetUserId(booking.getUserId())
+                .action("CHECK_IN")
+                .detail("Checked in booking id: " + bookingId
+                        + ", room id: " + room.getId())
+                .build());
+
         return getBookingById(bookingId);
     }
 
     @Override
     @Transactional
-    public BookingVO checkOut(Long bookingId) {
+    public BookingVO checkOut(Long bookingId, Long currentUserId) {
         Booking booking = bookingMapper.selectById(bookingId);
 
         if (booking == null) {
@@ -232,6 +286,14 @@ public class BookingServiceImpl implements BookingService {
 
         bookingMapper.updateStatus(bookingId, 3);
         roomMapper.updateStatus(booking.getAssignedRoomId(), 3);
+
+        sysAuditLogMapper.insert(SysAuditLog.builder()
+                .operatorId(currentUserId)
+                .targetUserId(booking.getUserId())
+                .action("CHECK_OUT")
+                .detail("Checked out booking id: " + bookingId
+                        + ", room id: " + booking.getAssignedRoomId())
+                .build());
 
         return getBookingById(bookingId);
     }
@@ -263,7 +325,84 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
+        sysAuditLogMapper.insert(SysAuditLog.builder()
+                .operatorId(currentUserId)
+                .targetUserId(booking.getUserId())
+                .action("CANCEL_BOOKING")
+                .detail("Cancelled booking id: " + bookingId)
+                .build());
+
         return getBookingById(bookingId);
+    }
+    @Override
+    public List<BookingVO> getBookingsByStatus(Integer status, Integer page, Integer size) {
+        int safePage = page == null || page < 1 ? 1 : page;
+        int safeSize = size == null || size < 1 ? 50 : size;
+
+        if (safeSize > 100) {
+            safeSize = 100;
+        }
+
+        int offset = (safePage - 1) * safeSize;
+
+        return bookingMapper.selectPageByStatus(status, offset, safeSize)
+                .stream()
+                .map(this::toVO)
+                .toList();
+    }
+
+    @Override
+    public List<BookingVO> getBookingsByUserId(Long userId, Integer page, Integer size) {
+        int safePage = page == null || page < 1 ? 1 : page;
+        int safeSize = size == null || size < 1 ? 50 : size;
+
+        if (safeSize > 100) {
+            safeSize = 100;
+        }
+
+        int offset = (safePage - 1) * safeSize;
+
+        return bookingMapper.selectPageByUserId(userId, offset, safeSize)
+                .stream()
+                .map(this::toVO)
+                .toList();
+    }
+    @Override
+    public List<BookingVO> getBookingsByCheckInDateRange(LocalDate startDate, LocalDate endDate, Integer page, Integer size) {
+        validateDateRange(startDate, endDate);
+
+        int safePage = page == null || page < 1 ? 1 : page;
+        int safeSize = size == null || size < 1 ? 50 : size;
+
+        if (safeSize > 100) {
+            safeSize = 100;
+        }
+
+        int offset = (safePage - 1) * safeSize;
+
+        return bookingMapper.selectPageByCheckInDateRange(startDate, endDate, offset, safeSize)
+                .stream()
+                .map(this::toVO)
+                .toList();
+    }
+
+    @Override
+    public List<BookingVO> getBookingsByCheckOutDateRange(LocalDate startDate, LocalDate endDate, Integer page, Integer size) {
+        validateDateRange(startDate, endDate);
+
+        int safePage = page == null || page < 1 ? 1 : page;
+        int safeSize = size == null || size < 1 ? 50 : size;
+
+        if (safeSize > 100) {
+            safeSize = 100;
+        }
+
+        int offset = (safePage - 1) * safeSize;
+
+        return bookingMapper.selectPageByCheckOutDateRange(startDate, endDate, offset, safeSize)
+                .stream()
+                .map(this::toVO)
+                .toList();
     }
 
 
