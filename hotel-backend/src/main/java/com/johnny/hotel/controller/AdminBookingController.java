@@ -2,6 +2,7 @@ package com.johnny.hotel.controller;
 
 import com.johnny.hotel.common.Result;
 import com.johnny.hotel.dto.ApproveBookingRequest;
+import com.johnny.hotel.dto.ReassignRoomRequest;
 import com.johnny.hotel.service.BookingService;
 import com.johnny.hotel.vo.BookingVO;
 import jakarta.validation.Valid;
@@ -99,4 +100,47 @@ public class AdminBookingController {
                                                                   @RequestParam(defaultValue = "50") Integer size) {
         return Result.success(bookingService.getBookingsByCheckOutDateRange(startDate, endDate, page, size));
     }
+
+    @GetMapping("/{bookingId}")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    public Result<BookingVO> getBookingById(@PathVariable Long bookingId) {
+
+        return Result.success(
+                bookingService.getBookingByIdForAdmin(bookingId)
+        );
+    }
+
+    @PostMapping("/{bookingId}/cancel")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    public Result<BookingVO> cancelBookingByAdmin(@PathVariable Long bookingId,
+                                                  Authentication authentication) {
+
+        Long currentUserId = (Long) authentication.getDetails();
+
+        return Result.success(
+                bookingService.cancelBookingByAdmin(
+                        bookingId,
+                        currentUserId
+                )
+        );
+    }
+
+    @PutMapping("/{bookingId}/assigned-room")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    public Result<BookingVO> reassignRoom(@PathVariable Long bookingId,
+                                          @Valid @RequestBody ReassignRoomRequest request,
+                                          Authentication authentication) {
+
+        Long currentUserId = (Long) authentication.getDetails();
+
+        return Result.success(
+                bookingService.reassignRoom(
+                        bookingId,
+                        request,
+                        currentUserId
+                )
+        );
+    }
+
+
 }

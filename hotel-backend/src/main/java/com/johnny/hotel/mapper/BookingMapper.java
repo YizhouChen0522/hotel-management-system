@@ -125,4 +125,24 @@ public interface BookingMapper {
                                                 @Param("endDate") LocalDate endDate,
                                                 @Param("offset") Integer offset,
                                                 @Param("pageSize") Integer pageSize);
+    @Update("""
+        UPDATE booking
+        SET room_type_id = #{roomTypeId},
+            guest_count = #{guestCount},
+            check_in_date = #{checkInDate},
+            check_out_date = #{checkOutDate},
+            total_price = #{totalPrice},
+            update_time = NOW()
+        WHERE id = #{id}
+        """)
+    int updatePendingBooking(Booking booking);
+
+    @Update("""
+        UPDATE booking
+        SET assigned_room_id = #{roomId},
+            update_time = NOW()
+        WHERE id = #{bookingId}
+        """)
+    int updateAssignedRoom(@Param("bookingId") Long bookingId,
+                           @Param("roomId") Long roomId);
 }

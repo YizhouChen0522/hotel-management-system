@@ -1,6 +1,8 @@
 package com.johnny.hotel.service;
 import com.johnny.hotel.dto.ApproveBookingRequest;
 import com.johnny.hotel.dto.CreateBookingRequest;
+import com.johnny.hotel.dto.ReassignRoomRequest;
+import com.johnny.hotel.dto.UpdateBookingRequest;
 import com.johnny.hotel.vo.BookingVO;
 
 import java.time.LocalDate;
@@ -32,4 +34,19 @@ public interface BookingService {
     List<BookingVO> getBookingsByCheckInDateRange(LocalDate startDate, LocalDate endDate, Integer page, Integer size);
 
     List<BookingVO> getBookingsByCheckOutDateRange(LocalDate startDate, LocalDate endDate, Integer page, Integer size);
+
+    BookingVO getMyBookingById(Long bookingId, Long currentUserId);
+
+    BookingVO getBookingByIdForAdmin(Long bookingId);
+
+    BookingVO updateBooking(Long bookingId,
+                            UpdateBookingRequest request,
+                            Long currentUserId);
+
+    BookingVO cancelBookingByAdmin(Long bookingId,
+                                   Long currentUserId);
+
+    BookingVO reassignRoom(Long bookingId,
+                           ReassignRoomRequest request,
+                           Long currentUserId);
 }

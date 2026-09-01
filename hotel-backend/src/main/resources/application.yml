@@ -6,9 +6,9 @@ spring:
     name: hotel-backend
 
   datasource:
-    url: REMOVED_DB_URL?useUnicode=true&characterEncoding=utf-8&serverTimezone=America/Toronto
-    username: REMOVED_DB_USERNAME
-    password: REMOVED_DB_PASSWORD
+    url: ${DB_URL}?useUnicode=true&characterEncoding=utf-8&serverTimezone=America/Toronto
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 mybatis:

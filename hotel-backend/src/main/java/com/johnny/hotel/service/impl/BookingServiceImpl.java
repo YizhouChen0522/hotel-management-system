@@ -1,6 +1,8 @@
 package com.johnny.hotel.service.impl;
 import com.johnny.hotel.dto.ApproveBookingRequest;
 import com.johnny.hotel.dto.CreateBookingRequest;
+import com.johnny.hotel.dto.ReassignRoomRequest;
+import com.johnny.hotel.dto.UpdateBookingRequest;
 import com.johnny.hotel.entity.Booking;
 import com.johnny.hotel.entity.Room;
 import com.johnny.hotel.entity.RoomType;
@@ -54,7 +56,7 @@ public class BookingServiceImpl implements BookingService {
                 .updateTime(booking.getUpdateTime())
                 .build();
     }
-    private BookingVO getBookingById(Long id) {
+    private BookingVO getBookingByIdInternal(Long id) {
         Booking booking = bookingMapper.selectById(id);
 
         if (booking == null) {
@@ -158,7 +160,7 @@ public class BookingServiceImpl implements BookingService {
 
         bookingMapper.insert(booking);
 
-        return getBookingById(booking.getId());
+        return getBookingByIdInternal(booking.getId());
     }
     @Override
     @Transactional
@@ -198,7 +200,7 @@ public class BookingServiceImpl implements BookingService {
                         + ", assigned room id: " + request.getAssignedRoomId())
                 .build());
 
-        return getBookingById(bookingId);
+        return getBookingByIdInternal(bookingId);
     }
 
     @Override
@@ -223,7 +225,7 @@ public class BookingServiceImpl implements BookingService {
                 .detail("Rejected booking id: " + bookingId)
                 .build());
 
-        return getBookingById(bookingId);
+        return getBookingByIdInternal(bookingId);
     }
 
     @Override
@@ -264,7 +266,7 @@ public class BookingServiceImpl implements BookingService {
                         + ", room id: " + room.getId())
                 .build());
 
-        return getBookingById(bookingId);
+        return getBookingByIdInternal(bookingId);
     }
 
     @Override
@@ -295,7 +297,7 @@ public class BookingServiceImpl implements BookingService {
                         + ", room id: " + booking.getAssignedRoomId())
                 .build());
 
-        return getBookingById(bookingId);
+        return getBookingByIdInternal(bookingId);
     }
 
     @Override
@@ -332,7 +334,7 @@ public class BookingServiceImpl implements BookingService {
                 .detail("Cancelled booking id: " + bookingId)
                 .build());
 
-        return getBookingById(bookingId);
+        return getBookingByIdInternal(bookingId);
     }
     @Override
     public List<BookingVO> getBookingsByStatus(Integer status, Integer page, Integer size) {
@@ -405,5 +407,209 @@ public class BookingServiceImpl implements BookingService {
                 .toList();
     }
 
+    @Override
+    public BookingVO getMyBookingById(Long bookingId, Long currentUserId) {
+        Booking booking = bookingMapper.selectById(bookingId);
+
+        if (booking == null) {
+            throw new BusinessException("Booking does not exist");
+        }
+
+        if (!booking.getUserId().equals(currentUserId)) {
+            throw new BusinessException("You can only view your own booking");
+        }
+
+        return toVO(booking);
+    }
+
+    @Override
+    public BookingVO getBookingByIdForAdmin(Long bookingId) {
+        Booking booking = bookingMapper.selectById(bookingId);
+
+        if (booking == null) {
+            throw new BusinessException("Booking does not exist");
+        }
+
+        return toVO(booking);
+    }
+
+    @Override
+    @Transactional
+    public BookingVO updateBooking(Long bookingId,
+                                   UpdateBookingRequest request,
+                                   Long currentUserId) {
+
+        Booking booking = bookingMapper.selectById(bookingId);
+
+        if (booking == null) {
+            throw new BusinessException("Booking does not exist");
+        }
+
+        if (!booking.getUserId().equals(currentUserId)) {
+            throw new BusinessException("You can only update your own booking");
+        }
+
+        if (booking.getStatus() != 0) {
+            throw new BusinessException("Only pending bookings can be updated");
+        }
+
+        RoomType roomType = roomTypeMapper.selectById(request.getRoomTypeId());
+
+        if (roomType == null) {
+            throw new BusinessException("Room type does not exist");
+        }
+
+        if (roomType.getStatus() != 1) {
+            throw new BusinessException("Room type is not available");
+        }
+
+        if (request.getCheckOutDate().isBefore(request.getCheckInDate())
+                || request.getCheckOutDate().isEqual(request.getCheckInDate())) {
+            throw new BusinessException("Check-out date must be after check-in date");
+        }
+
+        if (request.getGuestCount() > roomType.getCapacity()) {
+            throw new BusinessException("Guest count exceeds room type capacity");
+        }
+
+        long nights = ChronoUnit.DAYS.between(
+                request.getCheckInDate(),
+                request.getCheckOutDate()
+        );
+
+        BigDecimal totalPrice = roomType.getBasePrice()
+                .multiply(BigDecimal.valueOf(nights));
+
+        Booking updatedBooking = Booking.builder()
+                .id(bookingId)
+                .roomTypeId(request.getRoomTypeId())
+                .guestCount(request.getGuestCount())
+                .checkInDate(request.getCheckInDate())
+                .checkOutDate(request.getCheckOutDate())
+                .totalPrice(totalPrice)
+                .build();
+
+        bookingMapper.updatePendingBooking(updatedBooking);
+
+        return getBookingByIdInternal(bookingId);
+    }
+
+    @Override
+    @Transactional
+    public BookingVO cancelBookingByAdmin(Long bookingId, Long currentUserId) {
+        Booking booking = bookingMapper.selectById(bookingId);
+
+        if (booking == null) {
+            throw new BusinessException("Booking does not exist");
+        }
+
+        if (booking.getStatus() == 2) {
+            throw new BusinessException("Checked-in bookings cannot be cancelled");
+        }
+
+        if (booking.getStatus() == 3) {
+            throw new BusinessException("Checked-out bookings cannot be cancelled");
+        }
+
+        if (booking.getStatus() == 4) {
+            throw new BusinessException("Booking is already cancelled");
+        }
+
+        if (booking.getStatus() == 5) {
+            throw new BusinessException("Rejected bookings cannot be cancelled");
+        }
+
+        if (booking.getAssignedRoomId() != null) {
+            Room room = roomMapper.selectById(booking.getAssignedRoomId());
+
+            if (room != null && room.getStatus() == 2) {
+                roomMapper.updateStatus(room.getId(), 1);
+            }
+        }
+
+        bookingMapper.updateStatus(bookingId, 4);
+
+        sysAuditLogMapper.insert(SysAuditLog.builder()
+                .operatorId(currentUserId)
+                .targetUserId(booking.getUserId())
+                .action("ADMIN_CANCEL_BOOKING")
+                .detail("Admin cancelled booking id: " + bookingId)
+                .build());
+
+        return getBookingByIdInternal(bookingId);
+    }
+
+    @Override
+    @Transactional
+    public BookingVO reassignRoom(Long bookingId,
+                                  ReassignRoomRequest request,
+                                  Long currentUserId) {
+
+        Booking booking = bookingMapper.selectById(bookingId);
+
+        if (booking == null) {
+            throw new BusinessException("Booking does not exist");
+        }
+
+        if (booking.getStatus() != 1) {
+            throw new BusinessException("Only approved bookings can have their room reassigned");
+        }
+
+        if (booking.getAssignedRoomId() == null) {
+            throw new BusinessException("Booking does not currently have an assigned room");
+        }
+
+        Room oldRoom = roomMapper.selectById(booking.getAssignedRoomId());
+
+        if (oldRoom == null) {
+            throw new BusinessException("Current assigned room does not exist");
+        }
+
+        Room newRoom = roomMapper.selectById(request.getRoomId());
+
+        if (newRoom == null) {
+            throw new BusinessException("New room does not exist");
+        }
+
+        if (newRoom.getId().equals(oldRoom.getId())) {
+            throw new BusinessException("New room is the same as the currently assigned room");
+        }
+
+        if (newRoom.getStatus() != 1) {
+            throw new BusinessException("New room must be available");
+        }
+
+        if (!newRoom.getRoomTypeId().equals(booking.getRoomTypeId())) {
+            throw new BusinessException("New room type does not match booking room type");
+        }
+
+
+        if (oldRoom.getStatus() == 2) {
+            roomMapper.updateStatus(oldRoom.getId(), 1);
+        } else {
+            throw new BusinessException("Current assigned room is not in booked status");
+        }
+
+
+        roomMapper.updateStatus(newRoom.getId(), 2);
+
+        bookingMapper.updateAssignedRoom(
+                bookingId,
+                newRoom.getId()
+        );
+
+        sysAuditLogMapper.insert(SysAuditLog.builder()
+                .operatorId(currentUserId)
+                .targetUserId(booking.getUserId())
+                .action("REASSIGN_BOOKING_ROOM")
+                .detail(
+                        "Booking id: " + bookingId
+                                + ", old room id: " + oldRoom.getId()
+                                + ", new room id: " + newRoom.getId()
+                )
+                .build());
+
+        return getBookingByIdInternal(bookingId);
+    }
 
 }

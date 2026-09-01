@@ -2,6 +2,7 @@ package com.johnny.hotel.controller;
 
 import com.johnny.hotel.common.Result;
 import com.johnny.hotel.dto.CreateBookingRequest;
+import com.johnny.hotel.dto.UpdateBookingRequest;
 import com.johnny.hotel.service.BookingService;
 import com.johnny.hotel.vo.BookingVO;
 import jakarta.validation.Valid;
@@ -39,5 +40,35 @@ public class BookingController {
                                            Authentication authentication) {
         Long currentUserId = (Long) authentication.getDetails();
         return Result.success(bookingService.cancelBooking(bookingId, currentUserId));
+    }
+    @GetMapping("/{bookingId}")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public Result<BookingVO> getMyBookingById(@PathVariable Long bookingId,
+                                              Authentication authentication) {
+
+        Long currentUserId = (Long) authentication.getDetails();
+
+        return Result.success(
+                bookingService.getMyBookingById(
+                        bookingId,
+                        currentUserId
+                )
+        );
+    }
+    @PutMapping("/{bookingId}")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public Result<BookingVO> updateBooking(@PathVariable Long bookingId,
+                                           @Valid @RequestBody UpdateBookingRequest request,
+                                           Authentication authentication) {
+
+        Long currentUserId = (Long) authentication.getDetails();
+
+        return Result.success(
+                bookingService.updateBooking(
+                        bookingId,
+                        request,
+                        currentUserId
+                )
+        );
     }
 }
