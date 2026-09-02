@@ -5,7 +5,10 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
-public class ReassignRoomRequest {
+public class ChangeBookingRoomTypeRequest {
+
+    @NotNull(message = "New room type id cannot be null")
+    private Long newRoomTypeId;
 
     @NotNull(message = "New room id cannot be null")
     private Long newRoomId;

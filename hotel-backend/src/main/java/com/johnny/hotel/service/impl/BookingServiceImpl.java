@@ -1,8 +1,5 @@
 package com.johnny.hotel.service.impl;
-import com.johnny.hotel.dto.ApproveBookingRequest;
-import com.johnny.hotel.dto.CreateBookingRequest;
-import com.johnny.hotel.dto.ReassignRoomRequest;
-import com.johnny.hotel.dto.UpdateBookingRequest;
+import com.johnny.hotel.dto.*;
 import com.johnny.hotel.entity.Booking;
 import com.johnny.hotel.entity.Room;
 import com.johnny.hotel.entity.RoomType;
@@ -21,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 
 @Service
@@ -73,6 +72,37 @@ public class BookingServiceImpl implements BookingService {
         if (endDate.isBefore(startDate)) {
             throw new BusinessException("End date cannot be before start date");
         }
+    }
+    private Map<Long, Room> lockRoomsInOrder(Long roomId1, Long roomId2) {
+
+        long firstId = Math.min(roomId1, roomId2);
+        long secondId = Math.max(roomId1, roomId2);
+
+        Map<Long, Room> lockedRooms = new HashMap<>();
+
+        Room firstRoom = roomMapper.selectByIdForUpdate(firstId);
+
+        if (firstRoom != null) {
+            lockedRooms.put(firstId, firstRoom);
+        }
+
+        if (firstId != secondId) {
+            Room secondRoom = roomMapper.selectByIdForUpdate(secondId);
+
+            if (secondRoom != null) {
+                lockedRooms.put(secondId, secondRoom);
+            }
+        }
+
+        return lockedRooms;
+    }
+    private String normalizeReason(String reason) {
+
+        if (reason == null || reason.isBlank()) {
+            return "Not provided";
+        }
+
+        return reason.trim();
     }
 
     @Override
@@ -162,43 +192,87 @@ public class BookingServiceImpl implements BookingService {
 
         return getBookingByIdInternal(booking.getId());
     }
+
     @Override
     @Transactional
-    public BookingVO approveBooking(Long bookingId, ApproveBookingRequest request, Long currentUserId) {
-        Booking booking = bookingMapper.selectById(bookingId);
+    public BookingVO approveBooking(Long bookingId,
+                                    ApproveBookingRequest request,
+                                    Long currentUserId) {
+
+        Booking booking =
+                bookingMapper.selectByIdForUpdate(bookingId);
 
         if (booking == null) {
             throw new BusinessException("Booking does not exist");
         }
 
         if (booking.getStatus() != 0) {
-            throw new BusinessException("Only pending bookings can be approved");
+            throw new BusinessException(
+                    "Only pending bookings can be approved"
+            );
         }
 
-        Room room = roomMapper.selectById(request.getAssignedRoomId());
+        Room room =
+                roomMapper.selectByIdForUpdate(
+                        request.getAssignedRoomId()
+                );
 
         if (room == null) {
-            throw new BusinessException("Assigned room does not exist");
+            throw new BusinessException("Room does not exist");
         }
 
         if (room.getStatus() != 1) {
-            throw new BusinessException("Only available rooms can be assigned");
+            throw new BusinessException(
+                    "Room is not available"
+            );
         }
 
-        if (!room.getRoomTypeId().equals(booking.getRoomTypeId())) {
-            throw new BusinessException("Assigned room type does not match booking room type");
+        if (!room.getRoomTypeId()
+                .equals(booking.getRoomTypeId())) {
+
+            throw new BusinessException(
+                    "Room type does not match booking room type"
+            );
         }
 
-        bookingMapper.approveBooking(bookingId, request.getAssignedRoomId(), 1);
-        roomMapper.updateStatus(request.getAssignedRoomId(), 2);
+        int bookingUpdated =
+                bookingMapper.approveBooking(
+                        bookingId,
+                        room.getId(),
+                        1
+                );
 
-        sysAuditLogMapper.insert(SysAuditLog.builder()
-                .operatorId(currentUserId)
-                .targetUserId(booking.getUserId())
-                .action("APPROVE_BOOKING")
-                .detail("Approved booking id: " + bookingId
-                        + ", assigned room id: " + request.getAssignedRoomId())
-                .build());
+        if (bookingUpdated != 1) {
+            throw new BusinessException(
+                    "Failed to approve booking"
+            );
+        }
+
+        int roomUpdated =
+                roomMapper.updateStatus(
+                        room.getId(),
+                        2
+                );
+
+        if (roomUpdated != 1) {
+            throw new BusinessException(
+                    "Failed to update room status"
+            );
+        }
+
+        sysAuditLogMapper.insert(
+                SysAuditLog.builder()
+                        .operatorId(currentUserId)
+                        .targetUserId(booking.getUserId())
+                        .action("APPROVE_BOOKING")
+                        .detail(
+                                "Booking id: "
+                                        + bookingId
+                                        + ", assigned room id: "
+                                        + room.getId()
+                        )
+                        .build()
+        );
 
         return getBookingByIdInternal(bookingId);
     }
@@ -545,69 +619,316 @@ public class BookingServiceImpl implements BookingService {
                                   ReassignRoomRequest request,
                                   Long currentUserId) {
 
-        Booking booking = bookingMapper.selectById(bookingId);
+        Booking booking =
+                bookingMapper.selectByIdForUpdate(bookingId);
 
         if (booking == null) {
             throw new BusinessException("Booking does not exist");
         }
 
         if (booking.getStatus() != 1) {
-            throw new BusinessException("Only approved bookings can have their room reassigned");
+            throw new BusinessException(
+                    "Only approved bookings can have their room reassigned"
+            );
+        }
+
+        Long oldRoomId = booking.getAssignedRoomId();
+        Long newRoomId = request.getNewRoomId();
+
+        if (oldRoomId == null) {
+            throw new BusinessException(
+                    "Booking does not currently have an assigned room"
+            );
+        }
+
+        if (oldRoomId.equals(newRoomId)) {
+            throw new BusinessException(
+                    "New room is the same as the currently assigned room"
+            );
+        }
+
+        Map<Long, Room> lockedRooms =
+                lockRoomsInOrder(oldRoomId, newRoomId);
+
+        Room oldRoom = lockedRooms.get(oldRoomId);
+        Room newRoom = lockedRooms.get(newRoomId);
+
+        if (oldRoom == null) {
+            throw new BusinessException(
+                    "Currently assigned room does not exist"
+            );
+        }
+
+        if (newRoom == null) {
+            throw new BusinessException(
+                    "New room does not exist"
+            );
+        }
+
+        if (oldRoom.getStatus() != 2) {
+            throw new BusinessException(
+                    "Currently assigned room is not in booked status"
+            );
+        }
+
+
+        if (newRoom.getStatus() != 1) {
+            throw new BusinessException(
+                    "New room is not available"
+            );
+        }
+
+        if (!newRoom.getRoomTypeId()
+                .equals(booking.getRoomTypeId())) {
+
+            throw new BusinessException(
+                    "New room type must match booking room type"
+            );
+        }
+
+        int oldRoomUpdated =
+                roomMapper.updateStatus(oldRoomId, 1);
+
+        if (oldRoomUpdated != 1) {
+            throw new BusinessException(
+                    "Failed to release previously assigned room"
+            );
+        }
+
+        int newRoomUpdated =
+                roomMapper.updateStatus(newRoomId, 2);
+
+        if (newRoomUpdated != 1) {
+            throw new BusinessException(
+                    "Failed to reserve new room"
+            );
+        }
+
+        int bookingUpdated =
+                bookingMapper.updateAssignedRoom(
+                        bookingId,
+                        newRoomId
+                );
+
+        if (bookingUpdated != 1) {
+            throw new BusinessException(
+                    "Failed to update assigned room"
+            );
+        }
+
+        String reason = normalizeReason(request.getReason());
+
+        sysAuditLogMapper.insert(
+                SysAuditLog.builder()
+                        .operatorId(currentUserId)
+                        .targetUserId(booking.getUserId())
+                        .action("REASSIGN_BOOKING_ROOM")
+                        .detail(
+                                "Booking id: " + bookingId
+                                        + ", old room id: " + oldRoomId
+                                        + ", new room id: " + newRoomId
+                                        + ", reason: " + reason
+                        )
+                        .build()
+        );
+
+        return getBookingByIdInternal(bookingId);
+    }
+
+    @Override
+    @Transactional
+    public BookingVO changeRoomType(Long bookingId,
+                                    ChangeBookingRoomTypeRequest request,
+                                    Long currentUserId) {
+
+        Booking booking =
+                bookingMapper.selectByIdForUpdate(bookingId);
+
+        if (booking == null) {
+            throw new BusinessException("Booking does not exist");
+        }
+
+        if (booking.getStatus() != 1) {
+            throw new BusinessException(
+                    "Only approved bookings can change room type"
+            );
         }
 
         if (booking.getAssignedRoomId() == null) {
-            throw new BusinessException("Booking does not currently have an assigned room");
+            throw new BusinessException(
+                    "Booking does not currently have an assigned room"
+            );
         }
 
-        Room oldRoom = roomMapper.selectById(booking.getAssignedRoomId());
+        Long oldRoomId = booking.getAssignedRoomId();
+        Long newRoomId = request.getNewRoomId();
+
+        if (oldRoomId.equals(newRoomId)) {
+            throw new BusinessException(
+                    "New room must be different from the currently assigned room"
+            );
+        }
+
+        RoomType newRoomType =
+                roomTypeMapper.selectById(
+                        request.getNewRoomTypeId()
+                );
+
+        if (newRoomType == null) {
+            throw new BusinessException(
+                    "New room type does not exist"
+            );
+        }
+
+        if (newRoomType.getStatus() != 1) {
+            throw new BusinessException(
+                    "New room type is disabled"
+            );
+        }
+
+        if (newRoomType.getId()
+                .equals(booking.getRoomTypeId())) {
+
+            throw new BusinessException(
+                    "New room type is the same as the current room type; use room reassignment instead"
+            );
+        }
+
+        if (booking.getGuestCount()
+                > newRoomType.getCapacity()) {
+
+            throw new BusinessException(
+                    "Guest count exceeds new room type capacity"
+            );
+        }
+
+        Map<Long, Room> lockedRooms =
+                lockRoomsInOrder(oldRoomId, newRoomId);
+
+        Room oldRoom =
+                lockedRooms.get(oldRoomId);
+
+        Room newRoom =
+                lockedRooms.get(newRoomId);
 
         if (oldRoom == null) {
-            throw new BusinessException("Current assigned room does not exist");
+            throw new BusinessException(
+                    "Currently assigned room does not exist"
+            );
         }
-
-        Room newRoom = roomMapper.selectById(request.getRoomId());
 
         if (newRoom == null) {
-            throw new BusinessException("New room does not exist");
+            throw new BusinessException(
+                    "New room does not exist"
+            );
         }
 
-        if (newRoom.getId().equals(oldRoom.getId())) {
-            throw new BusinessException("New room is the same as the currently assigned room");
+        if (oldRoom.getStatus() != 2) {
+            throw new BusinessException(
+                    "Currently assigned room is not in booked status"
+            );
         }
 
         if (newRoom.getStatus() != 1) {
-            throw new BusinessException("New room must be available");
+            throw new BusinessException(
+                    "New room is not available"
+            );
         }
 
-        if (!newRoom.getRoomTypeId().equals(booking.getRoomTypeId())) {
-            throw new BusinessException("New room type does not match booking room type");
+        if (!newRoom.getRoomTypeId()
+                .equals(newRoomType.getId())) {
+
+            throw new BusinessException(
+                    "New room does not belong to the selected room type"
+            );
         }
 
+        long nights =
+                ChronoUnit.DAYS.between(
+                        booking.getCheckInDate(),
+                        booking.getCheckOutDate()
+                );
 
-        if (oldRoom.getStatus() == 2) {
-            roomMapper.updateStatus(oldRoom.getId(), 1);
-        } else {
-            throw new BusinessException("Current assigned room is not in booked status");
+        if (nights <= 0) {
+            throw new BusinessException(
+                    "Invalid booking date range"
+            );
         }
 
+        BigDecimal oldTotalPrice =
+                booking.getTotalPrice();
 
-        roomMapper.updateStatus(newRoom.getId(), 2);
+        BigDecimal newTotalPrice =
+                newRoomType.getBasePrice()
+                        .multiply(
+                                BigDecimal.valueOf(nights)
+                        );
 
-        bookingMapper.updateAssignedRoom(
-                bookingId,
-                newRoom.getId()
+        int oldRoomUpdated =
+                roomMapper.updateStatus(
+                        oldRoomId,
+                        1
+                );
+
+        if (oldRoomUpdated != 1) {
+            throw new BusinessException(
+                    "Failed to release previously assigned room"
+            );
+        }
+
+        int newRoomUpdated =
+                roomMapper.updateStatus(
+                        newRoomId,
+                        2
+                );
+
+        if (newRoomUpdated != 1) {
+            throw new BusinessException(
+                    "Failed to reserve new room"
+            );
+        }
+
+        int bookingUpdated =
+                bookingMapper.updateRoomTypeAndAssignedRoom(
+                        bookingId,
+                        newRoomType.getId(),
+                        newRoomId,
+                        newTotalPrice
+                );
+
+        if (bookingUpdated != 1) {
+            throw new BusinessException(
+                    "Failed to update booking room type"
+            );
+        }
+
+        String reason =
+                normalizeReason(request.getReason());
+
+        sysAuditLogMapper.insert(
+                SysAuditLog.builder()
+                        .operatorId(currentUserId)
+                        .targetUserId(booking.getUserId())
+                        .action("CHANGE_BOOKING_ROOM_TYPE")
+                        .detail(
+                                "Booking id: " + bookingId
+                                        + ", old room type id: "
+                                        + booking.getRoomTypeId()
+                                        + ", new room type id: "
+                                        + newRoomType.getId()
+                                        + ", old room id: "
+                                        + oldRoomId
+                                        + ", new room id: "
+                                        + newRoomId
+                                        + ", old total price: "
+                                        + oldTotalPrice
+                                        + ", new total price: "
+                                        + newTotalPrice
+                                        + ", reason: "
+                                        + reason
+                        )
+                        .build()
         );
-
-        sysAuditLogMapper.insert(SysAuditLog.builder()
-                .operatorId(currentUserId)
-                .targetUserId(booking.getUserId())
-                .action("REASSIGN_BOOKING_ROOM")
-                .detail(
-                        "Booking id: " + bookingId
-                                + ", old room id: " + oldRoom.getId()
-                                + ", new room id: " + newRoom.getId()
-                )
-                .build());
 
         return getBookingByIdInternal(bookingId);
     }

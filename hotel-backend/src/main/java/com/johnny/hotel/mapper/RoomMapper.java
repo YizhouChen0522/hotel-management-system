@@ -58,4 +58,12 @@ public interface RoomMapper {
             WHERE id = #{id}
             """)
     int updateStatus(@Param("id") Long id, @Param("status") Integer status);
+
+    @Select("""
+        SELECT *
+        FROM room
+        WHERE id = #{id}
+        FOR UPDATE
+        """)
+    Room selectByIdForUpdate(@Param("id") Long id);
 }

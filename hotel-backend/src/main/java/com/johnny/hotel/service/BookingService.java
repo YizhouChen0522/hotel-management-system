@@ -3,6 +3,7 @@ import com.johnny.hotel.dto.ApproveBookingRequest;
 import com.johnny.hotel.dto.CreateBookingRequest;
 import com.johnny.hotel.dto.ReassignRoomRequest;
 import com.johnny.hotel.dto.UpdateBookingRequest;
+import com.johnny.hotel.dto.ChangeBookingRoomTypeRequest;
 import com.johnny.hotel.vo.BookingVO;
 
 import java.time.LocalDate;
@@ -49,4 +50,8 @@ public interface BookingService {
     BookingVO reassignRoom(Long bookingId,
                            ReassignRoomRequest request,
                            Long currentUserId);
+
+    BookingVO changeRoomType(Long bookingId,
+                             ChangeBookingRoomTypeRequest request,
+                             Long currentUserId);
 }

@@ -2,6 +2,7 @@ package com.johnny.hotel.mapper;
 import com.johnny.hotel.entity.Booking;
 import org.apache.ibatis.annotations.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -139,10 +140,33 @@ public interface BookingMapper {
 
     @Update("""
         UPDATE booking
-        SET assigned_room_id = #{roomId},
+        SET assigned_room_id = #{newRoomId},
             update_time = NOW()
         WHERE id = #{bookingId}
         """)
     int updateAssignedRoom(@Param("bookingId") Long bookingId,
-                           @Param("roomId") Long roomId);
+                           @Param("newRoomId") Long newRoomId);
+
+    @Select("""
+        SELECT *
+        FROM booking
+        WHERE id = #{id}
+        FOR UPDATE
+        """)
+    Booking selectByIdForUpdate(@Param("id") Long id);
+
+    @Update("""
+        UPDATE booking
+        SET room_type_id = #{newRoomTypeId},
+            assigned_room_id = #{newRoomId},
+            total_price = #{newTotalPrice},
+            update_time = NOW()
+        WHERE id = #{bookingId}
+        """)
+    int updateRoomTypeAndAssignedRoom(
+            @Param("bookingId") Long bookingId,
+            @Param("newRoomTypeId") Long newRoomTypeId,
+            @Param("newRoomId") Long newRoomId,
+            @Param("newTotalPrice") BigDecimal newTotalPrice
+    );
 }
