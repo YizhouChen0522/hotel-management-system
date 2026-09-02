@@ -16,6 +16,11 @@ mybatis:
   type-aliases-package: com.johnny.hotel.entity
   configuration:
     map-underscore-to-camel-case: true
+
 logging:
   level:
     com.johnny.hotel: debug
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 86400000
