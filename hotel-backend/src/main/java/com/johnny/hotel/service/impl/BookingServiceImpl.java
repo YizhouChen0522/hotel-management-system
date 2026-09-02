@@ -11,6 +11,7 @@ import com.johnny.hotel.mapper.RoomTypeMapper;
 import com.johnny.hotel.mapper.SysAuditLogMapper;
 import com.johnny.hotel.service.BookingService;
 import com.johnny.hotel.vo.BookingVO;
+import com.johnny.hotel.service.BookingPricingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,7 @@ public class BookingServiceImpl implements BookingService {
     private final RoomTypeMapper roomTypeMapper;
     private final RoomMapper roomMapper;
     private final SysAuditLogMapper sysAuditLogMapper;
+    private final BookingPricingService bookingPricingService;
 
     private BookingVO toVO(com.johnny.hotel.entity.Booking booking) {
         RoomType roomType = roomTypeMapper.selectById(booking.getRoomTypeId());
@@ -149,48 +151,74 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     @Transactional
-    public BookingVO createBooking(CreateBookingRequest request, Long currentUserId) {
-        RoomType roomType = roomTypeMapper.selectById(request.getRoomTypeId());
+    public BookingVO createBooking(CreateBookingRequest request,
+                                   Long currentUserId) {
+
+        RoomType roomType =
+                roomTypeMapper.selectById(request.getRoomTypeId());
 
         if (roomType == null) {
-            throw new BusinessException("Room type does not exist");
+            throw new BusinessException(
+                    "Room type does not exist"
+            );
         }
 
         if (roomType.getStatus() != 1) {
-            throw new BusinessException("Room type is not available");
-        }
-
-        if (request.getCheckOutDate().isBefore(request.getCheckInDate())
-                || request.getCheckOutDate().isEqual(request.getCheckInDate())) {
-            throw new BusinessException("Check-out date must be after check-in date");
+            throw new BusinessException(
+                    "Room type is disabled"
+            );
         }
 
         if (request.getGuestCount() > roomType.getCapacity()) {
-            throw new BusinessException("Guest count exceeds room type capacity");
+            throw new BusinessException(
+                    "Guest count exceeds room type capacity"
+            );
         }
 
-        long nights = ChronoUnit.DAYS.between(
-                request.getCheckInDate(),
-                request.getCheckOutDate()
+        if (!request.getCheckOutDate()
+                .isAfter(request.getCheckInDate())) {
+
+            throw new BusinessException(
+                    "Check-out date must be after check-in date"
+            );
+        }
+
+        Booking booking = new Booking();
+
+        booking.setUserId(currentUserId);
+        booking.setRoomTypeId(request.getRoomTypeId());
+        booking.setAssignedRoomId(null);
+        booking.setGuestCount(request.getGuestCount());
+        booking.setCheckInDate(request.getCheckInDate());
+        booking.setCheckOutDate(request.getCheckOutDate());
+        
+        booking.setStatus(0);
+
+
+        booking.setTotalPrice(BigDecimal.ZERO);
+
+        int inserted =
+                bookingMapper.insert(booking);
+
+        if (inserted != 1
+                || booking.getId() == null) {
+
+            throw new BusinessException(
+                    "Failed to create booking"
+            );
+        }
+
+        bookingPricingService.createPriceVersion(
+                booking.getId(),
+                booking.getRoomTypeId(),
+                "ORIGINAL_BOOKING",
+                "Initial booking price",
+                currentUserId
         );
 
-        BigDecimal totalPrice = roomType.getBasePrice()
-                .multiply(BigDecimal.valueOf(nights));
-
-        Booking booking = Booking.builder()
-                .userId(currentUserId)
-                .roomTypeId(request.getRoomTypeId())
-                .assignedRoomId(null)
-                .guestCount(request.getGuestCount())
-                .checkInDate(request.getCheckInDate())
-                .checkOutDate(request.getCheckOutDate())
-                .status(0)
-                .totalPrice(totalPrice)
-                .build();
-
-        bookingMapper.insert(booking);
-
-        return getBookingByIdInternal(booking.getId());
+        return getBookingByIdInternal(
+                booking.getId()
+        );
     }
 
     @Override

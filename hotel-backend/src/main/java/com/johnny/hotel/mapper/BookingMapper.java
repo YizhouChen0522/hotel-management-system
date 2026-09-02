@@ -169,4 +169,15 @@ public interface BookingMapper {
             @Param("newRoomId") Long newRoomId,
             @Param("newTotalPrice") BigDecimal newTotalPrice
     );
+
+    @Update("""
+        UPDATE booking
+        SET total_price = #{totalPrice},
+            update_time = NOW()
+        WHERE id = #{bookingId}
+        """)
+    int updateTotalPrice(
+            @Param("bookingId") Long bookingId,
+            @Param("totalPrice") BigDecimal totalPrice
+    );
 }
