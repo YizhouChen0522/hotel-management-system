@@ -30,3 +30,6 @@ logging:
 jwt:
   secret: ${JWT_SECRET}
   expiration: 86400000
+
+hotel:
+  currency: CNY

@@ -1,9 +1,5 @@
 package com.johnny.hotel.service;
-import com.johnny.hotel.dto.ApproveBookingRequest;
-import com.johnny.hotel.dto.CreateBookingRequest;
-import com.johnny.hotel.dto.ReassignRoomRequest;
-import com.johnny.hotel.dto.UpdateBookingRequest;
-import com.johnny.hotel.dto.ChangeBookingRoomTypeRequest;
+import com.johnny.hotel.dto.*;
 import com.johnny.hotel.vo.BookingVO;
 
 import java.time.LocalDate;
@@ -40,18 +36,13 @@ public interface BookingService {
 
     BookingVO getBookingByIdForAdmin(Long bookingId);
 
-    BookingVO updateBooking(Long bookingId,
-                            UpdateBookingRequest request,
-                            Long currentUserId);
+    BookingVO updateBooking(Long bookingId, UpdateBookingRequest request, Long currentUserId);
 
-    BookingVO cancelBookingByAdmin(Long bookingId,
-                                   Long currentUserId);
+    BookingVO cancelBookingByAdmin(Long bookingId, Long currentUserId);
 
-    BookingVO reassignRoom(Long bookingId,
-                           ReassignRoomRequest request,
-                           Long currentUserId);
+    BookingVO reassignRoom(Long bookingId, ReassignRoomRequest request, Long currentUserId);
 
-    BookingVO changeRoomType(Long bookingId,
-                             ChangeBookingRoomTypeRequest request,
-                             Long currentUserId);
+    BookingVO changeRoomType(Long bookingId, ChangeBookingRoomTypeRequest request, Long currentUserId);
+
+    BookingVO changeRoomDuringStay(Long bookingId, ChangeRoomDuringStayRequest request, Long currentUserId);
 }

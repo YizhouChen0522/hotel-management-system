@@ -3,6 +3,7 @@ package com.johnny.hotel.controller;
 import com.johnny.hotel.common.Result;
 import com.johnny.hotel.dto.ApproveBookingRequest;
 import com.johnny.hotel.dto.ChangeBookingRoomTypeRequest;
+import com.johnny.hotel.dto.ChangeRoomDuringStayRequest;
 import com.johnny.hotel.dto.ReassignRoomRequest;
 import com.johnny.hotel.service.BookingService;
 import com.johnny.hotel.vo.BookingVO;
@@ -154,6 +155,28 @@ public class AdminBookingController {
 
         return Result.success(
                 bookingService.changeRoomType(
+                        bookingId,
+                        request,
+                        currentUserId
+                )
+        );
+    }
+
+    @PutMapping("/{bookingId}/room-during-stay")
+    @PreAuthorize(
+            "hasAnyRole('STAFF','MANAGER','OWNER','SUPER_ADMIN')"
+    )
+    public Result<BookingVO> changeRoomDuringStay(
+            @PathVariable Long bookingId,
+            @Valid @RequestBody
+            ChangeRoomDuringStayRequest request,
+            Authentication authentication) {
+
+        Long currentUserId =
+                (Long) authentication.getDetails();
+
+        return Result.success(
+                bookingService.changeRoomDuringStay(
                         bookingId,
                         request,
                         currentUserId

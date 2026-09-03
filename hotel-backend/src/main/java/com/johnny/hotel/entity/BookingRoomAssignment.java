@@ -3,28 +3,27 @@ package com.johnny.hotel.entity;
 import lombok.Builder;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
 @Builder
-public class BookingPriceVersion {
+public class BookingRoomAssignment {
 
     private Long id;
 
     private Long bookingId;
 
-    private Integer versionNo;
+    private Long roomId;
 
-    private String changeType;
+    private Long roomTypeId;
 
-    private String reason;
+    private String assignmentType;
 
-    private Integer isActive;
+    private LocalDateTime startTime;
 
-    private BigDecimal totalPrice;
+    private LocalDateTime endTime;
 
-    private String currency;
+    private String changeReason;
 
     private Long createdBy;
 

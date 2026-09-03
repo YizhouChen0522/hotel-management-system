@@ -61,14 +61,17 @@ public interface BookingMapper {
         """)
     List<Booking> selectPendingPage(@Param("offset") Integer offset,
                                     @Param("pageSize") Integer pageSize);
+
     @Update("""
-            UPDATE booking
-            SET status = #{status},
-                update_time = NOW()
-            WHERE id = #{id}
-            """)
-    int updateStatus(@Param("id") Long id,
-                     @Param("status") Integer status);
+        UPDATE booking
+        SET status = #{status},
+            update_time = NOW()
+        WHERE id = #{bookingId}
+        """)
+    int updateStatus(
+            @Param("bookingId") Long bookingId,
+            @Param("status") Integer status
+    );
 
     @Update("""
             UPDATE booking
@@ -126,17 +129,6 @@ public interface BookingMapper {
                                                 @Param("endDate") LocalDate endDate,
                                                 @Param("offset") Integer offset,
                                                 @Param("pageSize") Integer pageSize);
-    @Update("""
-        UPDATE booking
-        SET room_type_id = #{roomTypeId},
-            guest_count = #{guestCount},
-            check_in_date = #{checkInDate},
-            check_out_date = #{checkOutDate},
-            total_price = #{totalPrice},
-            update_time = NOW()
-        WHERE id = #{id}
-        """)
-    int updatePendingBooking(Booking booking);
 
     @Update("""
         UPDATE booking
@@ -159,15 +151,13 @@ public interface BookingMapper {
         UPDATE booking
         SET room_type_id = #{newRoomTypeId},
             assigned_room_id = #{newRoomId},
-            total_price = #{newTotalPrice},
             update_time = NOW()
         WHERE id = #{bookingId}
         """)
     int updateRoomTypeAndAssignedRoom(
             @Param("bookingId") Long bookingId,
             @Param("newRoomTypeId") Long newRoomTypeId,
-            @Param("newRoomId") Long newRoomId,
-            @Param("newTotalPrice") BigDecimal newTotalPrice
+            @Param("newRoomId") Long newRoomId
     );
 
     @Update("""
@@ -179,5 +169,21 @@ public interface BookingMapper {
     int updateTotalPrice(
             @Param("bookingId") Long bookingId,
             @Param("totalPrice") BigDecimal totalPrice
+    );
+    @Update("""
+        UPDATE booking
+        SET room_type_id = #{roomTypeId},
+            guest_count = #{guestCount},
+            check_in_date = #{checkInDate},
+            check_out_date = #{checkOutDate},
+            update_time = NOW()
+        WHERE id = #{bookingId}
+        """)
+    int updatePendingBookingDetails(
+            @Param("bookingId") Long bookingId,
+            @Param("roomTypeId") Long roomTypeId,
+            @Param("guestCount") Integer guestCount,
+            @Param("checkInDate") LocalDate checkInDate,
+            @Param("checkOutDate") LocalDate checkOutDate
     );
 }

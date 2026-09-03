@@ -4,10 +4,15 @@ import com.johnny.hotel.entity.BookingPriceVersion;
 
 public interface BookingPricingService {
 
-    BookingPriceVersion createPriceVersion(
+    BookingPriceVersion createFullRepriceVersion(
             Long bookingId,
             Long roomTypeId,
             String changeType,
+            String reason,
+            Long operatorId
+    );
+    BookingPriceVersion createDateChangeVersion(
+            Long bookingId,
             String reason,
             Long operatorId
     );
