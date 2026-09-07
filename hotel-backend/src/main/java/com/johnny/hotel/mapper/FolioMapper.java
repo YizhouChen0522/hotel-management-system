@@ -84,4 +84,14 @@ public interface FolioMapper {
             @Param("status") String status,
             @Param("settledTime") java.time.LocalDateTime settledTime
     );
+
+    @Select("""
+        SELECT *
+        FROM folio
+        WHERE id = #{folioId}
+        FOR UPDATE
+        """)
+    Folio selectByIdForUpdate(
+            @Param("folioId") Long folioId
+    );
 }

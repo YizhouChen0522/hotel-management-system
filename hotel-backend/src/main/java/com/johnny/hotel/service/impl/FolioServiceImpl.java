@@ -235,11 +235,15 @@ public class FolioServiceImpl implements FolioService {
     @Override
     @Transactional
     public void applyRoomChangeBilling(RoomChangeBillingCommand command) {
+        Booking booking = bookingMapper.selectByIdForUpdate(command.getBookingId());
 
-        Folio folio =
-                folioMapper.selectByBookingIdForUpdate(
-                        command.getBookingId()
-                );
+        if (booking == null) {
+            throw new BusinessException(
+                    "Booking does not exist"
+            );
+        }
+
+        Folio folio = folioMapper.selectByBookingIdForUpdate(command.getBookingId());
 
         if (folio == null) {
             throw new BusinessException(

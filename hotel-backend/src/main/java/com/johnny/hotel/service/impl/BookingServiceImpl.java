@@ -208,12 +208,27 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
+        /*
+         * 创建 V1 原始价格版本。
+         */
         bookingPricingService.createFullRepriceVersion(
                 booking.getId(),
                 booking.getRoomTypeId(),
                 "ORIGINAL_BOOKING",
                 "Initial booking price",
                 currentUserId
+        );
+
+        /*
+         * 为新 Booking 创建空 Folio创建 Folio 不代表已经收费。
+         * 此时：
+         * totalAmount = 0
+         * paidAmount = 0
+         * balanceAmount = 0
+         * status = OPEN
+         */
+        folioService.ensureFolioExists(
+                booking.getId()
         );
 
         return getBookingByIdInternal(

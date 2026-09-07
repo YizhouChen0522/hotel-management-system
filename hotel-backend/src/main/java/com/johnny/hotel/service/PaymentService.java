@@ -6,7 +6,7 @@ import com.johnny.hotel.entity.Payment;
 public interface PaymentService {
 
     Payment recordPayment(
-            Long bookingId,
+            Long folioId,
             RecordPaymentRequest request,
             Long operatorId
     );

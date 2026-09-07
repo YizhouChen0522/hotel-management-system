@@ -35,4 +35,6 @@ public class Payment {
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
+
+    private String requestKey;
 }

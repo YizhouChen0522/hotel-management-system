@@ -10,33 +10,32 @@ import java.util.List;
 public interface PaymentMapper {
 
     @Insert("""
-            INSERT INTO payment
-            (
-                folio_id,
-                amount,
-                payment_method,
-                status,
-                reference_no,
-                note,
-                created_by,
-                paid_time
-            )
-            VALUES
-            (
-                #{folioId},
-                #{amount},
-                #{paymentMethod},
-                #{status},
-                #{referenceNo},
-                #{note},
-                #{createdBy},
-                #{paidTime}
-            )
-            """)
-    @Options(
-            useGeneratedKeys = true,
-            keyProperty = "id"
-    )
+        INSERT INTO payment
+        (
+            folio_id,
+            amount,
+            payment_method,
+            status,
+            reference_no,
+            request_key,
+            note,
+            created_by,
+            paid_time
+        )
+        VALUES
+        (
+            #{folioId},
+            #{amount},
+            #{paymentMethod},
+            #{status},
+            #{referenceNo},
+            #{requestKey},
+            #{note},
+            #{createdBy},
+            #{paidTime}
+        )
+        """)
+    @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(Payment payment);
 
 
@@ -81,5 +80,16 @@ public interface PaymentMapper {
     int updateStatus(
             @Param("paymentId") Long paymentId,
             @Param("status") String status
+    );
+
+    @Select("""
+        SELECT *
+        FROM payment
+        WHERE folio_id = #{folioId}
+          AND request_key = #{requestKey}
+        """)
+    Payment selectByFolioIdAndRequestKey(
+            @Param("folioId") Long folioId,
+            @Param("requestKey") String requestKey
     );
 }
