@@ -37,6 +37,7 @@ public class PaymentServiceImpl implements PaymentService {
                     "OTHER"
             );
 
+    private final java.time.Clock clock;
     private final BookingMapper bookingMapper;
 
     private final FolioMapper folioMapper;
@@ -160,6 +161,9 @@ public class PaymentServiceImpl implements PaymentService {
                     "Cannot record payment for a void folio"
             );
         }
+        if (folio.getClosedTime() != null) throw new BusinessException("Folio is finalized; new payments are not permitted");
+        if (referenceNo != null && referenceNo.length() > 100 || note != null && note.length() > 255)
+            throw new BusinessException("Payment reference or note is too long");
         Booking booking =
                 bookingMapper.selectById(
                         folio.getBookingId()
@@ -179,7 +183,7 @@ public class PaymentServiceImpl implements PaymentService {
                         .requestKey(requestKey)
                         .note(note)
                         .createdBy(operatorId)
-                        .paidTime(LocalDateTime.now())
+                        .paidTime(LocalDateTime.now(clock))
                         .build();
 
         int inserted =
@@ -212,7 +216,7 @@ public class PaymentServiceImpl implements PaymentService {
         /*
          * 6. Audit。
          */
-        sysAuditLogMapper.insert(
+        com.johnny.hotel.service.support.BillingRules.one(sysAuditLogMapper.insert(
                 SysAuditLog.builder()
                         .operatorId(
                                 operatorId
@@ -236,7 +240,7 @@ public class PaymentServiceImpl implements PaymentService {
                                         + paymentMethod
                         )
                         .build()
-        );
+        ));
 
         return payment;
     }

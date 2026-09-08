@@ -26,20 +26,20 @@ public class AdminRoomTypeController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('STAFF','HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF','MANAGER', 'OWNER', 'SUPER_ADMIN')")
     public Result<List<RoomTypeVO>> getRoomTypes() {
         // Implementation for retrieving all room types
         List<RoomTypeVO> roomTypes = roomTypeService.getRoomTypes();
         return Result.success(roomTypes);
     }
     @GetMapping("/search")
-    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
     public Result<RoomTypeVO> getRoomTypeByName(@RequestParam String typeName) {
         return Result.success(roomTypeService.getRoomTypeByName(typeName));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
     public Result<RoomTypeVO> getRoomTypeById(@PathVariable Long id) {
         return Result.success(roomTypeService.getRoomTypeById(id));
     }

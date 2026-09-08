@@ -27,6 +27,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BookingPricingServiceImpl implements BookingPricingService {
 
+    private final com.johnny.hotel.service.support.PriceSnapshotValidator validator;
     private final BookingMapper bookingMapper;
 
     private final BookingPriceVersionMapper bookingPriceVersionMapper;
@@ -56,6 +57,9 @@ public class BookingPricingServiceImpl implements BookingPricingService {
             );
         }
 
+        com.johnny.hotel.service.support.BillingRules.require(booking.getStatus() == 0 || booking.getStatus() == 1, "Cannot reprice an active or terminal stay");
+        com.johnny.hotel.service.support.BillingRules.require(booking.getRoomTypeId().equals(roomTypeId), "Repricing room type must match contract");
+        BookingPriceVersion previous = bookingPriceVersionMapper.selectActiveByBookingId(bookingId);
         RoomPriceQuote quote =
                 pricingService.quoteRoomType(
                         roomTypeId,
@@ -80,7 +84,7 @@ public class BookingPricingServiceImpl implements BookingPricingService {
                 .reason(normalizeReason(reason))
                 .isActive(1)
                 .totalPrice(quote.getTotalPrice())
-                .currency(hotelCurrency)
+                .currency(previous == null ? hotelCurrency : previous.getCurrency())
                 .createdBy(operatorId)
                 .build();
 
@@ -128,6 +132,7 @@ public class BookingPricingServiceImpl implements BookingPricingService {
             );
         }
 
+        validator.validate(bookingMapper.selectByIdForUpdate(bookingId), version.getCurrency());
         return version;
     }
     @Override
@@ -146,6 +151,7 @@ public class BookingPricingServiceImpl implements BookingPricingService {
             );
         }
 
+        com.johnny.hotel.service.support.BillingRules.require(booking.getStatus() == 0, "Only pending bookings can change dates");
         BookingPriceVersion oldVersion =
                 bookingPriceVersionMapper
                         .selectActiveByBookingId(bookingId);
@@ -314,6 +320,7 @@ public class BookingPricingServiceImpl implements BookingPricingService {
             );
         }
 
+        validator.validate(bookingMapper.selectByIdForUpdate(bookingId), newVersion.getCurrency());
         return newVersion;
     }
 

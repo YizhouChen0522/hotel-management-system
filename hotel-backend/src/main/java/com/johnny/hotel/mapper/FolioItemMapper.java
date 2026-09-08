@@ -13,6 +13,7 @@ public interface FolioItemMapper {
     @Insert("""
             INSERT INTO folio_item
             (
+                event_key,
                 folio_id,
                 item_type,
                 description,
@@ -29,6 +30,7 @@ public interface FolioItemMapper {
             )
             VALUES
             (
+                #{eventKey},
                 #{folioId},
                 #{itemType},
                 #{description},
@@ -103,4 +105,8 @@ public interface FolioItemMapper {
     int countByFolioId(
             @Param("folioId") Long folioId
     );
+
+    @Select("SELECT * FROM folio_item WHERE folio_id=#{folioId} ORDER BY id FOR UPDATE")
+    List<FolioItem> selectByFolioIdForUpdate(@Param("folioId") Long folioId);
+
 }

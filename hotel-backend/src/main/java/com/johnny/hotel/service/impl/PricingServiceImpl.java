@@ -94,6 +94,7 @@ public class PricingServiceImpl implements PricingService {
                 rateSource = "BASE";
             }
 
+            com.johnny.hotel.service.support.BillingRules.require(com.johnny.hotel.service.support.BillingRules.money(price,10).signum() > 0, "Nightly rate must be positive");
             nightlyRates.add(
                     new NightlyRate(
                             currentDate,
@@ -110,6 +111,7 @@ public class PricingServiceImpl implements PricingService {
                     currentDate.plusDays(1);
         }
 
+        com.johnny.hotel.service.support.BillingRules.money(totalPrice,10);
         int nights =
                 Math.toIntExact(
                         ChronoUnit.DAYS.between(

@@ -31,4 +31,5 @@ public class FolioItemCommand {
     private Long sourceItemId;
 
     private Boolean refundable;
+    private String eventKey;
 }

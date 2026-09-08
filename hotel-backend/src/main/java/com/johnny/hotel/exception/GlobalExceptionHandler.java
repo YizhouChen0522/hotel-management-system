@@ -12,10 +12,12 @@ import org.springframework.security.access.AccessDeniedException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
-    public Result<Void> handleBusinessException(BusinessException e) {
-        return Result.error(e.getCode(), e.getMessage());
+    public org.springframework.http.ResponseEntity<Result<Void>> handleBusinessException(BusinessException e) {
+        int status = e.getCode() >= 400 && e.getCode() <= 599 ? e.getCode() : 400;
+        return org.springframework.http.ResponseEntity.status(status).body(Result.error(status, e.getMessage()));
     }
     @ExceptionHandler(MethodArgumentNotValidException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<Void> handleValidationException(MethodArgumentNotValidException e) {
         String message = e.getBindingResult()
                 .getFieldErrors()
@@ -31,10 +33,19 @@ public class GlobalExceptionHandler {
         return Result.error(403, "Forbidden");
     }
 
+    @ExceptionHandler({org.springframework.http.converter.HttpMessageNotReadableException.class,
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class})
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<Void> handleMalformed(Exception e) { return Result.error(400, "Invalid request"); }
+
+    @ExceptionHandler(org.springframework.dao.DataAccessException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public Result<Void> handleDatabase(Exception e) { return Result.error(409, "Conflicting data or concurrent operation; retry or verify the resource"); }
+
     @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleException(Exception e) {
-        e.printStackTrace();
-        return Result.error(500, e.getMessage());
+        return Result.error(500, "Internal server error");
     }
 }
 

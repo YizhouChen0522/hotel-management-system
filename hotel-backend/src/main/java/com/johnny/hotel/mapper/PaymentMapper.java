@@ -71,25 +71,20 @@ public interface PaymentMapper {
     );
 
 
-    @Update("""
-            UPDATE payment
-            SET status = #{status},
-                update_time = NOW()
-            WHERE id = #{paymentId}
-            """)
-    int updateStatus(
-            @Param("paymentId") Long paymentId,
-            @Param("status") String status
-    );
 
     @Select("""
         SELECT *
         FROM payment
         WHERE folio_id = #{folioId}
           AND request_key = #{requestKey}
+        FOR UPDATE
         """)
     Payment selectByFolioIdAndRequestKey(
             @Param("folioId") Long folioId,
             @Param("requestKey") String requestKey
     );
+
+    @Select("SELECT * FROM payment WHERE folio_id=#{folioId} ORDER BY id FOR UPDATE")
+    List<Payment> selectByFolioIdForUpdate(@Param("folioId") Long folioId);
+
 }

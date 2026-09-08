@@ -46,6 +46,7 @@ public interface BookingRoomAssignmentMapper {
             SELECT *
             FROM booking_room_assignment
             WHERE id = #{id}
+            FOR UPDATE
             """)
     BookingRoomAssignment selectById(
             @Param("id") Long id
@@ -57,6 +58,7 @@ public interface BookingRoomAssignmentMapper {
             FROM booking_room_assignment
             WHERE booking_id = #{bookingId}
             ORDER BY start_time ASC, id ASC
+            FOR UPDATE
             """)
     List<BookingRoomAssignment> selectByBookingId(
             @Param("bookingId") Long bookingId
@@ -69,7 +71,7 @@ public interface BookingRoomAssignmentMapper {
             WHERE booking_id = #{bookingId}
               AND end_time IS NULL
             ORDER BY id DESC
-            LIMIT 1
+            FOR UPDATE
             """)
     BookingRoomAssignment selectActiveByBookingId(
             @Param("bookingId") Long bookingId
@@ -80,7 +82,7 @@ public interface BookingRoomAssignmentMapper {
             UPDATE booking_room_assignment
             SET end_time = #{endTime}
             WHERE id = #{id}
-              AND end_time IS NULL
+              AND end_time IS NULL AND start_time <= #{endTime}
             """)
     int closeAssignment(
             @Param("id") Long id,

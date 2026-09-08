@@ -55,10 +55,12 @@ public interface FolioMapper {
     );
 
 
+    // Resolve immutable booking -> folio identity without a secondary-index lock, then lock PRIMARY.
+    // Otherwise Payment(PRIMARY) -> summary(uk_folio_booking) can deadlock with checkout.
     @Select("""
             SELECT *
             FROM folio
-            WHERE booking_id = #{bookingId}
+            WHERE id = (SELECT f.id FROM folio f WHERE f.booking_id = #{bookingId})
             FOR UPDATE
             """)
     Folio selectByBookingIdForUpdate(
@@ -94,4 +96,8 @@ public interface FolioMapper {
     Folio selectByIdForUpdate(
             @Param("folioId") Long folioId
     );
+
+    @Update("UPDATE folio SET closed_time=#{time} WHERE id=#{id} AND closed_time IS NULL AND status='SETTLED' AND balance_amount=0")
+    int close(@Param("id") Long id, @Param("time") java.time.LocalDateTime time);
+
 }

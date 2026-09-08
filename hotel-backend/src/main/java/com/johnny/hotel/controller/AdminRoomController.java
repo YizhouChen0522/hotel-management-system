@@ -26,23 +26,23 @@ public class AdminRoomController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
     public Result<List<RoomVO>> getRooms() {
         return Result.success(roomService.getRooms());
     }
     @GetMapping("/floor")
-    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
     public Result<List<RoomVO>> getRoomsByFloor(@RequestParam Integer floor) {
         return Result.success(roomService.getRoomsByFloor(floor));
     }
     @GetMapping("/number")
-    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
     public Result<RoomVO> getRoomByNumber(@RequestParam String roomNumber ) {
         return Result.success(roomService.getRoomByNumber(roomNumber));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
     public Result<RoomVO> getRoomById(@PathVariable Long id) {
         return Result.success(roomService.getRoomById(id));
     }
@@ -68,27 +68,27 @@ public class AdminRoomController {
         return Result.success();
     }
     @PostMapping("/{id}/maintenance")
-    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
     public Result<Void> setRoomMaintenance(@PathVariable Long id) {
         roomService.setRoomMaintenance(id);
         return Result.success();
     }
     @PostMapping("/{id}/booked")
-    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
     public Result<Void> setRoomBooked(@PathVariable Long id) {
         roomService.setRoomBooked(id);
         return Result.success();
     }
 
     @PostMapping("/{id}/occupied")
-    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
     public Result<Void> setRoomOccupied(@PathVariable Long id) {
         roomService.setRoomOccupied(id);
         return Result.success();
     }
 
     @PostMapping("/{id}/available")
-    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
     public Result<Void> setRoomAvailable(@PathVariable Long id) {
         roomService.setRoomAvailable(id);
         return Result.success();

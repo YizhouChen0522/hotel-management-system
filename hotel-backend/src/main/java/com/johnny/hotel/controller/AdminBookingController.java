@@ -55,7 +55,7 @@ public class AdminBookingController {
     }
 
     @PostMapping("/{bookingId}/check-in")
-    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
     public Result<BookingVO> checkIn(@PathVariable Long bookingId,
                                      Authentication authentication) {
         Long currentUserId = (Long) authentication.getDetails();
@@ -63,7 +63,7 @@ public class AdminBookingController {
     }
 
     @PostMapping("/{bookingId}/check-out")
-    @PreAuthorize("hasAnyRole('STAFF', 'HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
     public Result<BookingVO> checkOut(@PathVariable Long bookingId,
                                       Authentication authentication) {
         Long currentUserId = (Long) authentication.getDetails();

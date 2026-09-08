@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class FolioFinancialServiceImpl implements FolioFinancialService {
 
+    private final java.time.Clock clock;
     private final FolioMapper folioMapper;
 
     private final FolioItemMapper folioItemMapper;
@@ -45,16 +46,17 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
             );
         }
 
-        BigDecimal totalAmount = folioItemMapper.sumAmountByFolioId(folio.getId());
+        // Lock the account first, then read current ledger rows (not RR snapshot SUMs).
+        var items = folioItemMapper.selectByFolioIdForUpdate(folio.getId());
+        var payments = paymentMapper.selectByFolioIdForUpdate(folio.getId());
+        BigDecimal totalAmount = items.stream().map(com.johnny.hotel.entity.FolioItem::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
 
         if (totalAmount == null) {
             totalAmount = BigDecimal.ZERO;
         }
 
-        BigDecimal paidAmount =
-                paymentMapper.sumSuccessfulAmountByFolioId(
-                        folio.getId()
-                );
+        BigDecimal paidAmount = payments.stream().filter(p -> "SUCCESS".equals(p.getStatus()))
+                .map(com.johnny.hotel.entity.Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
 
         if (paidAmount == null) {
             paidAmount = BigDecimal.ZERO;
@@ -62,10 +64,7 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
 
         BigDecimal balanceAmount = totalAmount.subtract(paidAmount);
 
-        int itemCount =
-                folioItemMapper.countByFolioId(
-                        folio.getId()
-                );
+        int itemCount = items.size();
 
         String newStatus;
         LocalDateTime settledTime = null;
@@ -93,7 +92,7 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
             } else {
 
                 settledTime =
-                        LocalDateTime.now();
+                        LocalDateTime.now(clock);
             }
 
         } else if (paidAmount.compareTo(
@@ -108,6 +107,11 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
                     "OPEN";
         }
 
+        com.johnny.hotel.service.support.BillingRules.money(totalAmount, 12);
+        com.johnny.hotel.service.support.BillingRules.money(paidAmount, 12);
+        com.johnny.hotel.service.support.BillingRules.money(balanceAmount, 12);
+        if (folio.getClosedTime() != null && (!"SETTLED".equals(newStatus) || balanceAmount.signum() != 0))
+            throw new BusinessException("Closed folio financial integrity violation");
         int updated =
                 folioMapper.updateFinancialSummary(
                         folio.getId(),
@@ -128,7 +132,7 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
          * 返回数据库中的最新状态，
          * 而不是返回内存里那个旧 folio 对象。
          */
-        return folioMapper.selectByBookingId(
+        return folioMapper.selectByBookingIdForUpdate(
                 bookingId
         );
     }

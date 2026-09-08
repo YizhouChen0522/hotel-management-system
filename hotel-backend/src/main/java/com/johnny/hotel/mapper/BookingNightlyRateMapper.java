@@ -36,6 +36,7 @@ public interface BookingNightlyRateMapper {
             FROM booking_nightly_rate
             WHERE price_version_id = #{priceVersionId}
             ORDER BY stay_date ASC
+            FOR UPDATE
             """)
     List<BookingNightlyRate> selectByPriceVersionId(
             @Param("priceVersionId") Long priceVersionId
@@ -48,6 +49,7 @@ public interface BookingNightlyRateMapper {
             WHERE bnr.booking_id = #{bookingId}
               AND bpv.is_active = 1
             ORDER BY bnr.stay_date ASC
+            FOR UPDATE
             """)
     List<BookingNightlyRate> selectActiveByBookingId(
             @Param("bookingId") Long bookingId

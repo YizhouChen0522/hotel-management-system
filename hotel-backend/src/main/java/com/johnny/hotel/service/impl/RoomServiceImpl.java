@@ -20,6 +20,27 @@ public class RoomServiceImpl implements RoomService {
     private final RoomMapper roomMapper;
     private final RoomTypeMapper roomTypeMapper;
 
+    private void requireOne(int rows) {
+        if (rows != 1) throw new BusinessException("Room was changed concurrently");
+    }
+    private void requireIdle(Room room) {
+        if (!Integer.valueOf(java.sql.Connection.TRANSACTION_READ_COMMITTED).equals(org.springframework.transaction.support.TransactionSynchronizationManager.getCurrentTransactionIsolationLevel()))
+            throw new BusinessException("Room maintenance requires a READ_COMMITTED transaction");
+        if (room == null) throw new BusinessException("Room does not exist");
+        if (room.getStatus() == 2 || room.getStatus() == 4 || roomMapper.hasLiveUse(room.getId()))
+            throw new BusinessException("Room belongs to an active reservation or stay");
+    }
+    private Room lockIdle(Long id) {
+        Room room = roomMapper.selectByIdForUpdate(id);
+        requireIdle(room);
+        return room;
+    }
+    private void changeIdleStatus(Long id, int expected, int next) {
+        Room room = lockIdle(id);
+        if (room.getStatus() != expected) throw new BusinessException("Unsupported maintenance transition");
+        requireOne(roomMapper.transitionStatus(id, expected, next));
+    }
+
     private RoomVO toVO(Room room) {
         RoomType roomType = roomTypeMapper.selectById(room.getRoomTypeId());
         return RoomVO.builder()
@@ -35,7 +56,7 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public RoomVO createRoom(RoomRequest request) {
         // Implementation for creating a new room
         // Validate input, map to entity, save to database, and return the created RoomVO
@@ -59,15 +80,16 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public RoomVO updateRoom(Long id, RoomRequest request){
         // Implementation for updating an existing room
         // Validate input, find the existing entity, update fields, save to database, and return the updated RoomVO
-        Room existing = roomMapper.selectById(id);
+        Room existing = roomMapper.selectByIdForUpdate(id);
 
         if (existing == null) {
             throw new BusinessException("Room does not exist");
         }
+        requireIdle(existing);
         Room duplicate = roomMapper.selectByRoomNumber(request.getRoomNumber());
 
         if (duplicate != null && !duplicate.getId().equals(id)) {
@@ -85,7 +107,7 @@ public class RoomServiceImpl implements RoomService {
                 .floor(request.getFloor())
                 .build();
 
-        roomMapper.update(room);
+        requireOne(roomMapper.update(room));
         return getRoomById(id);
 
     }
@@ -127,96 +149,40 @@ public class RoomServiceImpl implements RoomService {
                 .toList();
     }
     @Override
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void enableRoom(Long id) {
-        Room room = roomMapper.selectById(id);
-
-        if (room == null) {
-            throw new BusinessException("Room does not exist");
-        }
-
-        if (room.getStatus() != 0) {
-            throw new BusinessException("Only disabled rooms can be enabled");
-        }
-
-        roomMapper.updateStatus(id, 1);
+        changeIdleStatus(id, 0, 1);
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void disableRoom(Long id) {
-        Room room = roomMapper.selectById(id);
-
-        if (room == null) {
-            throw new BusinessException("Room does not exist");
-        }
-
-        if (room.getStatus() == 4) {
-            throw new BusinessException("Occupied rooms cannot be disabled");
-        }
-
-        roomMapper.updateStatus(id, 0);
+        Room room = lockIdle(id);
+        if (room.getStatus() != 1 && room.getStatus() != 3) throw new BusinessException("Only available or maintenance rooms can be disabled");
+        requireOne(roomMapper.transitionStatus(id, room.getStatus(), 0));
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void setRoomMaintenance(Long id) {
-        Room room = roomMapper.selectById(id);
-
-        if (room == null) {
-            throw new BusinessException("Room does not exist");
-        }
-
-        if (room.getStatus() == 0) {
-            throw new BusinessException("Disabled rooms cannot be set to maintenance");
-        }
-
-        roomMapper.updateStatus(id, 3);
+        changeIdleStatus(id, 1, 3);
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void setRoomBooked(Long id) {
-        Room room = roomMapper.selectById(id);
-        if (room == null) {
-            throw new BusinessException("Room does not exist");
-        }
-
-        if (room.getStatus() != 1) {
-            throw new BusinessException("Only available rooms can be booked");
-        }
-        roomMapper.updateStatus(id, 2);
+        throw new BusinessException("Use booking approval to reserve a room");
     }
     @Override
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void setRoomOccupied(Long id) {
-        Room room = roomMapper.selectById(id);
-
-        if (room == null) {
-            throw new BusinessException("Room does not exist");
-        }
-
-        if (room.getStatus() != 1 && room.getStatus() != 2) {
-            throw new BusinessException("Only available or booked rooms can be checked in");
-        }
-
-        roomMapper.updateStatus(id, 4);
+        throw new BusinessException("Use booking creation, approval and check-in; bare walk-in occupancy is not supported");
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void setRoomAvailable(Long id) {
-        Room room = roomMapper.selectById(id);
-
-        if (room == null) {
-            throw new BusinessException("Room does not exist");
-        }
-
-        if (room.getStatus() != 2 && room.getStatus() != 3) {
-            throw new BusinessException("Only booked or maintenance rooms can become available");
-        }
-
-        roomMapper.updateStatus(id, 1);
+        changeIdleStatus(id, 3, 1);
     }
 
 }

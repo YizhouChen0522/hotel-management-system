@@ -1,0 +1,27 @@
+# Test classpath shadows the development configuration. Never copy production secrets here.
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:33079/hotel_lifecycle_test?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=Asia/Shanghai
+    username: root
+    password: ""
+    hikari:
+      maximum-pool-size: 8
+      connection-timeout: 5000
+  flyway:
+    enabled: true
+    clean-disabled: true
+    baseline-on-migrate: false
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    local-cache-scope: STATEMENT
+hotel:
+  currency: CNY
+  time-zone: Asia/Shanghai
+jwt:
+  secret: isolated-test-only-key-never-use-for-real-authentication-0123456789
+  expiration: 60000
+logging:
+  level:
+    root: WARN
+    com.johnny: WARN

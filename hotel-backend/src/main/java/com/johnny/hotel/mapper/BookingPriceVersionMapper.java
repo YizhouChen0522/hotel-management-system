@@ -38,7 +38,7 @@ public interface BookingPriceVersionMapper {
             FROM booking_price_version
             WHERE booking_id = #{bookingId}
               AND is_active = 1
-            LIMIT 1
+            FOR UPDATE
             """)
     BookingPriceVersion selectActiveByBookingId(
             @Param("bookingId") Long bookingId
@@ -48,6 +48,7 @@ public interface BookingPriceVersionMapper {
             SELECT COALESCE(MAX(version_no), 0)
             FROM booking_price_version
             WHERE booking_id = #{bookingId}
+            FOR UPDATE
             """)
     Integer selectMaxVersionNo(
             @Param("bookingId") Long bookingId

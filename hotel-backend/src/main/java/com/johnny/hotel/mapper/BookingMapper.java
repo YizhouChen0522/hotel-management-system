@@ -62,23 +62,12 @@ public interface BookingMapper {
     List<Booking> selectPendingPage(@Param("offset") Integer offset,
                                     @Param("pageSize") Integer pageSize);
 
-    @Update("""
-        UPDATE booking
-        SET status = #{status},
-            update_time = NOW()
-        WHERE id = #{bookingId}
-        """)
-    int updateStatus(
-            @Param("bookingId") Long bookingId,
-            @Param("status") Integer status
-    );
-
-    @Update("""
+@Update("""
             UPDATE booking
             SET assigned_room_id = #{assignedRoomId},
                 status = #{status},
                 update_time = NOW()
-            WHERE id = #{id}
+            WHERE id = #{id} AND status = 0
             """)
     int approveBooking(@Param("id") Long id,
                        @Param("assignedRoomId") Long assignedRoomId,
@@ -134,7 +123,7 @@ public interface BookingMapper {
         UPDATE booking
         SET assigned_room_id = #{newRoomId},
             update_time = NOW()
-        WHERE id = #{bookingId}
+        WHERE id = #{bookingId} AND status IN (1,2)
         """)
     int updateAssignedRoom(@Param("bookingId") Long bookingId,
                            @Param("newRoomId") Long newRoomId);
@@ -152,7 +141,7 @@ public interface BookingMapper {
         SET room_type_id = #{newRoomTypeId},
             assigned_room_id = #{newRoomId},
             update_time = NOW()
-        WHERE id = #{bookingId}
+        WHERE id = #{bookingId} AND status = 1
         """)
     int updateRoomTypeAndAssignedRoom(
             @Param("bookingId") Long bookingId,
@@ -164,7 +153,7 @@ public interface BookingMapper {
         UPDATE booking
         SET total_price = #{totalPrice},
             update_time = NOW()
-        WHERE id = #{bookingId}
+        WHERE id = #{bookingId} AND status IN (0,1)
         """)
     int updateTotalPrice(
             @Param("bookingId") Long bookingId,
@@ -177,7 +166,7 @@ public interface BookingMapper {
             check_in_date = #{checkInDate},
             check_out_date = #{checkOutDate},
             update_time = NOW()
-        WHERE id = #{bookingId}
+        WHERE id = #{bookingId} AND status = 0
         """)
     int updatePendingBookingDetails(
             @Param("bookingId") Long bookingId,
@@ -186,4 +175,8 @@ public interface BookingMapper {
             @Param("checkInDate") LocalDate checkInDate,
             @Param("checkOutDate") LocalDate checkOutDate
     );
+
+    @Update("UPDATE booking SET status=#{status}, update_time=NOW() WHERE id=#{bookingId} AND status=#{expectedStatus}")
+    int transitionStatus(@Param("bookingId") Long bookingId, @Param("expectedStatus") Integer expectedStatus, @Param("status") Integer status);
+
 }

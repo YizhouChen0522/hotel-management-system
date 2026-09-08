@@ -51,19 +51,19 @@ public interface RoomMapper {
         """)
     int update(Room room);
 
-    @Update("""
-            UPDATE room
-            SET status = #{status},
-                update_time = NOW()
-            WHERE id = #{id}
-            """)
-    int updateStatus(@Param("id") Long id, @Param("status") Integer status);
-
-    @Select("""
+@Select("""
         SELECT *
         FROM room
         WHERE id = #{id}
         FOR UPDATE
         """)
     Room selectByIdForUpdate(@Param("id") Long id);
+
+    @Update("UPDATE room SET status=#{status}, update_time=NOW() WHERE id=#{id} AND status=#{expectedStatus}")
+    int transitionStatus(@Param("id") Long id, @Param("expectedStatus") Integer expectedStatus, @Param("status") Integer status);
+
+    // Nonlocking existence reads while Room is locked. All legitimate assignments acquire Room first.
+    @Select("SELECT EXISTS(SELECT 1 FROM booking WHERE assigned_room_id=#{id} AND status IN (1,2)) OR EXISTS(SELECT 1 FROM booking_room_assignment WHERE room_id=#{id} AND end_time IS NULL)")
+    boolean hasLiveUse(@Param("id") Long id);
+
 }
