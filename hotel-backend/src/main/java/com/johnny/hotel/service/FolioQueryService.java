@@ -15,6 +15,7 @@ public class FolioQueryService {
     private final BookingMapper bookings;
     private final FolioItemMapper items;
     private final PaymentMapper payments;
+    private final ExpenseMapper expenses;
 
     @Transactional
     public FolioVO byBooking(Long bookingId, Long customerId) {
@@ -32,6 +33,7 @@ public class FolioQueryService {
         return FolioVO.builder().id(f.getId()).bookingId(f.getBookingId()).currency(f.getCurrency()).status(f.getStatus())
                 .totalAmount(f.getTotalAmount()).paidAmount(f.getPaidAmount()).balanceAmount(f.getBalanceAmount()).closedTime(f.getClosedTime())
                 .items(items.selectByFolioIdForUpdate(f.getId()).stream().map(FolioVO.Item::from).toList())
+                .expenses(expenses.selectByFolioForUpdate(f.getId()).stream().map(ExpenseVO::from).toList())
                 .payments(payments.selectByFolioIdForUpdate(f.getId()).stream().map(PaymentVO::from).toList()).build();
     }
 }

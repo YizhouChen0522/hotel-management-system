@@ -6,6 +6,8 @@ import java.util.List;
 
 @Mapper
 public interface RoomTypeMapper {
+    @Select("SELECT * FROM room_type WHERE id=#{id} FOR UPDATE")
+    RoomType selectByIdForUpdate(Long id);
     @Insert("""
             INSERT INTO room_type (
                 type_name,

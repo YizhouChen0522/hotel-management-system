@@ -47,6 +47,16 @@
             <artifactId>mybatis-spring-boot-starter</artifactId>
             <version>4.0.1</version>
         </dependency>
+        <!-- Redis -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <!-- Spring Cache -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>com.mysql</groupId>

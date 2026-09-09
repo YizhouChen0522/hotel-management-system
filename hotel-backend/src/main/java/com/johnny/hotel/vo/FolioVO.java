@@ -9,7 +9,7 @@ import java.util.List;
 @Builder
 public record FolioVO(Long id, Long bookingId, String currency, String status, BigDecimal totalAmount,
         BigDecimal paidAmount, BigDecimal balanceAmount, LocalDateTime closedTime,
-        List<Item> items, List<PaymentVO> payments) {
+        List<Item> items, List<PaymentVO> payments, List<ExpenseVO> expenses) {
     @Builder
     public record Item(Long id, String itemType, String description, LocalDate businessDate,
             BigDecimal quantity, BigDecimal unitPrice, BigDecimal amount, Long roomId,

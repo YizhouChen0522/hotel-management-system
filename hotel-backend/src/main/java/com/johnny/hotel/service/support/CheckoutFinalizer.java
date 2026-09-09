@@ -19,6 +19,7 @@ public class CheckoutFinalizer {
     private final FolioItemMapper items;
     private final PriceSnapshotValidator snapshots;
     private final FolioFinancialService financial;
+    private final ExpenseMapper expenses;
 
     /** Caller owns Booking and current Room; no new Room/Booking locks after Folio. */
     @Transactional(propagation = Propagation.MANDATORY)
@@ -28,7 +29,9 @@ public class CheckoutFinalizer {
         Folio folio = folios.selectByBookingIdForUpdate(booking.getId());
         require(folio != null && folio.getClosedTime() == null && !"VOID".equals(folio.getStatus()), "Folio is missing, closed or void");
         var rates = snapshots.validate(booking, folio.getCurrency());
-        StayLedgerRules.validate(booking, rates, segments, changes, items.selectByFolioIdForUpdate(folio.getId()));
+        var posted = items.selectByFolioIdForUpdate(folio.getId());
+        var roomLedger = ExpenseRules.checkout(booking,folio.getId(),expenses.selectByFolioForUpdate(folio.getId()),posted);
+        StayLedgerRules.validate(booking, rates, segments, changes, roomLedger);
         Folio summary = financial.recalculateSummary(booking.getId());
         require(summary.getBalanceAmount().signum() == 0 && "SETTLED".equals(summary.getStatus()), "Outstanding debt or credit must be resolved before checkout");
         one(folios.close(folio.getId(), now));

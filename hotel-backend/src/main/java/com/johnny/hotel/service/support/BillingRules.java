@@ -47,14 +47,14 @@ public final class BillingRules {
     }
     public static void item(FolioItemCommand c) {
         require(c != null, "Folio item is required");
-        require(c.getItemType() != null && Set.of("ROOM_CHARGE", "ROOM_RATE_ADJUSTMENT", "SERVICE_CHARGE", "DAMAGE_CHARGE", "DISCOUNT").contains(c.getItemType()), "Unsupported folio item type");
+        require(c.getItemType() != null && Set.of("ROOM_CHARGE", "ROOM_RATE_ADJUSTMENT", "SERVICE_CHARGE", "DAMAGE_CHARGE", "DISCOUNT", "FEE_REVERSAL").contains(c.getItemType()), "Unsupported folio item type");
         require(c.getDescription() != null && !c.getDescription().isBlank() && c.getDescription().length() <= 500, "Description is required and limited to 500 characters");
         require(c.getBusinessDate() != null, "Business date is required");
         BigDecimal amount = money(c.getAmount(), 12);
         require(amount.signum() != 0, "Folio item amount cannot be zero");
         BigDecimal quantity = money(c.getQuantity(), 10), unit = money(c.getUnitPrice(), 12);
         require(quantity.signum() > 0 && quantity.multiply(unit).compareTo(amount) == 0, "Quantity times unit price must equal amount");
-        boolean credit = Set.of("ROOM_RATE_ADJUSTMENT", "DISCOUNT").contains(c.getItemType());
+        boolean credit = Set.of("ROOM_RATE_ADJUSTMENT", "DISCOUNT", "FEE_REVERSAL").contains(c.getItemType());
         require(credit == (amount.signum() < 0), "Item type and amount sign disagree");
         require(!"ROOM_RATE_ADJUSTMENT".equals(c.getItemType()) || c.getSourceItemId() != null, "Room reversal requires source item");
         require(!credit || c.getSourceItemId() != null, "Credits require an original charge");

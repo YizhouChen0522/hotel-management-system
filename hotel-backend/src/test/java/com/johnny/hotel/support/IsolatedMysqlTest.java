@@ -41,8 +41,8 @@ public abstract class IsolatedMysqlTest {
         assertEquals("hotel_lifecycle_test", jdbc.queryForObject("SELECT DATABASE()",String.class));
         assertEquals(33079, jdbc.queryForObject("SELECT @@port",Integer.class));
         gate.clear(); clock.day(0);
-        for (String table : new String[]{"room_billing_event","payment","folio_item","folio","booking_room_assignment","booking_nightly_rate","booking_price_version","booking","room_rate","room","room_type","sys_audit_log","sys_user_role","sys_user"})
-            jdbc.update("DELETE FROM " + table + (table.equals("folio_item") ? " ORDER BY id DESC" : ""));
+        for (String table : new String[]{"expense_registration","room_billing_event","payment","folio_item","folio","booking_room_assignment","booking_nightly_rate","booking_price_version","booking","room_rate","room","room_type","sys_audit_log","sys_user_role","sys_user"})
+            jdbc.update("DELETE FROM " + table + (table.equals("folio_item") || table.equals("expense_registration") ? " ORDER BY id DESC" : ""));
         jdbc.update("INSERT INTO sys_user(id,username,password,status) VALUES(1,'test_customer','test-only',1),(2,'test_staff','test-only',1),(3,'test_other','test-only',1)");
         jdbc.update("INSERT INTO sys_user_role(user_id,role_id) SELECT 2,id FROM sys_role WHERE role_code='MANAGER'");
         jdbc.update("INSERT INTO room_type(id,type_name,base_price,capacity) VALUES(1,'test_standard',100,4),(2,'test_deluxe',150,4)");
