@@ -40,6 +40,7 @@ public class FolioItem {
     private Long roomAssignmentId;
 
     private Long sourceItemId;
+    private Long stayAdjustmentId;
 
     private Integer refundable;
 

@@ -3,6 +3,7 @@ package com.johnny.hotel.service.impl;
 import com.johnny.hotel.config.CacheConfig;
 import com.johnny.hotel.dto.RoomTypeRequest;
 import com.johnny.hotel.entity.RoomType;
+import com.johnny.hotel.enums.RoomTypeStatus;
 import com.johnny.hotel.exception.BusinessException;
 import com.johnny.hotel.mapper.RoomTypeMapper;
 import com.johnny.hotel.service.RoomTypeService;
@@ -48,7 +49,7 @@ public class RoomTypeServiceImpl implements RoomTypeService {
                 .description(request.getDescription())
                 .basePrice(request.getBasePrice())
                 .capacity(request.getCapacity())
-                .status(1)
+                .status(RoomTypeStatus.ENABLED.getCode())
                 .build();
 
         com.johnny.hotel.service.support.BillingRules.one(roomTypeMapper.insert(roomType));
@@ -157,7 +158,7 @@ public class RoomTypeServiceImpl implements RoomTypeService {
             throw new BusinessException("Room type does not exist with ID: " + id);
         }
 
-        com.johnny.hotel.service.support.BillingRules.one(roomTypeMapper.updateStatus(id, 1));
+        com.johnny.hotel.service.support.BillingRules.one(roomTypeMapper.updateStatus(id, RoomTypeStatus.ENABLED.getCode()));
     }
 
     @Override
@@ -180,6 +181,6 @@ public class RoomTypeServiceImpl implements RoomTypeService {
             throw new BusinessException("Room type does not exist with ID: " + id);
         }
 
-        com.johnny.hotel.service.support.BillingRules.one(roomTypeMapper.updateStatus(id, 0));
+        com.johnny.hotel.service.support.BillingRules.one(roomTypeMapper.updateStatus(id, RoomTypeStatus.DISABLED.getCode()));
     }
 }

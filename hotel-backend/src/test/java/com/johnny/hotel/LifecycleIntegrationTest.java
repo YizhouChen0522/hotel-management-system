@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class LifecycleIntegrationTest extends IsolatedMysqlTest {
     @Test void createHasOneContractSnapshotAndEmptyAccount() {
         long b=create(); var f=queries.byBooking(b,1L);
-        assertEquals(0,f.totalAmount().signum()); assertEquals("OPEN",f.status()); assertTrue(f.items().isEmpty());
+        assertEquals(0,f.totalAmount().signum()); assertEquals(1,f.status()); assertTrue(f.items().isEmpty());
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM booking_price_version WHERE booking_id=? AND is_active=1",Integer.class,b));
         assertEquals(3,jdbc.queryForObject("SELECT COUNT(*) FROM booking_nightly_rate WHERE booking_id=?",Integer.class,b));
         assertEquals(300,jdbc.queryForObject("SELECT total_price FROM booking WHERE id=?",BigDecimal.class,b).intValueExact());

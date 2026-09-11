@@ -23,6 +23,7 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
     private final FolioItemMapper folioItemMapper;
 
     private final PaymentMapper paymentMapper;
+    private final com.johnny.hotel.wallet.RefundMapper refundMapper;
 
     @Override
     @Transactional
@@ -37,12 +38,6 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
         if (folio == null) {
             throw new BusinessException(
                     "Folio does not exist"
-            );
-        }
-
-        if ("VOID".equals(folio.getStatus())) {
-            throw new BusinessException(
-                    "Cannot recalculate a void folio"
             );
         }
 
@@ -62,61 +57,27 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
             paidAmount = BigDecimal.ZERO;
         }
 
-        BigDecimal balanceAmount = totalAmount.subtract(paidAmount);
+        BigDecimal refundedAmount = refundMapper.forFolio(folio.getId()).stream()
+                .filter(r -> r.getStatus() == com.johnny.hotel.enums.RefundStatus.SUCCESS.getCode())
+                .map(com.johnny.hotel.wallet.Refund::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal balanceAmount = totalAmount.subtract(paidAmount).add(refundedAmount);
 
-        int itemCount = items.size();
-
-        String newStatus;
-        LocalDateTime settledTime = null;
-
-        if (balanceAmount.compareTo(
-                BigDecimal.ZERO) < 0) {
-
-            newStatus = "CREDIT_BALANCE";
-
-        } else if (balanceAmount.compareTo(
-                BigDecimal.ZERO) == 0
-                && (itemCount > 0
-                || paidAmount.compareTo(
-                BigDecimal.ZERO) > 0)) {
-
-            newStatus = "SETTLED";
-
-            if ("SETTLED".equals(
-                    folio.getStatus())
-                    && folio.getSettledTime() != null) {
-
-                settledTime =
-                        folio.getSettledTime();
-
-            } else {
-
-                settledTime =
-                        LocalDateTime.now(clock);
-            }
-
-        } else if (paidAmount.compareTo(
-                BigDecimal.ZERO) > 0) {
-
-            newStatus =
-                    "PARTIALLY_PAID";
-
-        } else {
-
-            newStatus =
-                    "OPEN";
-        }
+        int newStatus = com.johnny.hotel.enums.FolioStatus.forBalance(balanceAmount).getCode();
+        LocalDateTime settledTime = newStatus == 1
+                ? (Integer.valueOf(1).equals(folio.getStatus()) && folio.getSettledTime()!=null ? folio.getSettledTime() : LocalDateTime.now(clock)) : null;
 
         com.johnny.hotel.service.support.BillingRules.money(totalAmount, 12);
         com.johnny.hotel.service.support.BillingRules.money(paidAmount, 12);
+        com.johnny.hotel.service.support.BillingRules.money(refundedAmount, 12);
         com.johnny.hotel.service.support.BillingRules.money(balanceAmount, 12);
-        if (folio.getClosedTime() != null && (!"SETTLED".equals(newStatus) || balanceAmount.signum() != 0))
+        if (folio.getClosedTime() != null && (newStatus != 1 || balanceAmount.signum() != 0))
             throw new BusinessException("Closed folio financial integrity violation");
         int updated =
                 folioMapper.updateFinancialSummary(
                         folio.getId(),
                         totalAmount,
                         paidAmount,
+                        refundedAmount,
                         balanceAmount,
                         newStatus,
                         settledTime

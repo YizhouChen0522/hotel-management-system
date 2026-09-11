@@ -25,6 +25,7 @@ public interface FolioItemMapper {
                 room_type_id,
                 room_assignment_id,
                 source_item_id,
+                stay_adjustment_id,
                 refundable,
                 created_by
             )
@@ -42,6 +43,7 @@ public interface FolioItemMapper {
                 #{roomTypeId},
                 #{roomAssignmentId},
                 #{sourceItemId},
+                #{stayAdjustmentId},
                 #{refundable},
                 #{createdBy}
             )

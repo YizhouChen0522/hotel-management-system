@@ -16,7 +16,7 @@ public class RoomVO {
     private Long roomTypeId;
     private String roomTypeName; // Added for easier display
     private Integer floor;
-    private Integer status; // 0: disabled, 1: available, 2: occupied, 3: under maintenance
+    private Integer status; // 0: disabled, 1: available, 2: booked, 3: under maintenance, 4: occupied
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

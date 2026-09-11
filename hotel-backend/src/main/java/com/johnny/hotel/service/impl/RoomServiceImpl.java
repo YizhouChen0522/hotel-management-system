@@ -3,6 +3,7 @@ package com.johnny.hotel.service.impl;
 import com.johnny.hotel.dto.RoomRequest;
 import com.johnny.hotel.entity.Room;
 import com.johnny.hotel.entity.RoomType;
+import com.johnny.hotel.enums.RoomStatus;
 import com.johnny.hotel.exception.BusinessException;
 import com.johnny.hotel.mapper.RoomMapper;
 import com.johnny.hotel.mapper.RoomTypeMapper;
@@ -27,7 +28,7 @@ public class RoomServiceImpl implements RoomService {
         if (!Integer.valueOf(java.sql.Connection.TRANSACTION_READ_COMMITTED).equals(org.springframework.transaction.support.TransactionSynchronizationManager.getCurrentTransactionIsolationLevel()))
             throw new BusinessException("Room maintenance requires a READ_COMMITTED transaction");
         if (room == null) throw new BusinessException("Room does not exist");
-        if (room.getStatus() == 2 || room.getStatus() == 4 || roomMapper.hasLiveUse(room.getId()))
+        if (room.getStatus() == RoomStatus.BOOKED.getCode() || room.getStatus() == RoomStatus.OCCUPIED.getCode() || roomMapper.hasLiveUse(room.getId()))
             throw new BusinessException("Room belongs to an active reservation or stay");
     }
     private Room lockIdle(Long id) {
@@ -35,10 +36,10 @@ public class RoomServiceImpl implements RoomService {
         requireIdle(room);
         return room;
     }
-    private void changeIdleStatus(Long id, int expected, int next) {
+    private void changeIdleStatus(Long id, RoomStatus expected, RoomStatus next) {
         Room room = lockIdle(id);
-        if (room.getStatus() != expected) throw new BusinessException("Unsupported maintenance transition");
-        requireOne(roomMapper.transitionStatus(id, expected, next));
+        if (room.getStatus() != expected.getCode()) throw new BusinessException("Unsupported maintenance transition");
+        requireOne(roomMapper.transitionStatus(id, expected.getCode(), next.getCode()));
     }
 
     private RoomVO toVO(Room room) {
@@ -72,7 +73,7 @@ public class RoomServiceImpl implements RoomService {
                 .roomNumber(request.getRoomNumber())
                 .roomTypeId(request.getRoomTypeId())
                 .floor(request.getFloor())
-                .status(1)
+                .status(RoomStatus.AVAILABLE.getCode())
                 .build();
         roomMapper.insert(room);
 
@@ -151,21 +152,21 @@ public class RoomServiceImpl implements RoomService {
     @Override
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void enableRoom(Long id) {
-        changeIdleStatus(id, 0, 1);
+        changeIdleStatus(id, RoomStatus.DISABLED, RoomStatus.AVAILABLE);
     }
 
     @Override
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void disableRoom(Long id) {
         Room room = lockIdle(id);
-        if (room.getStatus() != 1 && room.getStatus() != 3) throw new BusinessException("Only available or maintenance rooms can be disabled");
-        requireOne(roomMapper.transitionStatus(id, room.getStatus(), 0));
+        if (room.getStatus() != RoomStatus.AVAILABLE.getCode() && room.getStatus() != RoomStatus.MAINTENANCE.getCode()) throw new BusinessException("Only available or maintenance rooms can be disabled");
+        requireOne(roomMapper.transitionStatus(id, room.getStatus(), RoomStatus.DISABLED.getCode()));
     }
 
     @Override
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void setRoomMaintenance(Long id) {
-        changeIdleStatus(id, 1, 3);
+        changeIdleStatus(id, RoomStatus.AVAILABLE, RoomStatus.MAINTENANCE);
     }
 
     @Override
@@ -182,7 +183,11 @@ public class RoomServiceImpl implements RoomService {
     @Override
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void setRoomAvailable(Long id) {
-        changeIdleStatus(id, 3, 1);
+        if (!Integer.valueOf(java.sql.Connection.TRANSACTION_READ_COMMITTED).equals(org.springframework.transaction.support.TransactionSynchronizationManager.getCurrentTransactionIsolationLevel()))
+            throw new BusinessException("Room maintenance requires a READ_COMMITTED transaction");
+        Room room=roomMapper.selectByIdForUpdate(id);
+        if(room==null||room.getStatus()!=RoomStatus.MAINTENANCE.getCode()||roomMapper.hasActualUse(id))throw new BusinessException("Only an unoccupied maintenance room can be released");
+        requireOne(roomMapper.transitionStatus(id,RoomStatus.MAINTENANCE.getCode(),RoomStatus.AVAILABLE.getCode()));
     }
 
 }

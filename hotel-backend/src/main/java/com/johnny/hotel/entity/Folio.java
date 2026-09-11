@@ -20,13 +20,14 @@ public class Folio {
 
     private Long bookingId;
 
-    private String status;
+    private Integer status;
 
     private String currency;
 
     private BigDecimal totalAmount;
 
     private BigDecimal paidAmount;
+    private BigDecimal refundedAmount;
 
     private BigDecimal balanceAmount;
 

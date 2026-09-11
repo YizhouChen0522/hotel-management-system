@@ -43,7 +43,7 @@ public class PricingServiceImpl implements PricingService {
             );
         }
 
-        if (roomType.getStatus() != 1) {
+        if (roomType.getStatus() != com.johnny.hotel.enums.RoomTypeStatus.ENABLED.getCode()) {
             throw new BusinessException(
                     "Room type is disabled"
             );

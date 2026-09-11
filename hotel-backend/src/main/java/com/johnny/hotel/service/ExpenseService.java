@@ -22,15 +22,16 @@ public class ExpenseService {
     private final FolioService ledger;
     private final SysAuditLogMapper audits;
     private final Clock clock;
+    private final com.johnny.hotel.stay.StayPlan stayPlan;
     private record Account(Booking booking,Folio folio) {}
     private Account lock(Long id) {
         // Immutable identity lookup only; never hold Folio then request Booking.
         Folio identity=folios.selectById(id);require(identity!=null,"Folio does not exist");
         Booking b=bookings.selectByIdForUpdate(identity.getBookingId());require(b!=null,"Booking does not exist");
         Folio f=folios.selectByIdForUpdate(id);
-        require(f!=null&&f.getBookingId().equals(b.getId())&&f.getClosedTime()==null&&!"VOID".equals(f.getStatus()),"Folio is missing, void or finalized");
-        require(b.getStatus()==2,"Expenses currently require a checked-in booking");
-        require(!LocalDate.now(clock).isBefore(b.getCheckInDate())&&!LocalDate.now(clock).isAfter(b.getCheckOutDate()),"Expense processing outside contracted stay dates is unsupported");
+        require(f!=null&&f.getBookingId().equals(b.getId())&&f.getClosedTime()==null,"Folio is missing, void or finalized");
+        require(b.getStatus()==com.johnny.hotel.enums.BookingStatus.CHECKED_IN.getCode(),"Expenses currently require a checked-in booking");
+        require(!LocalDate.now(clock).isBefore(b.getCheckInDate())&&!LocalDate.now(clock).isAfter(stayPlan.end(b)),"Expense processing outside contracted stay dates is unsupported");
         return new Account(b,f);
     }
     private Long operator(String type) {
@@ -49,7 +50,7 @@ public class ExpenseService {
     @Transactional
     public ExpenseVO register(Long folioId,RegisterExpenseRequest request) {
         require(request!=null,"Expense request is required");Long actor=operator(request.getItemType());
-        Account a=lock(folioId);ExpenseRules.validate(request,a.booking(),LocalDate.now(clock));
+        Account a=lock(folioId);ExpenseRules.validate(request,a.booking(),LocalDate.now(clock),stayPlan.end(a.booking()));
         var rows=expenses.selectByFolioForUpdate(folioId);
         ExpenseRegistration e=ExpenseRegistration.builder().folioId(folioId).requestKey(ExpenseRules.key(request.getIdempotencyKey()))
                 .itemType(request.getItemType()).amount(money(request.getAmount(),12)).businessDate(request.getBusinessDate())
@@ -70,7 +71,7 @@ public class ExpenseService {
         if("CONFIRMED".equals(e.getStatus()))return ExpenseVO.from(e); // Stable expense ID is the confirmation idempotency key.
         require("PENDING".equals(e.getStatus()),"Only pending expenses can be confirmed");
         ExpenseRules.validate(RegisterExpenseRequest.builder().idempotencyKey(e.getRequestKey()).itemType(e.getItemType()).amount(e.getAmount())
-                .businessDate(e.getBusinessDate()).description(e.getDescription()).reason(e.getReason()).sourceExpenseId(e.getSourceExpenseId()).build(),a.booking(),LocalDate.now(clock));
+                .businessDate(e.getBusinessDate()).description(e.getDescription()).reason(e.getReason()).sourceExpenseId(e.getSourceExpenseId()).build(),a.booking(),LocalDate.now(clock),stayPlan.end(a.booking()));
         var source=ExpenseRules.sourceAndCapacity(e,rows);
         FolioItem posted=ledger.addItem(a.booking().getId(),FolioItemCommand.builder().itemType(e.getItemType()).description(e.getDescription())
                 .businessDate(e.getBusinessDate()).quantity(BigDecimal.ONE).unitPrice(e.getAmount()).amount(e.getAmount())

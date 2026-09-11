@@ -1,6 +1,9 @@
 package com.johnny.hotel.service.impl;
 import com.johnny.hotel.dto.*;
 import com.johnny.hotel.entity.*;
+import com.johnny.hotel.enums.BookingStatus;
+import com.johnny.hotel.enums.RoomStatus;
+import com.johnny.hotel.enums.RoomTypeStatus;
 import com.johnny.hotel.exception.BusinessException;
 import com.johnny.hotel.mapper.*;
 import com.johnny.hotel.service.BookingService;
@@ -25,6 +28,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BookingServiceImpl implements BookingService {
     private final java.time.Clock clock;
+    private final com.johnny.hotel.stay.StayPlan stayPlan;
+    private final com.johnny.hotel.stay.RoomConflictReader roomConflicts;
     private final FolioMapper folioMapper;
     private final com.johnny.hotel.service.support.PriceSnapshotValidator snapshotValidator;
     private final com.johnny.hotel.service.support.CheckoutFinalizer checkoutFinalizer;
@@ -171,7 +176,7 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        if (roomType.getStatus() != 1) {
+        if (roomType.getStatus() != RoomTypeStatus.ENABLED.getCode()) {
             throw new BusinessException(
                     "Room type is disabled"
             );
@@ -200,7 +205,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setCheckInDate(request.getCheckInDate());
         booking.setCheckOutDate(request.getCheckOutDate());
 
-        booking.setStatus(0);
+        booking.setStatus(BookingStatus.PENDING.getCode());
 
 
         booking.setTotalPrice(BigDecimal.ZERO);
@@ -233,7 +238,7 @@ public class BookingServiceImpl implements BookingService {
          * totalAmount = 0
          * paidAmount = 0
          * balanceAmount = 0
-         * status = OPEN
+         * status = COMPLETED (zero balance; not finally closed)
          */
         folioService.ensureFolioExists(
                 booking.getId()
@@ -258,7 +263,7 @@ public class BookingServiceImpl implements BookingService {
         }
         require(!booking.getCheckInDate().isBefore(LocalDate.now(clock)), "Expired arrivals cannot be assigned or repriced");
 
-        if (booking.getStatus() != 0) {
+        if (booking.getStatus() != BookingStatus.PENDING.getCode()) {
             throw new BusinessException(
                     "Only pending bookings can be approved"
             );
@@ -273,11 +278,8 @@ public class BookingServiceImpl implements BookingService {
             throw new BusinessException("Room does not exist");
         }
 
-        if (room.getStatus() != 1) {
-            throw new BusinessException(
-                    "Room is not available"
-            );
-        }
+        require(java.util.Set.of(RoomStatus.AVAILABLE.getCode(),RoomStatus.BOOKED.getCode(),RoomStatus.OCCUPIED.getCode()).contains(room.getStatus()), "Room is not available for reservation");
+        require(roomConflicts.overlapping(room.getId(),bookingId,booking.getCheckInDate(),booking.getCheckOutDate()).isEmpty(),"Room has an overlapping reservation or effective stay");
 
         if (!room.getRoomTypeId()
                 .equals(booking.getRoomTypeId())) {
@@ -291,7 +293,7 @@ public class BookingServiceImpl implements BookingService {
                 bookingMapper.approveBooking(
                         bookingId,
                         room.getId(),
-                        1
+                        BookingStatus.APPROVED.getCode()
                 );
 
         if (bookingUpdated != 1) {
@@ -301,7 +303,7 @@ public class BookingServiceImpl implements BookingService {
         }
 
         int roomUpdated =
-                roomMapper.transitionStatus(room.getId(), 1, 2);
+                room.getStatus() == RoomStatus.AVAILABLE.getCode() ? roomMapper.transitionStatus(room.getId(), RoomStatus.AVAILABLE.getCode(), RoomStatus.BOOKED.getCode()) : 1;
 
         if (roomUpdated != 1) {
             throw new BusinessException(
@@ -330,8 +332,8 @@ public class BookingServiceImpl implements BookingService {
     @Transactional
     public BookingVO rejectBooking(Long bookingId, Long currentUserId) {
         Booking booking = lockBooking(bookingId);
-        require(booking.getStatus() == 0, "Only pending bookings can be rejected");
-        one(bookingMapper.transitionStatus(bookingId, 0, 5));
+        require(booking.getStatus() == BookingStatus.PENDING.getCode(), "Only pending bookings can be rejected");
+        one(bookingMapper.transitionStatus(bookingId, BookingStatus.PENDING.getCode(), BookingStatus.REJECTED_BY_STAFF.getCode()));
         audit(booking, currentUserId, "REJECT_BOOKING");
         return getBookingByIdInternal(bookingId);
     }
@@ -362,7 +364,7 @@ public class BookingServiceImpl implements BookingService {
          * 4 CANCELLED
          * 5 REJECTED
          */
-        if (booking.getStatus() != 1) {
+        if (booking.getStatus() != BookingStatus.APPROVED.getCode()) {
             throw new BusinessException(
                     "Only approved bookings can be checked in"
             );
@@ -408,7 +410,7 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        if (room.getStatus() != 2) {
+        if (room.getStatus() != RoomStatus.BOOKED.getCode() && room.getStatus() != RoomStatus.AVAILABLE.getCode()) {
             throw new BusinessException(
                     "Assigned room is not in booked status"
             );
@@ -427,7 +429,7 @@ public class BookingServiceImpl implements BookingService {
 
 
         int bookingUpdated =
-                bookingMapper.transitionStatus(bookingId, 1, 2);
+                bookingMapper.transitionStatus(bookingId, BookingStatus.APPROVED.getCode(), BookingStatus.CHECKED_IN.getCode());
 
         if (bookingUpdated != 1) {
             throw new BusinessException(
@@ -436,7 +438,7 @@ public class BookingServiceImpl implements BookingService {
         }
 
         int roomUpdated =
-                roomMapper.transitionStatus(roomId, 2, 4);
+                roomMapper.transitionStatus(roomId, room.getStatus(), RoomStatus.OCCUPIED.getCode());
 
         if (roomUpdated != 1) {
             throw new BusinessException(
@@ -527,21 +529,21 @@ public class BookingServiceImpl implements BookingService {
     }
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor=com.johnny.hotel.exception.WalletSettlementIncompleteException.class)
     public BookingVO checkOut(Long bookingId, Long currentUserId) {
         Booking booking = lockBooking(bookingId);
-        require(booking.getStatus() == 2, "Only checked-in bookings can be checked out");
-        require(LocalDate.now(clock).equals(booking.getCheckOutDate()), "Early or extended checkout requires an unsupported pricing policy");
+        require(booking.getStatus() == BookingStatus.CHECKED_IN.getCode(), "Only checked-in bookings can be checked out");
+
         require(booking.getAssignedRoomId() != null, "Booking has no current room");
         Room room = roomMapper.selectByIdForUpdate(booking.getAssignedRoomId());
         BookingRoomAssignment assignment = bookingRoomAssignmentMapper.selectActiveByBookingId(bookingId);
         require(assignment != null && assignment.getRoomId().equals(booking.getAssignedRoomId()), "Current assignment does not match booking");
-        require(room != null && room.getStatus() == 4 && room.getRoomTypeId().equals(assignment.getRoomTypeId()), "Current room does not match active stay");
+        require(room != null && room.getStatus() == RoomStatus.OCCUPIED.getCode() && room.getRoomTypeId().equals(assignment.getRoomTypeId()), "Current room does not match active stay");
         LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
-        checkoutFinalizer.finalizeStay(booking, now);
+        if(!checkoutFinalizer.finalizeStay(booking, now,currentUserId))throw new com.johnny.hotel.exception.WalletSettlementIncompleteException();
         one(bookingRoomAssignmentMapper.closeAssignment(assignment.getId(), now));
-        one(bookingMapper.transitionStatus(bookingId, 2, 3));
-        one(roomMapper.transitionStatus(room.getId(), 4, 3));
+        one(bookingMapper.transitionStatus(bookingId, BookingStatus.CHECKED_IN.getCode(), BookingStatus.CHECKED_OUT.getCode()));
+        one(roomMapper.transitionStatus(room.getId(), RoomStatus.OCCUPIED.getCode(), RoomStatus.MAINTENANCE.getCode()));
         audit(booking, currentUserId, "CHECK_OUT");
         return getBookingByIdInternal(bookingId);
     }
@@ -675,7 +677,7 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        if (booking.getStatus() != 0) {
+        if (booking.getStatus() != BookingStatus.PENDING.getCode()) {
             throw new BusinessException(
                     "Only pending bookings can be updated"
             );
@@ -716,7 +718,7 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        if (roomType.getStatus() != 1) {
+        if (roomType.getStatus() != RoomTypeStatus.ENABLED.getCode()) {
             throw new BusinessException(
                     "Room type is disabled"
             );
@@ -828,7 +830,7 @@ public class BookingServiceImpl implements BookingService {
         }
         require(!booking.getCheckInDate().isBefore(LocalDate.now(clock)), "Expired arrivals cannot be assigned or repriced");
 
-        if (booking.getStatus() != 1) {
+        if (booking.getStatus() != BookingStatus.APPROVED.getCode()) {
             throw new BusinessException(
                     "Only approved bookings can have their room reassigned"
             );
@@ -867,14 +869,14 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        if (oldRoom.getStatus() != 2) {
+        if (oldRoom.getStatus() == RoomStatus.DISABLED.getCode()) {
             throw new BusinessException(
                     "Currently assigned room is not in booked status"
             );
         }
 
 
-        if (newRoom.getStatus() != 1) {
+        if (newRoom.getStatus() != RoomStatus.AVAILABLE.getCode() && newRoom.getStatus() != RoomStatus.BOOKED.getCode()) {
             throw new BusinessException(
                     "New room is not available"
             );
@@ -888,8 +890,8 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        int oldRoomUpdated =
-                roomMapper.transitionStatus(oldRoomId, 2, 1);
+        int oldRoomUpdated = oldRoom.getStatus()==RoomStatus.BOOKED.getCode()
+                ? roomMapper.transitionStatus(oldRoomId, RoomStatus.BOOKED.getCode(), RoomStatus.AVAILABLE.getCode()) : 1;
 
         if (oldRoomUpdated != 1) {
             throw new BusinessException(
@@ -897,8 +899,9 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        int newRoomUpdated =
-                roomMapper.transitionStatus(newRoomId, 1, 2);
+        require(roomConflicts.overlapping(newRoomId,bookingId,booking.getCheckInDate(),booking.getCheckOutDate()).isEmpty(),"Target room has an overlapping reservation");
+        int newRoomUpdated = newRoom.getStatus()==RoomStatus.BOOKED.getCode()?1:
+                roomMapper.transitionStatus(newRoomId, RoomStatus.AVAILABLE.getCode(), RoomStatus.BOOKED.getCode());
 
         if (newRoomUpdated != 1) {
             throw new BusinessException(
@@ -955,7 +958,7 @@ public class BookingServiceImpl implements BookingService {
         require(!booking.getCheckInDate().isBefore(LocalDate.now(clock)), "Expired arrivals cannot be assigned or repriced");
         validateSnapshot(booking);
 
-        if (booking.getStatus() != 1) {
+        if (booking.getStatus() != BookingStatus.APPROVED.getCode()) {
             throw new BusinessException(
                     "Only approved bookings can change room type"
             );
@@ -993,7 +996,7 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        if (newRoomType.getStatus() != 1) {
+        if (newRoomType.getStatus() != RoomTypeStatus.ENABLED.getCode()) {
             throw new BusinessException(
                     "New room type is disabled"
             );
@@ -1039,13 +1042,13 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        if (oldRoom.getStatus() != 2) {
+        if (oldRoom.getStatus() == RoomStatus.DISABLED.getCode()) {
             throw new BusinessException(
                     "Currently assigned room is not in booked status"
             );
         }
 
-        if (newRoom.getStatus() != 1) {
+        if (newRoom.getStatus() != RoomStatus.AVAILABLE.getCode() && newRoom.getStatus() != RoomStatus.BOOKED.getCode()) {
             throw new BusinessException(
                     "New room is not available"
             );
@@ -1065,8 +1068,8 @@ public class BookingServiceImpl implements BookingService {
                 booking.getTotalPrice();
 
 
-        int oldRoomUpdated =
-                roomMapper.transitionStatus(oldRoomId, 2, 1);
+        int oldRoomUpdated = oldRoom.getStatus()==RoomStatus.BOOKED.getCode()
+                ? roomMapper.transitionStatus(oldRoomId, RoomStatus.BOOKED.getCode(), RoomStatus.AVAILABLE.getCode()) : 1;
 
         if (oldRoomUpdated != 1) {
             throw new BusinessException(
@@ -1074,8 +1077,9 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        int newRoomUpdated =
-                roomMapper.transitionStatus(newRoomId, 1, 2);
+        require(roomConflicts.overlapping(newRoomId,bookingId,booking.getCheckInDate(),booking.getCheckOutDate()).isEmpty(),"Target room has an overlapping reservation");
+        int newRoomUpdated = newRoom.getStatus()==RoomStatus.BOOKED.getCode()?1:
+                roomMapper.transitionStatus(newRoomId, RoomStatus.AVAILABLE.getCode(), RoomStatus.BOOKED.getCode());
 
         if (newRoomUpdated != 1) {
             throw new BusinessException(
@@ -1149,7 +1153,7 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        if (booking.getStatus() != 2) {
+        if (booking.getStatus() != BookingStatus.CHECKED_IN.getCode()) {
             throw new BusinessException(
                     "Only checked-in bookings can change room during stay"
             );
@@ -1171,7 +1175,9 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        require(!LocalDate.now(clock).isBefore(booking.getCheckInDate()) && LocalDate.now(clock).isBefore(booking.getCheckOutDate()), "Room change must be within contracted stay dates");
+        stayPlan.mayChangeRoom(booking);
+        var effectiveEnd=stayPlan.end(booking);
+        require(!LocalDate.now(clock).isBefore(booking.getCheckInDate()) && !LocalDate.now(clock).isAfter(effectiveEnd), "Room change must be within effective stay dates");
         validateSnapshot(booking);
         BookingRoomAssignment currentAssignment =
                 bookingRoomAssignmentMapper
@@ -1226,13 +1232,13 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        if (oldRoom.getStatus() != 4) {
+        if (oldRoom.getStatus() != RoomStatus.OCCUPIED.getCode()) {
             throw new BusinessException(
                     "Current room is not occupied"
             );
         }
 
-        if (newRoom.getStatus() != 1) {
+        if (newRoom.getStatus() != RoomStatus.AVAILABLE.getCode() && newRoom.getStatus() != RoomStatus.BOOKED.getCode()) {
             throw new BusinessException(
                     "New room is not available"
             );
@@ -1249,7 +1255,7 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        if (newRoomType.getStatus() != 1) {
+        if (newRoomType.getStatus() != RoomTypeStatus.ENABLED.getCode()) {
             throw new BusinessException(
                     "New room type is disabled"
             );
@@ -1287,7 +1293,7 @@ public class BookingServiceImpl implements BookingService {
          * MAINTENANCE -> AVAILABLE
          */
         int oldRoomUpdated =
-                roomMapper.transitionStatus(oldRoomId, 4, 3);
+                roomMapper.transitionStatus(oldRoomId, RoomStatus.OCCUPIED.getCode(), RoomStatus.MAINTENANCE.getCode());
 
         if (oldRoomUpdated != 1) {
             throw new BusinessException(
@@ -1295,7 +1301,8 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        int newRoomUpdated = roomMapper.transitionStatus(newRoomId, 1, 4);
+        require(roomConflicts.overlapping(newRoomId,bookingId,changeTime.toLocalDate(),effectiveEnd.isAfter(changeTime.toLocalDate())?effectiveEnd:effectiveEnd.plusDays(1)).isEmpty(),"Target room has an overlapping future reservation");
+        int newRoomUpdated = roomMapper.transitionStatus(newRoomId, newRoom.getStatus(), RoomStatus.OCCUPIED.getCode());
 
         if (newRoomUpdated != 1) {
             throw new BusinessException(
@@ -1345,7 +1352,7 @@ public class BookingServiceImpl implements BookingService {
                         .oldRoomTypeId(currentAssignment.getRoomTypeId())
                         .newRoomTypeId(newRoom.getRoomTypeId())
                         .changeDate(changeTime.toLocalDate())
-                        .checkOutDate(booking.getCheckOutDate())
+                        .checkOutDate(effectiveEnd)
                         .reason(normalizeReason(request.getReason()))
                         .operatorId(currentUserId)
                         .build()
@@ -1400,15 +1407,15 @@ public class BookingServiceImpl implements BookingService {
                 .action(action).detail("Booking id: " + b.getId()).build()));
     }
     private BookingVO cancelLocked(Booking b, Long operator) {
-        require(b.getStatus() == 0 || b.getStatus() == 1, "Only pending or approved bookings can be cancelled");
+        require(b.getStatus() == BookingStatus.PENDING.getCode() || b.getStatus() == BookingStatus.APPROVED.getCode(), "Only pending or approved bookings can be cancelled");
         require(bookingRoomAssignmentMapper.selectActiveByBookingId(b.getId()) == null, "Booking has an active stay");
-        if (b.getStatus() == 1) {
+        if (b.getStatus() == BookingStatus.APPROVED.getCode()) {
             require(b.getAssignedRoomId() != null, "Approved booking has no room");
             Room room = roomMapper.selectByIdForUpdate(b.getAssignedRoomId());
-            require(room != null && room.getStatus() == 2, "Reserved room is inconsistent");
-            one(roomMapper.transitionStatus(room.getId(), 2, 1));
+            require(room != null, "Reserved room is missing");
+            if(room.getStatus()==RoomStatus.BOOKED.getCode())one(roomMapper.transitionStatus(room.getId(), RoomStatus.BOOKED.getCode(), RoomStatus.AVAILABLE.getCode()));
         } else require(b.getAssignedRoomId() == null, "Pending booking unexpectedly reserves a room");
-        one(bookingMapper.transitionStatus(b.getId(), b.getStatus(), 4));
+        one(bookingMapper.transitionStatus(b.getId(), b.getStatus(), BookingStatus.CANCELLED_BY_USER.getCode()));
         audit(b, operator, "CANCEL_BOOKING");
         return getBookingByIdInternal(b.getId());
     }

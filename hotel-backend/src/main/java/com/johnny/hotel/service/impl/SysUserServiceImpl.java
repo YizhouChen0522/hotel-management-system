@@ -6,6 +6,7 @@ import com.johnny.hotel.dto.RegisterEmployeeRequest;
 import com.johnny.hotel.entity.SysRole;
 import com.johnny.hotel.entity.SysUser;
 import com.johnny.hotel.entity.SysAuditLog;
+import com.johnny.hotel.enums.UserStatus;
 import com.johnny.hotel.mapper.SysRoleMapper;
 import com.johnny.hotel.mapper.SysUserMapper;
 import com.johnny.hotel.mapper.SysUserRoleMapper;
@@ -31,19 +32,22 @@ public class SysUserServiceImpl implements SysUserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final SysAuditLogMapper sysAuditLogMapper;
+    private final com.johnny.hotel.wallet.WalletOpeningService walletOpening;
 
     public SysUserServiceImpl(SysUserMapper sysUserMapper,
                               SysRoleMapper sysRoleMapper,
                               SysUserRoleMapper sysUserRoleMapper,
                               PasswordEncoder passwordEncoder,
                               JwtUtil JwtUtil,
-                              SysAuditLogMapper sysAuditLogMapper) {
+                              SysAuditLogMapper sysAuditLogMapper,
+                              com.johnny.hotel.wallet.WalletOpeningService walletOpening) {
         this.sysUserMapper = sysUserMapper;
         this.sysRoleMapper = sysRoleMapper;
         this.sysUserRoleMapper = sysUserRoleMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = JwtUtil;
         this.sysAuditLogMapper = sysAuditLogMapper;
+        this.walletOpening = walletOpening;
     }
 
     @Override
@@ -94,10 +98,11 @@ public class SysUserServiceImpl implements SysUserService {
                 .realName(request.getRealName())
                 .phone(request.getPhone())
                 .email(request.getEmail())
-                .status(1)
+                .status(UserStatus.ACTIVE.getCode())
                 .build();
 
-        sysUserMapper.insert(user);
+        com.johnny.hotel.service.support.BillingRules.one(sysUserMapper.insert(user));
+        walletOpening.openForNewUser(user.getId());
 
         sysUserRoleMapper.insertUserRole(user.getId(), customerRole.getId());
 
@@ -117,7 +122,7 @@ public class SysUserServiceImpl implements SysUserService {
         if (user == null) {
             throw new BusinessException("User doesn't exist");
         }
-        if (user.getStatus() == null || user.getStatus() != 1) {
+        if (user.getStatus() == null || user.getStatus() != UserStatus.ACTIVE.getCode()) {
             throw new BusinessException("Account is not active");
         }
         boolean passwordMatches = passwordEncoder.matches(
@@ -180,12 +185,13 @@ public class SysUserServiceImpl implements SysUserService {
                 .realName(request.getRealName())
                 .phone(request.getPhone())
                 .email(request.getEmail())
-                .status(2)
+                .status(UserStatus.PENDING.getCode())
                 .applyRoleCode(request.getApplyRoleCode())
                 .applyReason(request.getApplyReason())
                 .build();
 
-        sysUserMapper.insert(user);
+        com.johnny.hotel.service.support.BillingRules.one(sysUserMapper.insert(user));
+        walletOpening.openForNewUser(user.getId());
 
         return UserVO.builder()
                 .id(user.getId())
@@ -246,7 +252,7 @@ public class SysUserServiceImpl implements SysUserService {
             throw new BusinessException("User does not exist");
         }
 
-        if (user.getStatus() != 2) {
+        if (user.getStatus() == null || user.getStatus() != UserStatus.PENDING.getCode()) {
             throw new BusinessException("User is not pending approval");
         }
 
@@ -264,7 +270,7 @@ public class SysUserServiceImpl implements SysUserService {
             throw new BusinessException("Applied role does not exist");
         }
 
-        sysUserMapper.updateUserStatus(userId, 1, currentUserId);
+        sysUserMapper.updateUserStatus(userId, UserStatus.ACTIVE.getCode(), currentUserId);
 
         sysUserRoleMapper.insertUserRole(userId, role.getId());
         sysAuditLogMapper.insert(SysAuditLog.builder()
@@ -284,7 +290,7 @@ public class SysUserServiceImpl implements SysUserService {
             throw new BusinessException("User does not exist");
         }
 
-        if (user.getStatus() != 2) {
+        if (user.getStatus() == null || user.getStatus() != UserStatus.PENDING.getCode()) {
             throw new BusinessException("User is not pending approval");
         }
 
@@ -296,7 +302,7 @@ public class SysUserServiceImpl implements SysUserService {
 
         checkApprovalPermission(currentUserId, applyRoleCode);
 
-        sysUserMapper.updateUserStatus(userId, 3, currentUserId);
+        sysUserMapper.updateUserStatus(userId, UserStatus.REJECTED.getCode(), currentUserId);
         sysAuditLogMapper.insert(SysAuditLog.builder()
                 .operatorId(currentUserId)
                 .targetUserId(userId)
@@ -340,7 +346,7 @@ public class SysUserServiceImpl implements SysUserService {
 
         checkUserManagePermission(currentUserId, userId);
 
-        sysUserMapper.updateStatusOnly(userId, 1);
+        sysUserMapper.updateStatusOnly(userId, UserStatus.ACTIVE.getCode());
         sysAuditLogMapper.insert(SysAuditLog.builder()
                 .operatorId(currentUserId)
                 .targetUserId(userId)
@@ -357,7 +363,7 @@ public class SysUserServiceImpl implements SysUserService {
 
         checkUserManagePermission(currentUserId, userId);
 
-        sysUserMapper.updateStatusOnly(userId, 0);
+        sysUserMapper.updateStatusOnly(userId, UserStatus.INACTIVE.getCode());
         sysAuditLogMapper.insert(SysAuditLog.builder()
                 .operatorId(currentUserId)
                 .targetUserId(userId)

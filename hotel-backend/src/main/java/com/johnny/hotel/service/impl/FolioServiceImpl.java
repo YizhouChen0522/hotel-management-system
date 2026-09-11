@@ -31,6 +31,8 @@ import java.util.List;
 public class FolioServiceImpl implements FolioService {
 
     private final BookingRoomAssignmentMapper assignments;
+    private final com.johnny.hotel.stay.StayPlan stayPlan;
+    private final com.johnny.hotel.stay.StayAdjustmentMapper stayAdjustments;
     private final RoomBillingEventMapper events;
     private final BookingPriceVersionMapper versions;
     private final com.johnny.hotel.service.support.PriceSnapshotValidator snapshots;
@@ -67,13 +69,13 @@ public class FolioServiceImpl implements FolioService {
             return existing;
         }
 
-        require(booking.getStatus() == 0, "Missing folio cannot be reconstructed for an existing stay");
+        require(booking.getStatus() == com.johnny.hotel.enums.BookingStatus.PENDING.getCode(), "Missing folio cannot be reconstructed for an existing stay");
         BookingPriceVersion version = versions.selectActiveByBookingId(bookingId);
         require(version != null, "Price snapshot must exist before account creation");
         snapshots.validate(booking, version.getCurrency());
         Folio folio = Folio.builder()
                 .bookingId(bookingId)
-                .status("OPEN")
+                .status(com.johnny.hotel.enums.FolioStatus.COMPLETED.getCode())
                 .currency(version.getCurrency())
                 .totalAmount(BigDecimal.ZERO)
                 .paidAmount(BigDecimal.ZERO)
@@ -118,16 +120,16 @@ public class FolioServiceImpl implements FolioService {
         List<BookingRoomAssignment> segments = assignments.selectByBookingId(bookingId);
         Folio folio = folioMapper.selectByBookingIdForUpdate(bookingId);
         require(folio != null, "Folio does not exist");
-        require(folio.getClosedTime() == null && !"VOID".equals(folio.getStatus()) && booking.getStatus() != 3,
+        require(folio.getClosedTime() == null && booking.getStatus() != com.johnny.hotel.enums.BookingStatus.CHECKED_OUT.getCode(),
                 "Cannot add fees to a finalized or void account");
         List<FolioItem> ledger = new ArrayList<>(folioItemMapper.selectByFolioIdForUpdate(folio.getId()));
         List<FolioItem> result = new ArrayList<>();
         for (FolioItemCommand command : commands) {
             item(command);
             boolean roomCharge = "ROOM_CHARGE".equals(command.getItemType());
-            boolean reversal = "ROOM_RATE_ADJUSTMENT".equals(command.getItemType());
+            boolean reversal = "ROOM_RATE_ADJUSTMENT".equals(command.getItemType()) || "EARLY_CHECKOUT_REVERSAL".equals(command.getItemType());
             if (roomCharge || reversal) {
-                require(booking.getStatus() == 2, "Room charges require a checked-in booking");
+                require(booking.getStatus() == com.johnny.hotel.enums.BookingStatus.CHECKED_IN.getCode(), "Room charges require a checked-in booking");
                 require(command.getQuantity().compareTo(BigDecimal.ONE) == 0, "Room charge quantity must be one");
                 require(command.getRoomAssignmentId() != null, "Room charges require an assignment");
             }
@@ -136,8 +138,11 @@ public class FolioServiceImpl implements FolioService {
                 require(segment != null && Objects.equals(segment.getRoomId(), command.getRoomId())
                         && Objects.equals(segment.getRoomTypeId(), command.getRoomTypeId()), "Assignment, booking, room or room type mismatch");
                 require(!command.getBusinessDate().isBefore(segment.getStartTime().toLocalDate())
-                        && command.getBusinessDate().isBefore(booking.getCheckOutDate()), "Charge date is outside the assignment contract");
+                        && (command.getBusinessDate().isBefore(stayPlan.chargedThrough(booking)) || command.getStayAdjustmentId()!=null && command.getBusinessDate().equals(stayPlan.chargedThrough(booking))), "Charge date is outside the assignment contract");
             } else require(command.getRoomId() == null && command.getRoomTypeId() == null, "Room attribution requires an assignment");
+            boolean stayFee=java.util.Set.of("EARLY_CHECKOUT_REVERSAL","LATE_CHECKOUT_FEE","LATE_CHECKOUT_CONFLICT_FEE","STAY_FEE_REVERSAL").contains(command.getItemType());
+            require(!stayFee || command.getStayAdjustmentId()!=null,"Stay fee requires a registered adjustment");
+            if(command.getStayAdjustmentId()!=null)require(stayAdjustments.forBooking(bookingId).stream().anyMatch(a->a.getId().equals(command.getStayAdjustmentId())&&a.getFolioId().equals(folio.getId())),"Stay adjustment belongs to another account");
             String key = roomCharge ? "ROOM:" + command.getRoomAssignmentId() + ":" + command.getBusinessDate()
                     : reversal ? "REV:" + command.getSourceItemId() : command.getEventKey();
             require(key != null && !key.isBlank(), "A stable billing event key is required");
@@ -145,7 +150,7 @@ public class FolioServiceImpl implements FolioService {
                     .itemType(command.getItemType()).description(command.getDescription().trim()).businessDate(command.getBusinessDate())
                     .quantity(command.getQuantity()).unitPrice(command.getUnitPrice()).amount(command.getAmount())
                     .roomId(command.getRoomId()).roomTypeId(command.getRoomTypeId()).roomAssignmentId(command.getRoomAssignmentId())
-                    .sourceItemId(command.getSourceItemId()).refundable(Boolean.TRUE.equals(command.getRefundable()) ? 1 : 0).createdBy(operatorId).build();
+                    .sourceItemId(command.getSourceItemId()).stayAdjustmentId(command.getStayAdjustmentId()).refundable(Boolean.TRUE.equals(command.getRefundable()) ? 1 : 0).createdBy(operatorId).build();
             FolioItem existing = ledger.stream().filter(i -> key.equalsIgnoreCase(i.getEventKey())).findFirst().orElse(null);
             if (existing != null) {
                 require(sameItem(existing, candidate), "Billing event key was already used with different content");
@@ -197,26 +202,26 @@ public class FolioServiceImpl implements FolioService {
         require(Objects.equals(old.getRoomId(), command.getOldRoomId()) && Objects.equals(next.getRoomId(), command.getNewRoomId())
                 && Objects.equals(old.getRoomTypeId(), command.getOldRoomTypeId()) && Objects.equals(next.getRoomTypeId(), command.getNewRoomTypeId())
                 && old.getEndTime() != null && old.getEndTime().equals(next.getStartTime()) && "ROOM_CHANGE".equals(next.getAssignmentType())
-                && next.getStartTime().toLocalDate().equals(command.getChangeDate()) && booking.getCheckOutDate().equals(command.getCheckOutDate()), "Room change command does not match actual stay history");
+                && next.getStartTime().toLocalDate().equals(command.getChangeDate()) && stayPlan.end(booking).equals(command.getCheckOutDate()), "Room change command does not match actual stay history");
         List<RoomBillingEvent> completed = events.selectByBookingIdForUpdate(booking.getId());
         RoomBillingEvent previous = completed.stream().filter(e -> e.getOldAssignmentId().equals(old.getId()) || e.getNewAssignmentId().equals(next.getId())).findFirst().orElse(null);
         if (previous != null) {
             require(previous.getOldAssignmentId().equals(old.getId()) && previous.getNewAssignmentId().equals(next.getId()) && previous.getChangeDate().equals(command.getChangeDate()), "Room change event conflicts with history");
             return;
         }
-        require(booking.getStatus() == 2 && next.getEndTime() == null && next.getRoomId().equals(booking.getAssignedRoomId()), "Room change requires the current active stay");
-        require(!command.getChangeDate().isBefore(booking.getCheckInDate()) && command.getChangeDate().isBefore(booking.getCheckOutDate()), "Room change is outside contracted dates");
+        require(booking.getStatus() == com.johnny.hotel.enums.BookingStatus.CHECKED_IN.getCode() && next.getEndTime() == null && next.getRoomId().equals(booking.getAssignedRoomId()), "Room change requires the current active stay");
+        require(!command.getChangeDate().isBefore(booking.getCheckInDate()) && !command.getChangeDate().isAfter(stayPlan.end(booking)), "Room change is outside contracted dates");
         Folio folio = folioMapper.selectByBookingIdForUpdate(booking.getId());
-        require(folio != null && folio.getClosedTime() == null && !"VOID".equals(folio.getStatus()), "Account is missing or finalized");
+        require(folio != null && folio.getClosedTime() == null, "Account is missing or finalized");
         snapshots.validate(booking, folio.getCurrency());
         List<FolioItem> oldFutureCharges = folioItemMapper.selectByFolioIdForUpdate(folio.getId()).stream()
                 .filter(i -> "ROOM_CHARGE".equals(i.getItemType()) && old.getId().equals(i.getRoomAssignmentId()) && !i.getBusinessDate().isBefore(command.getChangeDate())).toList();
-        require(oldFutureCharges.size() == java.time.temporal.ChronoUnit.DAYS.between(command.getChangeDate(), booking.getCheckOutDate())
+        require(oldFutureCharges.size() == java.time.temporal.ChronoUnit.DAYS.between(command.getChangeDate(), stayPlan.end(booking))
                 && oldFutureCharges.stream().map(FolioItem::getBusinessDate).distinct().count() == oldFutureCharges.size(), "Remaining nightly charges are incomplete");
         if (oldFutureCharges.isEmpty()) {
-            throw new BusinessException(
-                    "Remaining room charges for current room assignment do not exist"
-            );
+            require(command.getChangeDate().equals(stayPlan.end(booking)),"Remaining room charges are missing");
+            one(events.insert(RoomBillingEvent.builder().bookingId(booking.getId()).oldAssignmentId(old.getId()).newAssignmentId(next.getId()).changeDate(command.getChangeDate()).newChargesTotal(BigDecimal.ZERO).build()));
+            return;
         }
 
         List<FolioItemCommand> ledgerCommands =
@@ -332,7 +337,7 @@ public class FolioServiceImpl implements FolioService {
     }
 
     private boolean sameItem(FolioItem a, FolioItem b) {
-        return Objects.equals(a.getItemType(), b.getItemType()) && Objects.equals(a.getDescription(), b.getDescription())
+        return Objects.equals(a.getStayAdjustmentId(),b.getStayAdjustmentId()) && Objects.equals(a.getItemType(), b.getItemType()) && Objects.equals(a.getDescription(), b.getDescription())
                 && Objects.equals(a.getBusinessDate(), b.getBusinessDate()) && a.getAmount().compareTo(b.getAmount()) == 0
                 && a.getQuantity().compareTo(b.getQuantity()) == 0 && a.getUnitPrice().compareTo(b.getUnitPrice()) == 0
                 && Objects.equals(a.getRoomAssignmentId(), b.getRoomAssignmentId()) && Objects.equals(a.getRoomId(), b.getRoomId())

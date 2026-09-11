@@ -29,6 +29,7 @@ public class FolioItemCommand {
     private Long roomAssignmentId;
 
     private Long sourceItemId;
+    private Long stayAdjustmentId;
 
     private Boolean refundable;
     private String eventKey;

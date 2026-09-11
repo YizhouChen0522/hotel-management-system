@@ -31,7 +31,7 @@ public class FolioQueryService {
         require(b != null, "Booking does not exist");
         if (customerId != null && !customerId.equals(b.getUserId())) throw new BusinessException(403, "Forbidden");
         return FolioVO.builder().id(f.getId()).bookingId(f.getBookingId()).currency(f.getCurrency()).status(f.getStatus())
-                .totalAmount(f.getTotalAmount()).paidAmount(f.getPaidAmount()).balanceAmount(f.getBalanceAmount()).closedTime(f.getClosedTime())
+                .totalAmount(f.getTotalAmount()).paidAmount(f.getPaidAmount()).refundedAmount(f.getRefundedAmount()).balanceAmount(f.getBalanceAmount()).closedTime(f.getClosedTime())
                 .items(items.selectByFolioIdForUpdate(f.getId()).stream().map(FolioVO.Item::from).toList())
                 .expenses(expenses.selectByFolioForUpdate(f.getId()).stream().map(ExpenseVO::from).toList())
                 .payments(payments.selectByFolioIdForUpdate(f.getId()).stream().map(PaymentVO::from).toList()).build();

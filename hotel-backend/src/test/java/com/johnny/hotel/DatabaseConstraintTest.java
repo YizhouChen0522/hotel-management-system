@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @org.junit.jupiter.api.condition.EnabledIfSystemProperty(named="hotel.mysql.tests", matches="true")
 class DatabaseConstraintTest extends IsolatedMysqlTest {
     @Test void oneFolioAndOneActivePriceVersionPerBooking(){long b=create();
-        assertThrows(DataAccessException.class,()->jdbc.update("INSERT INTO folio(booking_id,status,currency) VALUES(?,'OPEN','CNY')",b));
+        assertThrows(DataAccessException.class,()->jdbc.update("INSERT INTO folio(booking_id,currency) VALUES(?,'CNY')",b));
         assertThrows(DataAccessException.class,()->jdbc.update("INSERT INTO booking_price_version(booking_id,version_no,change_type,is_active,total_price,currency) VALUES(?,2,'ORIGINAL_BOOKING',1,300,'CNY')",b));invariants(b);
     }
     @Test void oneActiveAssignmentPerBookingAndRoom(){long b=checkIn(),other=create();

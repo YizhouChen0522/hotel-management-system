@@ -11,6 +11,10 @@ import org.springframework.security.access.AccessDeniedException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Result<Void> handleMissingResource(Exception e) { return Result.error(404, "Resource not found"); }
+
     @ExceptionHandler(BusinessException.class)
     public org.springframework.http.ResponseEntity<Result<Void>> handleBusinessException(BusinessException e) {
         int status = e.getCode() >= 400 && e.getCode() <= 599 ? e.getCode() : 400;

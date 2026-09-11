@@ -154,13 +154,6 @@ public class PaymentServiceImpl implements PaymentService {
         /*
          * 3. VOID Folio 禁止收款。
          */
-        if ("VOID".equals(
-                folio.getStatus())) {
-
-            throw new BusinessException(
-                    "Cannot record payment for a void folio"
-            );
-        }
         if (folio.getClosedTime() != null) throw new BusinessException("Folio is finalized; new payments are not permitted");
         if (referenceNo != null && referenceNo.length() > 100 || note != null && note.length() > 255)
             throw new BusinessException("Payment reference or note is too long");

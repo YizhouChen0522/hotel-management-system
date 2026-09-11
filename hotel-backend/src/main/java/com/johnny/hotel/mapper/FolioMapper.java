@@ -12,7 +12,6 @@ public interface FolioMapper {
             INSERT INTO folio
             (
                 booking_id,
-                status,
                 currency,
                 total_amount,
                 paid_amount,
@@ -21,7 +20,6 @@ public interface FolioMapper {
             VALUES
             (
                 #{bookingId},
-                #{status},
                 #{currency},
                 #{totalAmount},
                 #{paidAmount},
@@ -72,8 +70,8 @@ public interface FolioMapper {
             UPDATE folio
             SET total_amount = #{totalAmount},
                 paid_amount = #{paidAmount},
+                refunded_amount = #{refundedAmount},
                 balance_amount = #{balanceAmount},
-                status = #{status},
                 settled_time = #{settledTime},
                 update_time = NOW()
             WHERE id = #{folioId}
@@ -82,8 +80,9 @@ public interface FolioMapper {
             @Param("folioId") Long folioId,
             @Param("totalAmount") BigDecimal totalAmount,
             @Param("paidAmount") BigDecimal paidAmount,
+            @Param("refundedAmount") BigDecimal refundedAmount,
             @Param("balanceAmount") BigDecimal balanceAmount,
-            @Param("status") String status,
+            @Param("status") Integer status,
             @Param("settledTime") java.time.LocalDateTime settledTime
     );
 
@@ -97,7 +96,7 @@ public interface FolioMapper {
             @Param("folioId") Long folioId
     );
 
-    @Update("UPDATE folio SET closed_time=#{time} WHERE id=#{id} AND closed_time IS NULL AND status='SETTLED' AND balance_amount=0")
+    @Update("UPDATE folio SET closed_time=#{time} WHERE id=#{id} AND closed_time IS NULL AND status=1 AND balance_amount=0")
     int close(@Param("id") Long id, @Param("time") java.time.LocalDateTime time);
 
 }

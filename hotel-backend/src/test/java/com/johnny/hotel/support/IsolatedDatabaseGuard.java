@@ -7,6 +7,10 @@ import java.sql.DriverManager;
 /** Runs before the context creates DataSource/Flyway. Fail closed, including accidental contextLoads. */
 public class IsolatedDatabaseGuard implements ApplicationContextInitializer<ConfigurableApplicationContext> {
     @Override public void initialize(ConfigurableApplicationContext context) {
+        if (context.getEnvironment().getProperty("hotel.wallet.dev.fixture",Boolean.class,false)) {
+            WalletDevelopmentGuard.verify(context);
+            return;
+        }
         if (!Boolean.getBoolean("hotel.mysql.tests")) throw new IllegalStateException("MySQL integration tests require explicit -Dhotel.mysql.tests=true");
         var env = context.getEnvironment();
         String url = env.getProperty("spring.datasource.url", "");

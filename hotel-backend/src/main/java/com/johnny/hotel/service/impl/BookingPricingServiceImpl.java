@@ -57,7 +57,7 @@ public class BookingPricingServiceImpl implements BookingPricingService {
             );
         }
 
-        com.johnny.hotel.service.support.BillingRules.require(booking.getStatus() == 0 || booking.getStatus() == 1, "Cannot reprice an active or terminal stay");
+        com.johnny.hotel.service.support.BillingRules.require(booking.getStatus() == com.johnny.hotel.enums.BookingStatus.PENDING.getCode() || booking.getStatus() == com.johnny.hotel.enums.BookingStatus.APPROVED.getCode(), "Cannot reprice an active or terminal stay");
         com.johnny.hotel.service.support.BillingRules.require(booking.getRoomTypeId().equals(roomTypeId), "Repricing room type must match contract");
         BookingPriceVersion previous = bookingPriceVersionMapper.selectActiveByBookingId(bookingId);
         RoomPriceQuote quote =
@@ -151,7 +151,7 @@ public class BookingPricingServiceImpl implements BookingPricingService {
             );
         }
 
-        com.johnny.hotel.service.support.BillingRules.require(booking.getStatus() == 0, "Only pending bookings can change dates");
+        com.johnny.hotel.service.support.BillingRules.require(booking.getStatus() == com.johnny.hotel.enums.BookingStatus.PENDING.getCode(), "Only pending bookings can change dates");
         BookingPriceVersion oldVersion =
                 bookingPriceVersionMapper
                         .selectActiveByBookingId(bookingId);
