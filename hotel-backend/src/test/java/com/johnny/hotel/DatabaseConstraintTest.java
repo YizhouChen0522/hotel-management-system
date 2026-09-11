@@ -16,8 +16,10 @@ class DatabaseConstraintTest extends IsolatedMysqlTest {
         assertThrows(DataAccessException.class,()->jdbc.update("INSERT INTO booking_room_assignment(booking_id,room_id,room_type_id,assignment_type,start_time) VALUES(?,2,1,'CHECK_IN',NOW())",b));
         assertThrows(DataAccessException.class,()->jdbc.update("INSERT INTO booking_room_assignment(booking_id,room_id,room_type_id,assignment_type,start_time) VALUES(?,1,1,'CHECK_IN',NOW())",other));invariants(b);invariants(other);
     }
-    @Test void onlyOneLiveReservationPerRoom(){long b=create(),other=create();approve(b);
-        assertThrows(DataAccessException.class,()->jdbc.update("UPDATE booking SET assigned_room_id=1,status=1 WHERE id=?",other));invariants(b);invariants(other);
+    @Test void onlyOneLiveReservationPerRoom(){long b=checkIn(),other=create();
+        // V12: future (APPROVED) reservations may share a room; only actual occupancy (CHECKED_IN) is exclusive.
+        var approveOther=new com.johnny.hotel.dto.ApproveBookingRequest();approveOther.setAssignedRoomId(2L);bookings.approveBooking(other,approveOther,2L);
+        assertThrows(DataAccessException.class,()->jdbc.update("UPDATE booking SET assigned_room_id=1,status=2 WHERE id=?",other));invariants(b);invariants(other);
     }
     @Test void nightlyVersionMustBelongToSameBooking(){long b=create(),other=create();long version=jdbc.queryForObject("SELECT id FROM booking_price_version WHERE booking_id=?",Long.class,b);
         assertThrows(DataAccessException.class,()->jdbc.update("INSERT INTO booking_nightly_rate(price_version_id,booking_id,stay_date,room_type_id,rate_amount,rate_source) VALUES(?,?,?,1,100,'BASE_PRICE')",version,other,arrival.plusDays(5)));invariants(b);invariants(other);

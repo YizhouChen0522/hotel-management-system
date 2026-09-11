@@ -8,6 +8,7 @@ import com.johnny.hotel.exception.BusinessException;
 import com.johnny.hotel.mapper.*;
 import com.johnny.hotel.service.BookingService;
 import com.johnny.hotel.service.FolioService;
+import com.johnny.hotel.service.StayHistoryService;
 import com.johnny.hotel.vo.BookingVO;
 import com.johnny.hotel.service.BookingPricingService;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingNightlyRateMapper bookingNightlyRateMapper;
     private final FolioService folioService;
     private final BookingPricingService bookingPricingService;
+    private final StayHistoryService stayHistoryService;
 
     private BookingVO toVO(com.johnny.hotel.entity.Booking booking) {
         RoomType roomType = roomTypeMapper.selectById(booking.getRoomTypeId());
@@ -540,8 +542,9 @@ public class BookingServiceImpl implements BookingService {
         require(assignment != null && assignment.getRoomId().equals(booking.getAssignedRoomId()), "Current assignment does not match booking");
         require(room != null && room.getStatus() == RoomStatus.OCCUPIED.getCode() && room.getRoomTypeId().equals(assignment.getRoomTypeId()), "Current room does not match active stay");
         LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
-        if(!checkoutFinalizer.finalizeStay(booking, now,currentUserId))throw new com.johnny.hotel.exception.WalletSettlementIncompleteException();
+        if (!checkoutFinalizer.finalizeStay(booking, now, currentUserId)) {throw new com.johnny.hotel.exception.WalletSettlementIncompleteException();}
         one(bookingRoomAssignmentMapper.closeAssignment(assignment.getId(), now));
+        stayHistoryService.createForCompletedStay(bookingId);
         one(bookingMapper.transitionStatus(bookingId, BookingStatus.CHECKED_IN.getCode(), BookingStatus.CHECKED_OUT.getCode()));
         one(roomMapper.transitionStatus(room.getId(), RoomStatus.OCCUPIED.getCode(), RoomStatus.MAINTENANCE.getCode()));
         audit(booking, currentUserId, "CHECK_OUT");

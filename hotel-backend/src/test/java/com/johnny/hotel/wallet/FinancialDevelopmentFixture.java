@@ -56,6 +56,7 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
             jdbc.update("DELETE FROM stay_extension_nightly_rate WHERE booking_id=?",booking);
             jdbc.update("DELETE FROM folio_item WHERE folio_id=? ORDER BY id DESC",folio);
             jdbc.update("DELETE FROM stay_adjustment WHERE booking_id=? ORDER BY id DESC",booking);
+            jdbc.update("DELETE FROM stay_history WHERE folio_id=?",folio);
             jdbc.update("DELETE FROM folio WHERE id=?",folio);
             jdbc.update("DELETE FROM room_billing_event WHERE booking_id=?",booking);
             jdbc.update("DELETE FROM booking_room_assignment WHERE booking_id=?",booking);
