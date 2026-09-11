@@ -50,6 +50,7 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
         for(long user:created)jdbc.update("DELETE FROM wallet_transaction WHERE wallet_id IN (SELECT id FROM wallet WHERE user_id=?)",user);
         for(long booking:bookingIds){
             long folio=folio(booking);
+            jdbc.update("DELETE FROM room_turnover_task WHERE booking_id=?",booking);
             jdbc.update("DELETE FROM refund WHERE folio_id=?",folio);
             jdbc.update("DELETE FROM expense_registration WHERE folio_id=? ORDER BY id DESC",folio);
             jdbc.update("DELETE FROM payment WHERE folio_id=?",folio);

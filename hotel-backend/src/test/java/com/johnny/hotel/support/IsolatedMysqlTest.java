@@ -41,7 +41,7 @@ public abstract class IsolatedMysqlTest {
         assertEquals("hotel_lifecycle_test", jdbc.queryForObject("SELECT DATABASE()",String.class));
         assertEquals(33079, jdbc.queryForObject("SELECT @@port",Integer.class));
         gate.clear(); clock.day(0);
-        for (String table : new String[]{"wallet_transaction","wallet_top_up","wallet","expense_registration","room_billing_event","payment","stay_history","folio_item","folio","booking_room_assignment","booking_nightly_rate","booking_price_version","booking","room_rate","room","room_type","sys_audit_log","sys_user_role","sys_user"})
+        for (String table : new String[]{"room_turnover_task","wallet_transaction","wallet_top_up","wallet","expense_registration","room_billing_event","payment","stay_history","folio_item","folio","booking_room_assignment","booking_nightly_rate","booking_price_version","booking","room_rate","room","room_type","sys_audit_log","sys_user_role","sys_user"})
             jdbc.update("DELETE FROM " + table + (table.equals("folio_item") || table.equals("expense_registration") ? " ORDER BY id DESC" : ""));
         jdbc.update("INSERT INTO sys_user(id,username,password,status) VALUES(1,'test_customer','test-only',1),(2,'test_staff','test-only',1),(3,'test_other','test-only',1)");
         jdbc.update("INSERT INTO sys_user_role(user_id,role_id) SELECT 1,id FROM sys_role WHERE role_code='CUSTOMER'");

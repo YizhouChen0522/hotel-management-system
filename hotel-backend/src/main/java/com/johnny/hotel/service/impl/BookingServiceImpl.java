@@ -44,6 +44,7 @@ public class BookingServiceImpl implements BookingService {
     private final FolioService folioService;
     private final BookingPricingService bookingPricingService;
     private final StayHistoryService stayHistoryService;
+    private final com.johnny.hotel.service.RoomTurnoverTaskService turnoverTasks;
 
     private BookingVO toVO(com.johnny.hotel.entity.Booking booking) {
         RoomType roomType = roomTypeMapper.selectById(booking.getRoomTypeId());
@@ -547,6 +548,7 @@ public class BookingServiceImpl implements BookingService {
         stayHistoryService.createForCompletedStay(bookingId);
         one(bookingMapper.transitionStatus(bookingId, BookingStatus.CHECKED_IN.getCode(), BookingStatus.CHECKED_OUT.getCode()));
         one(roomMapper.transitionStatus(room.getId(), RoomStatus.OCCUPIED.getCode(), RoomStatus.MAINTENANCE.getCode()));
+        turnoverTasks.createForClosedAssignment(assignment.getId());
         audit(booking, currentUserId, "CHECK_OUT");
         return getBookingByIdInternal(bookingId);
     }
@@ -1304,6 +1306,7 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
+        turnoverTasks.createForClosedAssignment(currentAssignment.getId());
         require(roomConflicts.overlapping(newRoomId,bookingId,changeTime.toLocalDate(),effectiveEnd.isAfter(changeTime.toLocalDate())?effectiveEnd:effectiveEnd.plusDays(1)).isEmpty(),"Target room has an overlapping future reservation");
         int newRoomUpdated = roomMapper.transitionStatus(newRoomId, newRoom.getStatus(), RoomStatus.OCCUPIED.getCode());
 
