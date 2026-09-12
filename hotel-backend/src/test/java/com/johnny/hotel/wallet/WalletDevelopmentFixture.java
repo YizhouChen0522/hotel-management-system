@@ -80,6 +80,9 @@ abstract class WalletDevelopmentFixture {
     @AfterEach void cleanupOnlyCreatedRows(){
         gate.clear();SecurityContextHolder.clearContext();
         // Privileged test teardown only: no application delete API or mapper exists for money history.
+        for(long id:created) jdbc.update("DELETE FROM task_record WHERE task_id IN (SELECT id FROM hotel_task WHERE created_by=?)",id);
+        for(long id:created) jdbc.update("DELETE FROM task_assignment WHERE task_id IN (SELECT id FROM hotel_task WHERE created_by=?)",id);
+        for(long id:created) jdbc.update("DELETE FROM hotel_task WHERE created_by=?",id);
         for(long id:created) jdbc.update("DELETE FROM wallet_transaction WHERE wallet_id IN (SELECT id FROM wallet WHERE user_id=?)",id);
         for(long id:created) jdbc.update("DELETE FROM wallet_top_up WHERE wallet_id IN (SELECT id FROM wallet WHERE user_id=?)",id);
         for(long id:created) {
