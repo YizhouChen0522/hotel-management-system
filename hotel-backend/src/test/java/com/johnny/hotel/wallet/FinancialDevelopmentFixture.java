@@ -52,7 +52,7 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
             long folio=folio(booking);
             var taskIds=jdbc.queryForList("SELECT task_id FROM room_turnover_task WHERE booking_id=?",Long.class,booking);
             jdbc.update("DELETE FROM room_turnover_task WHERE booking_id=?",booking);
-            for(long taskId:taskIds){jdbc.update("DELETE FROM task_record WHERE task_id=?",taskId);jdbc.update("DELETE FROM task_assignment WHERE task_id=?",taskId);jdbc.update("DELETE FROM hotel_task WHERE id=?",taskId);}
+            for(long taskId:taskIds){jdbc.update("DELETE FROM task_record WHERE task_id=?",taskId);jdbc.update("DELETE FROM todo WHERE task_id=?",taskId);jdbc.update("DELETE FROM task_assignment WHERE task_id=?",taskId);jdbc.update("DELETE FROM hotel_task WHERE id=?",taskId);}
             jdbc.update("DELETE FROM refund WHERE folio_id=?",folio);
             jdbc.update("DELETE FROM expense_registration WHERE folio_id=? ORDER BY id DESC",folio);
             jdbc.update("DELETE FROM payment WHERE folio_id=?",folio);

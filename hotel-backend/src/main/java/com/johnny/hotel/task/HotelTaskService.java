@@ -5,4 +5,6 @@ public interface HotelTaskService {
  List<HotelTask> list(Integer status,Integer type,Integer page,Integer size); TaskView get(Long id); List<TaskAssignment> myTodo();
  TaskView claim(Long id); TaskView accept(Long id); TaskView complete(Long id,String note);
  TaskView assign(Long id,TaskRequests.Assign request); TaskView reassign(Long id,TaskRequests.Assign request); TaskView cancel(Long id,String note); TaskView forceComplete(Long id,String note);
+ List<Todo> todos(Integer page,Integer size); Todo todo(Long id); Todo updateTodo(Long id,String action,String note);
+ TaskView addAssignees(Long id,TaskRequests.Assign request); HotelTask subtask(Long id,TaskRequests.CreateGeneral request);
 }

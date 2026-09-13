@@ -2,6 +2,7 @@ package com.johnny.hotel.task;
 import com.johnny.hotel.common.Result; import jakarta.validation.Valid; import lombok.RequiredArgsConstructor; import org.springframework.security.access.prepost.PreAuthorize; import org.springframework.web.bind.annotation.*; import java.util.List;
 @RestController @RequiredArgsConstructor @RequestMapping("/api/tasks") @PreAuthorize("hasAnyRole('STAFF','MANAGER','OWNER','SUPER_ADMIN')")
 public class HotelTaskController { private final HotelTaskService service;
+ @PostMapping("/{id}/subtasks") public Result<HotelTask> child(@PathVariable Long id,@Valid @RequestBody TaskRequests.CreateGeneral r){return Result.success(service.subtask(id,r));}
  @GetMapping public Result<List<HotelTask>> list(@RequestParam(required=false)Integer status,@RequestParam(required=false)Integer type,@RequestParam(required=false)Integer page,@RequestParam(required=false)Integer size){return Result.success(service.list(status,type,page,size));}
  @GetMapping("/{id}") public Result<TaskView> get(@PathVariable Long id){return Result.success(service.get(id));}
  @PostMapping("/general") public Result<HotelTask> create(@Valid @RequestBody TaskRequests.CreateGeneral r){return Result.success(service.createGeneral(r));}
