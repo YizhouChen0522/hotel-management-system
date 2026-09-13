@@ -16,6 +16,27 @@ public class FolioQueryService {
     private final FolioItemMapper items;
     private final PaymentMapper payments;
     private final ExpenseMapper expenses;
+    private final com.johnny.hotel.service.support.BillingAccess access;
+
+    @Transactional
+    public FolioVO byBookingForCustomer(Long bookingId, Long currentUserId) {
+        access.currentCustomer(currentUserId);
+        Folio folio = folios.selectByBookingIdForUpdate(bookingId);
+        if (folio == null) throw new BusinessException(404, "Folio not found");
+        Booking booking = bookings.selectById(folio.getBookingId());
+        if (booking == null || !currentUserId.equals(booking.getUserId())) throw new BusinessException(404, "Folio not found");
+        return view(folio, null);
+    }
+    @Transactional
+    public FolioVO byBookingForOperations(Long bookingId) {
+        access.currentOperational();
+        return view(folios.selectByBookingIdForUpdate(bookingId), null);
+    }
+    @Transactional
+    public FolioVO byFolioForOperations(Long folioId) {
+        access.currentOperational();
+        return view(folios.selectByIdForUpdate(folioId), null);
+    }
 
     @Transactional
     public FolioVO byBooking(Long bookingId, Long customerId) {

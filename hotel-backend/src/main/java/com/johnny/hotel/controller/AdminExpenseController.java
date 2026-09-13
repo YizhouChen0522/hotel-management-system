@@ -18,7 +18,7 @@ public class AdminExpenseController {
     @PostMapping
     public Result<ExpenseVO> register(@PathVariable Long folioId,@Valid @RequestBody RegisterExpenseRequest request) {return Result.success(service.register(folioId,request));}
     @GetMapping
-    public Result<List<ExpenseVO>> list(@PathVariable Long folioId) {return Result.success(queries.byFolio(folioId,null).expenses());}
+    public Result<List<ExpenseVO>> list(@PathVariable Long folioId) {return Result.success(queries.byFolioForOperations(folioId).expenses());}
     @PostMapping("/{expenseId}/confirm")
     public Result<ExpenseVO> confirm(@PathVariable Long folioId,@PathVariable Long expenseId) {return Result.success(service.confirm(folioId,expenseId));}
     @PostMapping("/{expenseId}/cancel")

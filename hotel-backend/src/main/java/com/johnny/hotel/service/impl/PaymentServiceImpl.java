@@ -47,6 +47,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final FolioFinancialService folioFinancialService;
 
     private final SysAuditLogMapper sysAuditLogMapper;
+    private final com.johnny.hotel.service.support.BillingAccess billingAccess;
 
     @Override
     @Transactional
@@ -54,6 +55,8 @@ public class PaymentServiceImpl implements PaymentService {
             Long folioId,
             RecordPaymentRequest request,
             Long operatorId) {
+
+        billingAccess.operational(operatorId);
 
         if (request == null) {
             throw new BusinessException(

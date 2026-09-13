@@ -15,11 +15,16 @@ public class RefundAccess {
     private Set<String> roles(Long id){return roles.selectRolesByUserId(id).stream().map(r->r.getRoleCode()).collect(Collectors.toSet());}
     public void customer(Long id) {
         var u=users.selectById(id);
-        if(u==null || !roles(id).equals(Set.of("CUSTOMER")) || u.getApplyRoleCode()!=null && !"CUSTOMER".equals(u.getApplyRoleCode())) throw denied();
+        if(u==null || !Integer.valueOf(1).equals(u.getStatus()) || !roles(id).equals(Set.of("CUSTOMER")) || u.getApplyRoleCode()!=null && !"CUSTOMER".equals(u.getApplyRoleCode())) throw denied();
+    }
+    public boolean isCustomer(Long id) {
+        var u=users.selectById(id);
+        return u!=null && Integer.valueOf(1).equals(u.getStatus()) && roles(id).equals(Set.of("CUSTOMER"))
+                && (u.getApplyRoleCode()==null || "CUSTOMER".equals(u.getApplyRoleCode()));
     }
     public void read(Long actor,Long owner) {customer(owner);if(actor.equals(owner))return;operational(actor,false);}
     public void create(Long actor,Long owner){customer(owner);if(!actor.equals(owner))throw denied();}
-    public void approve(Long actor,Long owner){customer(owner);if(actor.equals(owner))throw denied();operational(actor,true);}
+    public void approve(Long actor,Long owner){operational(actor,true);customer(owner);if(actor.equals(owner))throw denied();}
     public void operational(Long actor,boolean approval) {
         var u=users.selectById(actor);var r=roles(actor);
         if(u==null || !Integer.valueOf(1).equals(u.getStatus()))throw denied();

@@ -13,13 +13,13 @@ public class FolioQueryController {
     private final FolioQueryService queries;
     @GetMapping("/api/admin/billing/bookings/{bookingId}/folio")
     @PreAuthorize("hasAnyRole('STAFF','MANAGER','OWNER','SUPER_ADMIN')")
-    public Result<FolioVO> booking(@PathVariable Long bookingId) { return Result.success(queries.byBooking(bookingId, null)); }
+    public Result<FolioVO> booking(@PathVariable Long bookingId) { return Result.success(queries.byBookingForOperations(bookingId)); }
     @GetMapping("/api/admin/billing/folios/{folioId}")
     @PreAuthorize("hasAnyRole('STAFF','MANAGER','OWNER','SUPER_ADMIN')")
-    public Result<FolioVO> folio(@PathVariable Long folioId) { return Result.success(queries.byFolio(folioId, null)); }
+    public Result<FolioVO> folio(@PathVariable Long folioId) { return Result.success(queries.byFolioForOperations(folioId)); }
     @GetMapping("/api/bookings/{bookingId}/folio")
     @PreAuthorize("hasRole('CUSTOMER')")
     public Result<FolioVO> mine(@PathVariable Long bookingId, Authentication auth) {
-        return Result.success(queries.byBooking(bookingId, (Long) auth.getDetails()));
+        return Result.success(queries.byBookingForCustomer(bookingId, (Long) auth.getDetails()));
     }
 }

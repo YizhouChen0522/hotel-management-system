@@ -23,6 +23,7 @@ public class ExpenseService {
     private final SysAuditLogMapper audits;
     private final Clock clock;
     private final com.johnny.hotel.stay.StayPlan stayPlan;
+    private final com.johnny.hotel.service.support.BillingAccess billingAccess;
     private record Account(Booking booking,Folio folio) {}
     private Account lock(Long id) {
         // Immutable identity lookup only; never hold Folio then request Booking.
@@ -36,9 +37,9 @@ public class ExpenseService {
     }
     private Long operator(String type) {
         var auth=SecurityContextHolder.getContext().getAuthentication();
-        if(auth==null||!auth.isAuthenticated()||!(auth.getDetails() instanceof Long))throw new AccessDeniedException("Authenticated operator is required");
-        ExpenseRules.authorize(type,auth.getAuthorities().stream().map(a->a.getAuthority()).toList());
-        return (Long)auth.getDetails();
+        if(auth==null||!auth.isAuthenticated()||!(auth.getDetails() instanceof Long id))throw new AccessDeniedException("Authenticated operator is required");
+        ExpenseRules.authorize(type,billingAccess.operationalAuthorities(id));
+        return id;
     }
     private ExpenseRegistration find(List<ExpenseRegistration> rows,Long id) {
         var e=rows.stream().filter(r->r.getId().equals(id)).findFirst().orElse(null);require(e!=null,"Expense does not belong to this folio");return e;
