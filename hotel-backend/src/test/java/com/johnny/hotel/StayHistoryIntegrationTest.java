@@ -73,6 +73,7 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
         var approve = new ApproveBookingRequest();
         approve.setAssignedRoomId(roomId);
         bookings.approveBooking(id, approve, 2L);
+        register(id);
         return id;
     }
 

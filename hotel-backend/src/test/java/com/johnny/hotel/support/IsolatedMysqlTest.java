@@ -36,12 +36,13 @@ public abstract class IsolatedMysqlTest {
     @Autowired protected MutableHotelClock clock;
     @Autowired protected SqlGate gate;
     @Autowired protected PlatformTransactionManager txManager;
+    @Autowired protected com.johnny.hotel.guest.GuestService guests;
     protected final LocalDate arrival=LocalDate.of(2026,10,1);
     @BeforeEach void resetIsolatedDatabase() {
         assertEquals("hotel_lifecycle_test", jdbc.queryForObject("SELECT DATABASE()",String.class));
         assertEquals(33079, jdbc.queryForObject("SELECT @@port",Integer.class));
         gate.clear(); clock.day(0);
-        for (String table : new String[]{"room_work_order","room_turnover_task","task_record","todo","task_assignment","hotel_task","wallet_transaction","wallet_top_up","wallet","expense_registration","room_billing_event","payment","stay_history","folio_item","folio","booking_room_assignment","booking_nightly_rate","booking_price_version","booking","room_rate","room","room_type","sys_audit_log","sys_user_role","sys_user"})
+        for (String table : new String[]{"guest_registration","booking_guest","guest_profile","room_work_order","room_turnover_task","task_record","todo","task_assignment","hotel_task","wallet_transaction","wallet_top_up","wallet","expense_registration","room_billing_event","payment","stay_history","folio_item","folio","booking_room_assignment","booking_nightly_rate","booking_price_version","booking","room_rate","room","room_type","sys_audit_log","sys_user_role","sys_user"})
             jdbc.update("DELETE FROM " + table + (table.equals("hotel_task") || table.equals("folio_item") || table.equals("expense_registration") ? " ORDER BY id DESC" : ""));
         jdbc.update("INSERT INTO sys_user(id,username,password,status) VALUES(1,'test_customer','test-only',1),(2,'test_staff','test-only',1),(3,'test_other','test-only',1),(4,'test_staff_only','test-only',1)");
         jdbc.update("INSERT INTO sys_user_role(user_id,role_id) SELECT 1,id FROM sys_role WHERE role_code='CUSTOMER'");
@@ -55,7 +56,8 @@ public abstract class IsolatedMysqlTest {
         request.setCheckInDate(arrival);request.setCheckOutDate(arrival.plusDays(3));
         return bookings.createBooking(request,1L).getId();
     }
-    protected void approve(long id) { var r=new ApproveBookingRequest();r.setAssignedRoomId(1L);bookings.approveBooking(id,r,2L); }
+    protected void approve(long id) { var r=new ApproveBookingRequest();r.setAssignedRoomId(1L);bookings.approveBooking(id,r,2L); register(id); }
+    protected void register(long id) {var p=com.johnny.hotel.guest.GuestRequests.Profile.builder().firstName("Test").lastName("Guest").nationality("CA").documentType("PASSPORT").documentNumber("DOC-"+id).build();var a=com.johnny.hotel.guest.GuestRequests.Add.builder().role(com.johnny.hotel.guest.GuestRole.PRIMARY).profile(p).build();guests.addToBooking(id,a,2L);guests.confirm(id,2L);}
     protected long checkIn() { long id=create();approve(id);bookings.checkIn(id,2L);return id; }
     protected long folio(long booking) { return jdbc.queryForObject("SELECT id FROM folio WHERE booking_id=?",Long.class,booking); }
     protected RecordPaymentRequest request(String amount) { return RecordPaymentRequest.builder().amount(new BigDecimal(amount)).paymentMethod("CASH").idempotencyKey(UUID.randomUUID().toString()).build(); }

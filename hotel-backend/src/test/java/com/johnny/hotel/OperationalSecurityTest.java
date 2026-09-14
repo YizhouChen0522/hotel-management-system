@@ -21,6 +21,7 @@ class OperationalSecurityTest extends IsolatedMysqlTest {
         long b=create();mvc.perform(get("/api/admin/bookings").with(role(role,2))).andExpect(status().isOk()).andExpect(jsonPath("$.code").value(200));
         mvc.perform(post("/api/admin/bookings/{id}/approve",b).with(role(role,2)).contentType("application/json").content("{\"assignedRoomId\":1}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value(1));
+        register(b);
         mvc.perform(post("/api/admin/bookings/{id}/check-in",b).with(role(role,2))).andExpect(status().isOk());
         mvc.perform(post("/api/admin/billing/folios/{id}/payments",folio(b)).with(role(role,2)).contentType("application/json")
                 .content("{\"amount\":300,\"paymentMethod\":\"CASH\",\"idempotencyKey\":\"123e4567-e89b-12d3-a456-426614174000\"}"))

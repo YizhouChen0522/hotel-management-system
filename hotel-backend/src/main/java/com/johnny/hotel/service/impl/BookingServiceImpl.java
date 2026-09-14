@@ -45,6 +45,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingPricingService bookingPricingService;
     private final StayHistoryService stayHistoryService;
     private final com.johnny.hotel.service.RoomTurnoverTaskService turnoverTasks;
+    private final com.johnny.hotel.guest.GuestService guestService;
 
     private BookingVO toVO(com.johnny.hotel.entity.Booking booking) {
         RoomType roomType = roomTypeMapper.selectById(booking.getRoomTypeId());
@@ -372,6 +373,8 @@ public class BookingServiceImpl implements BookingService {
                     "Only approved bookings can be checked in"
             );
         }
+
+        guestService.validateForCheckIn(bookingId, currentUserId);
 
         if (booking.getAssignedRoomId() == null) {
             throw new BusinessException(

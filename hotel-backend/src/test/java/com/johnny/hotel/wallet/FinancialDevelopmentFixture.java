@@ -35,6 +35,7 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
     @Autowired PaymentService payments;
     @Autowired ExpenseService expenses;
     @Autowired RoomService rooms;
+    @Autowired com.johnny.hotel.guest.GuestService guests;
     final LocalDate arrival=LocalDate.of(2026,10,1);
     long type1,type2,room1,room2,room3,room4;
     final List<Long> bookingIds=new ArrayList<>();
@@ -50,6 +51,9 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
         jdbc.update("DELETE FROM room_work_order WHERE room_id IN (?,?,?,?)",room1,room2,room3,room4);
         for(long user:created)jdbc.update("DELETE FROM wallet_transaction WHERE wallet_id IN (SELECT id FROM wallet WHERE user_id=?)",user);
         for(long booking:bookingIds){
+            jdbc.update("DELETE FROM guest_registration WHERE booking_id=?",booking);
+            var guestIds=jdbc.queryForList("SELECT guest_id FROM booking_guest WHERE booking_id=?",Long.class,booking);
+            jdbc.update("DELETE FROM booking_guest WHERE booking_id=?",booking);
             long folio=folio(booking);
             var taskIds=jdbc.queryForList("SELECT task_id FROM room_turnover_task WHERE booking_id=?",Long.class,booking);
             jdbc.update("DELETE FROM room_turnover_task WHERE booking_id=?",booking);
@@ -67,13 +71,16 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
             jdbc.update("DELETE FROM booking_nightly_rate WHERE booking_id=?",booking);
             jdbc.update("DELETE FROM booking_price_version WHERE booking_id=?",booking);
             jdbc.update("DELETE FROM booking WHERE id=?",booking);
+            for(long guestId:guestIds)jdbc.update("DELETE FROM guest_profile WHERE id=? AND linked_user_id IS NULL",guestId);
         }
         jdbc.update("DELETE FROM room WHERE id IN (?,?,?,?)",room1,room2,room3,room4);
         jdbc.update("DELETE FROM room_rate WHERE room_type_id IN (?,?)",type1,type2);
         jdbc.update("DELETE FROM room_type WHERE id IN (?,?)",type1,type2);
+        jdbc.update("DELETE FROM guest_profile WHERE linked_user_id IS NULL AND document_number LIKE ? AND NOT EXISTS (SELECT 1 FROM booking_guest bg WHERE bg.guest_id=guest_profile.id)","P"+run+"%");
     }
     long createBooking(String role){var r=new CreateBookingRequest();r.setRoomTypeId(type1);r.setGuestCount(2);r.setCheckInDate(arrival);r.setCheckOutDate(arrival.plusDays(3));long id=bookings.createBooking(r,uid(role)).getId();bookingIds.add(id);return id;}
-    long stay(){long id=createBooking("CUSTOMER");var r=new ApproveBookingRequest();r.setAssignedRoomId(room1);bookings.approveBooking(id,r,uid("MANAGER"));bookings.checkIn(id,uid("MANAGER"));return id;}
+    void register(long id){var p=com.johnny.hotel.guest.GuestRequests.Profile.builder().firstName("Test").lastName("Guest").nationality("CA").documentType("PASSPORT").documentNumber(run+"-"+id).build();guests.addToBooking(id,com.johnny.hotel.guest.GuestRequests.Add.builder().role(com.johnny.hotel.guest.GuestRole.PRIMARY).profile(p).build(),uid("MANAGER"));guests.confirm(id,uid("MANAGER"));}
+    long stay(){long id=createBooking("CUSTOMER");var r=new ApproveBookingRequest();r.setAssignedRoomId(room1);bookings.approveBooking(id,r,uid("MANAGER"));register(id);bookings.checkIn(id,uid("MANAGER"));return id;}
     long folio(long b){return jdbc.queryForObject("SELECT id FROM folio WHERE booking_id=?",Long.class,b);}
     RecordPaymentRequest payRequest(String amount){return RecordPaymentRequest.builder().amount(new BigDecimal(amount)).paymentMethod("CASH").idempotencyKey(UUID.randomUUID().toString()).build();}
     void pay(long b,String amount){payments.recordPayment(folio(b),payRequest(amount),uid("STAFF"));}

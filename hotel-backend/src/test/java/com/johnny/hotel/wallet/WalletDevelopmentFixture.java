@@ -91,6 +91,7 @@ abstract class WalletDevelopmentFixture {
         for(long id:created) jdbc.update("DELETE FROM wallet_transaction WHERE wallet_id IN (SELECT id FROM wallet WHERE user_id=?)",id);
         for(long id:created) jdbc.update("DELETE FROM wallet_top_up WHERE wallet_id IN (SELECT id FROM wallet WHERE user_id=?)",id);
         for(long id:created) {
+            jdbc.update("DELETE FROM guest_profile WHERE linked_user_id=?",id);
             jdbc.update("DELETE FROM wallet WHERE user_id=?",id);
             jdbc.update("DELETE FROM sys_audit_log WHERE target_user_id=? OR operator_id=?",id,id);
             jdbc.update("DELETE FROM sys_user_role WHERE user_id=?",id);
