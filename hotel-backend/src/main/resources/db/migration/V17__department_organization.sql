@@ -1,0 +1,75 @@
+CREATE TABLE organization_guard (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO organization_guard(id) VALUES(1);
+CREATE TABLE department (
+ id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ name VARCHAR(120) NOT NULL,
+ status TINYINT NOT NULL DEFAULT 1,
+ manager_user_id BIGINT NULL,
+ version BIGINT NOT NULL DEFAULT 0,
+ create_time DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+ update_time DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+ UNIQUE KEY uk_department_name(name),
+ UNIQUE KEY uk_department_manager(manager_user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ALTER TABLE sys_user ADD COLUMN department_id BIGINT NULL,
+ ADD COLUMN organization_version BIGINT NOT NULL DEFAULT 0,
+ ADD UNIQUE KEY uk_user_department(id,department_id),
+ ADD CONSTRAINT fk_user_department FOREIGN KEY(department_id) REFERENCES department(id);
+ALTER TABLE department ADD CONSTRAINT fk_department_manager_membership
+ FOREIGN KEY(manager_user_id,id) REFERENCES sys_user(id,department_id);
+CREATE TABLE organization_change_request (
+ id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ request_type TINYINT NOT NULL,
+ status TINYINT NOT NULL DEFAULT 0,
+ requested_by BIGINT NOT NULL,
+ request_key VARCHAR(100) NOT NULL,
+ reason VARCHAR(500) NOT NULL,
+ department_name VARCHAR(120) NULL,
+ target_user_id BIGINT NULL,
+ source_department_id BIGINT NULL,
+ target_department_id BIGINT NULL,
+ proposed_manager_id BIGINT NULL,
+ expected_current_department_id BIGINT NULL,
+ expected_manager_id BIGINT NULL,
+ expected_department_version BIGINT NULL,
+ expected_user_version BIGINT NULL,
+ task_id BIGINT NOT NULL,
+ processed_by BIGINT NULL,
+ decision_reason VARCHAR(500) NULL,
+ processed_time DATETIME(6) NULL,
+ create_time DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+ UNIQUE KEY uk_organization_request(requested_by,request_key),
+ UNIQUE KEY uk_organization_task(task_id),
+ KEY idx_organization_pending(status,id),
+ FOREIGN KEY(requested_by) REFERENCES sys_user(id),
+ FOREIGN KEY(target_user_id) REFERENCES sys_user(id),
+ FOREIGN KEY(source_department_id) REFERENCES department(id),
+ FOREIGN KEY(target_department_id) REFERENCES department(id),
+ FOREIGN KEY(proposed_manager_id) REFERENCES sys_user(id),
+ FOREIGN KEY(processed_by) REFERENCES sys_user(id),
+ FOREIGN KEY(task_id) REFERENCES hotel_task(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE organization_change_history (
+ id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ request_id BIGINT NULL,
+ action_type TINYINT NOT NULL,
+ target_user_id BIGINT NULL,
+ old_department_id BIGINT NULL,
+ new_department_id BIGINT NULL,
+ old_manager_id BIGINT NULL,
+ new_manager_id BIGINT NULL,
+ operator_user_id BIGINT NOT NULL,
+ approver_user_id BIGINT NULL,
+ reason VARCHAR(500) NULL,
+ effective_time DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+ bypass_approval TINYINT NOT NULL,
+ UNIQUE KEY uk_organization_history_request(request_id),
+ FOREIGN KEY(request_id) REFERENCES organization_change_request(id),
+ FOREIGN KEY(target_user_id) REFERENCES sys_user(id),
+ FOREIGN KEY(old_department_id) REFERENCES department(id),
+ FOREIGN KEY(new_department_id) REFERENCES department(id),
+ FOREIGN KEY(old_manager_id) REFERENCES sys_user(id),
+ FOREIGN KEY(new_manager_id) REFERENCES sys_user(id),
+ FOREIGN KEY(operator_user_id) REFERENCES sys_user(id),
+ FOREIGN KEY(approver_user_id) REFERENCES sys_user(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

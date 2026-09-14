@@ -47,6 +47,7 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
     }
     @AfterEach void cleanupOnlyFinancialFixture(){
         gate.clear();
+        jdbc.update("DELETE FROM room_work_order WHERE room_id IN (?,?,?,?)",room1,room2,room3,room4);
         for(long user:created)jdbc.update("DELETE FROM wallet_transaction WHERE wallet_id IN (SELECT id FROM wallet WHERE user_id=?)",user);
         for(long booking:bookingIds){
             long folio=folio(booking);

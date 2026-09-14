@@ -20,6 +20,7 @@ import java.util.List;
 public class RoomServiceImpl implements RoomService {
     private final RoomMapper roomMapper;
     private final RoomTypeMapper roomTypeMapper;
+    private final com.johnny.hotel.workorder.RoomWorkOrderMapper roomWorkOrders;
 
     private void requireOne(int rows) {
         if (rows != 1) throw new BusinessException("Room was changed concurrently");
@@ -186,7 +187,7 @@ public class RoomServiceImpl implements RoomService {
         if (!Integer.valueOf(java.sql.Connection.TRANSACTION_READ_COMMITTED).equals(org.springframework.transaction.support.TransactionSynchronizationManager.getCurrentTransactionIsolationLevel()))
             throw new BusinessException("Room maintenance requires a READ_COMMITTED transaction");
         Room room=roomMapper.selectByIdForUpdate(id);
-        if(room==null||room.getStatus()!=RoomStatus.MAINTENANCE.getCode()||roomMapper.hasActualUse(id))throw new BusinessException("Only an unoccupied maintenance room can be released");
+        if(room==null||room.getStatus()!=RoomStatus.MAINTENANCE.getCode()||roomMapper.hasActualUse(id)||roomWorkOrders.hasOpenBlockingOrder(id))throw new BusinessException("Only an unoccupied maintenance room without an open blocking work order can be released");
         requireOne(roomMapper.transitionStatus(id,RoomStatus.MAINTENANCE.getCode(),RoomStatus.AVAILABLE.getCode()));
     }
 

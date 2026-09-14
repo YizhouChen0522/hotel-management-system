@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @org.junit.jupiter.api.condition.EnabledIfSystemProperty(named="hotel.mysql.tests",matches="true")
 class ExpenseIntegrationTest extends IsolatedMysqlTest {
     @Autowired ExpenseService service;
-    static void actor(String role){var auth=new UsernamePasswordAuthenticationToken("test",null,List.of(new SimpleGrantedAuthority("ROLE_"+role)));auth.setDetails(2L);SecurityContextHolder.getContext().setAuthentication(auth);}
+    static void actor(String role){var auth=new UsernamePasswordAuthenticationToken("test",null,List.of(new SimpleGrantedAuthority("ROLE_"+role)));auth.setDetails("STAFF".equals(role)?4L:2L);SecurityContextHolder.getContext().setAuthentication(auth);}
     @BeforeEach void manager(){actor("MANAGER");}
     @AfterEach void clear(){SecurityContextHolder.clearContext();}
     RegisterExpenseRequest expense(String type,String amount,Long source){return RegisterExpenseRequest.builder().idempotencyKey(UUID.randomUUID().toString()).itemType(type).amount(new BigDecimal(amount)).businessDate(arrival).description("test expense").reason("guest request / correction").sourceExpenseId(source).build();}

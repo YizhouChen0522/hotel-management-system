@@ -15,6 +15,8 @@ public class SysUser implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private Long id;
+    private Long departmentId;
+    private Long organizationVersion;
     private String username;
     private String password;
     private String realName;

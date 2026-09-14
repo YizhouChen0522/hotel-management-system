@@ -7,4 +7,6 @@ public interface HotelTaskService {
  TaskView assign(Long id,TaskRequests.Assign request); TaskView reassign(Long id,TaskRequests.Assign request); TaskView cancel(Long id,String note); TaskView forceComplete(Long id,String note);
  List<Todo> todos(Integer page,Integer size); Todo todo(Long id); Todo updateTodo(Long id,String action,String note);
  TaskView addAssignees(Long id,TaskRequests.Assign request); HotelTask subtask(Long id,TaskRequests.CreateGeneral request);
+ HotelTask createMaintenance(Long roomId,String title,String description,String requestKey,Long actorId);
+ TaskView completeMaintenance(Long taskId,String note,boolean force); TaskView cancelMaintenance(Long taskId,String note);
 }

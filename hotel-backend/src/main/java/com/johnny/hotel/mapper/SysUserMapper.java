@@ -63,6 +63,7 @@ public interface SysUserMapper {
     @Update("""
         UPDATE sys_user
         SET status = #{status},
+            organization_version = organization_version + 1,
             update_time = NOW()
         WHERE id = #{id}
         """)

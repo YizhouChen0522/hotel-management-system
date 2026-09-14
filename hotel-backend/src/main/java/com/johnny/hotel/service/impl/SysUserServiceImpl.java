@@ -33,6 +33,7 @@ public class SysUserServiceImpl implements SysUserService {
     private final JwtUtil jwtUtil;
     private final SysAuditLogMapper sysAuditLogMapper;
     private final com.johnny.hotel.wallet.WalletOpeningService walletOpening;
+    private final com.johnny.hotel.organization.OrganizationMapper organization;
 
     public SysUserServiceImpl(SysUserMapper sysUserMapper,
                               SysRoleMapper sysRoleMapper,
@@ -40,7 +41,8 @@ public class SysUserServiceImpl implements SysUserService {
                               PasswordEncoder passwordEncoder,
                               JwtUtil JwtUtil,
                               SysAuditLogMapper sysAuditLogMapper,
-                              com.johnny.hotel.wallet.WalletOpeningService walletOpening) {
+                              com.johnny.hotel.wallet.WalletOpeningService walletOpening,
+                              com.johnny.hotel.organization.OrganizationMapper organization) {
         this.sysUserMapper = sysUserMapper;
         this.sysRoleMapper = sysRoleMapper;
         this.sysUserRoleMapper = sysUserRoleMapper;
@@ -48,6 +50,7 @@ public class SysUserServiceImpl implements SysUserService {
         this.jwtUtil = JwtUtil;
         this.sysAuditLogMapper = sysAuditLogMapper;
         this.walletOpening = walletOpening;
+        this.organization = organization;
     }
 
     @Override
@@ -354,7 +357,12 @@ public class SysUserServiceImpl implements SysUserService {
                 .detail("Enabled user account")
                 .build());
     }
+    @Transactional
     public void disableUser(Long userId, Long currentUserId) {
+        organization.guard();
+        if (organization.managed(userId) != null) {
+            throw new BusinessException("Replace or remove the department manager before disabling this employee");
+        }
         SysUser user = sysUserMapper.selectById(userId);
 
         if (user == null) {
