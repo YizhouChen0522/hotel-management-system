@@ -1,0 +1,1 @@
+package com.johnny.hotel.inspection; public enum InspectionFailureReason { CLEANING_INCOMPLETE(0),FACILITY_DAMAGE(1),STRUCTURAL_DAMAGE(2); private final int code; InspectionFailureReason(int c){code=c;} public int getCode(){return code;} }

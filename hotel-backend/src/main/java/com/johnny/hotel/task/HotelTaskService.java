@@ -9,4 +9,7 @@ public interface HotelTaskService {
  TaskView addAssignees(Long id,TaskRequests.Assign request); HotelTask subtask(Long id,TaskRequests.CreateGeneral request);
  HotelTask createMaintenance(Long roomId,String title,String description,String requestKey,Long actorId);
  TaskView completeMaintenance(Long taskId,String note,boolean force); TaskView cancelMaintenance(Long taskId,String note);
+ HotelTask createCleaning(Long bookingId,Long roomId,Long assignmentId,String sourceKey,String description,Long actorId);
+ HotelTask createRepair(Long roomId,String sourceKey,String description,Long actorId);
+ TaskView completeCleaning(Long taskId,String note,boolean force); TaskView cancelCleaning(Long taskId,String note);
 }

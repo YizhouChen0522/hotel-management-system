@@ -14,7 +14,7 @@ import java.util.*;
 
 @org.junit.jupiter.api.condition.EnabledIfSystemProperty(named="hotel.wallet.dev.tests",matches="true")
 class TodoDevelopmentTest extends FinancialDevelopmentFixture {
- @Autowired HotelTaskService tasks; @Autowired TodoService todoService; @Autowired org.flywaydb.core.Flyway flyway;
+ @Autowired HotelTaskService tasks; @Autowired TodoService todoService; @Autowired com.johnny.hotel.service.RoomTurnoverTaskService turnoverTasks; @Autowired org.flywaydb.core.Flyway flyway;
  TaskRequests.CreateGeneral req(TaskExecutionType type,String key){return TaskRequests.CreateGeneral.builder().title("Todo test").requestKey(key).executionType(type).build();}
  long general(TaskExecutionType type){as("MANAGER");return tasks.createGeneral(req(type,"todo_001")).getId();}
  TaskRequests.Assign target(String... names){return TaskRequests.Assign.builder().assigneeUserIds(Arrays.stream(names).map(this::uid).toList()).build();}
@@ -188,8 +188,8 @@ class TodoDevelopmentTest extends FinancialDevelopmentFixture {
  }
  @ParameterizedTest @ValueSource(booleans={true,false})
  void turnoverTodoKeepsMaintenance(boolean claim){
-  long b=stay();pay(b,"300");clock.day(3);checkout(b);long task=jdbc.queryForObject("SELECT task_id FROM room_turnover_task WHERE booking_id=?",Long.class,b);
+  long b=stay();pay(b,"300");clock.day(3);checkout(b);long turnover=jdbc.queryForObject("SELECT id FROM room_turnover_task WHERE booking_id=?",Long.class,b);long task=jdbc.queryForObject("SELECT task_id FROM room_turnover_task WHERE id=?",Long.class,turnover);
   if(claim){as("STAFF");tasks.claim(task);}else assign(task,"STAFF");
-  as("STAFF");assertEquals(0,todoService.get(my(task)).getStatus());ack("STAFF",task);done("STAFF",task);assertEquals(2,taskStatus(task));assertEquals(3,jdbc.queryForObject("SELECT status FROM room WHERE id=?",Integer.class,room1));
+  as("STAFF");assertEquals(0,todoService.get(my(task)).getStatus());ack("STAFF",task);turnoverTasks.complete(turnover,"Done");assertEquals(2,taskStatus(task));assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM cleaning_record WHERE task_id=?",Integer.class,task));assertEquals(3,jdbc.queryForObject("SELECT status FROM room WHERE id=?",Integer.class,room1));
  }
 }

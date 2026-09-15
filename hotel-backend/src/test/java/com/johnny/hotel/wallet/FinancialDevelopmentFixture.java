@@ -51,6 +51,12 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
         jdbc.update("DELETE FROM room_work_order WHERE room_id IN (?,?,?,?)",room1,room2,room3,room4);
         for(long user:created)jdbc.update("DELETE FROM wallet_transaction WHERE wallet_id IN (SELECT id FROM wallet WHERE user_id=?)",user);
         for(long booking:bookingIds){
+            var inspectionTasks=jdbc.queryForList("SELECT followup_task_id FROM housekeeping_inspection WHERE booking_id=? AND followup_task_id IS NOT NULL",Long.class,booking);
+            jdbc.update("DELETE FROM rework_cleaning_request WHERE inspection_id IN (SELECT id FROM housekeeping_inspection WHERE booking_id=?)",booking);
+            jdbc.update("DELETE FROM room_repair_task WHERE inspection_id IN (SELECT id FROM housekeeping_inspection WHERE booking_id=?)",booking);
+            jdbc.update("DELETE FROM housekeeping_inspection WHERE booking_id=?",booking);
+            jdbc.update("DELETE FROM cleaning_record WHERE booking_id=?",booking);
+            jdbc.update("DELETE FROM stayover_cleaning_request WHERE booking_id=?",booking);
             jdbc.update("DELETE FROM guest_registration WHERE booking_id=?",booking);
             var guestIds=jdbc.queryForList("SELECT guest_id FROM booking_guest WHERE booking_id=?",Long.class,booking);
             jdbc.update("DELETE FROM booking_guest WHERE booking_id=?",booking);
@@ -58,6 +64,7 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
             var taskIds=jdbc.queryForList("SELECT task_id FROM room_turnover_task WHERE booking_id=?",Long.class,booking);
             jdbc.update("DELETE FROM room_turnover_task WHERE booking_id=?",booking);
             for(long taskId:taskIds){jdbc.update("DELETE FROM task_record WHERE task_id=?",taskId);jdbc.update("DELETE FROM todo WHERE task_id=?",taskId);jdbc.update("DELETE FROM task_assignment WHERE task_id=?",taskId);jdbc.update("DELETE FROM hotel_task WHERE id=?",taskId);}
+            for(long taskId:inspectionTasks){jdbc.update("DELETE FROM task_record WHERE task_id=?",taskId);jdbc.update("DELETE FROM todo WHERE task_id=?",taskId);jdbc.update("DELETE FROM task_assignment WHERE task_id=?",taskId);jdbc.update("DELETE FROM hotel_task WHERE id=?",taskId);}
             jdbc.update("DELETE FROM refund WHERE folio_id=?",folio);
             jdbc.update("DELETE FROM expense_registration WHERE folio_id=? ORDER BY id DESC",folio);
             jdbc.update("DELETE FROM payment WHERE folio_id=?",folio);

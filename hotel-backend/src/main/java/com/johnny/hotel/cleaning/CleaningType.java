@@ -1,0 +1,1 @@
+package com.johnny.hotel.cleaning;import java.util.*;public enum CleaningType {STAYOVER(0),TURNOVER(1),REWORK(2);private final int code;CleaningType(int c){code=c;}public int getCode(){return code;}public static CleaningType fromCode(int c){return Arrays.stream(values()).filter(x->x.code==c).findFirst().orElseThrow();}}

@@ -1,0 +1,1 @@
+package com.johnny.hotel.cleaning;import lombok.*;import java.time.*;@Data @Builder @NoArgsConstructor @AllArgsConstructor public class CleaningRecord {private Long id,roomId,bookingId,assignmentId,taskId,requestedBy,completedBy;private Integer cleaningType;private LocalDateTime requestedTime,startedTime,completedTime,createTime;private String notes;}

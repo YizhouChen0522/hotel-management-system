@@ -13,6 +13,8 @@ public interface RoomTurnoverTaskMapper {
     RoomTurnoverTask find(Long id);
     @Select("SELECT t.id,t.task_id,t.room_id,t.booking_id,t.assignment_id,h.status,t.note,t.create_time,t.update_time FROM room_turnover_task t JOIN hotel_task h ON h.id=t.task_id WHERE t.id=#{id} FOR UPDATE")
     RoomTurnoverTask lock(Long id);
+    @Select("SELECT * FROM room_turnover_task WHERE task_id=#{taskId} FOR UPDATE")
+    RoomTurnoverTask lockByTask(Long taskId);
     @Select("""
         <script>SELECT t.id,t.task_id,t.room_id,t.booking_id,t.assignment_id,h.status,t.note,t.create_time,t.update_time FROM room_turnover_task t JOIN hotel_task h ON h.id=t.task_id
         <where><if test="status != null">h.status=#{status}</if><if test="roomId != null"> AND t.room_id=#{roomId}</if></where>

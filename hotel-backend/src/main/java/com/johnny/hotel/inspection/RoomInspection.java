@@ -1,0 +1,1 @@
+package com.johnny.hotel.inspection; import lombok.*;import java.time.*;@Data @Builder @NoArgsConstructor @AllArgsConstructor public class RoomInspection {private Long id,roomId,bookingId,assignmentId,turnoverTaskId,cleaningRecordId,inspectorId,followupTaskId;private Integer status,failureReason;private String notes;private LocalDateTime inspectedTime,createTime,updateTime;}

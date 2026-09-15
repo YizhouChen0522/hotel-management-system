@@ -1,0 +1,1 @@
+package com.johnny.hotel.inspection;import lombok.*;import jakarta.validation.constraints.*;public final class InspectionRequests{private InspectionRequests(){}@Data @Builder @NoArgsConstructor @AllArgsConstructor public static class Decide{@NotNull private Boolean passed;private InspectionFailureReason failureReason;@Size(max=500)private String notes;}}
