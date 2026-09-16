@@ -1,0 +1,1 @@
+package com.johnny.hotel.repair;import jakarta.validation.constraints.*;import lombok.*;import java.math.*;public final class RepairRequests{private RepairRequests(){}@Data@Builder@NoArgsConstructor@AllArgsConstructor public static class Complete{@Digits(integer=10,fraction=2)@PositiveOrZero private BigDecimal actualCost;@Size(max=500)private String notes;}}

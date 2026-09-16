@@ -1,0 +1,1 @@
+package com.johnny.hotel.damage;public enum DamageAssessmentStatus{PENDING(0),RESOLVED(1),UNPOSTED_CLOSED_FOLIO(2);private final int code;DamageAssessmentStatus(int c){code=c;}public int getCode(){return code;}public static DamageAssessmentStatus fromCode(int c){for(var v:values())if(v.code==c)return v;throw new IllegalArgumentException("Unknown damage status");}}

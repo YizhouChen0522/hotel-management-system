@@ -1,0 +1,1 @@
+package com.johnny.hotel.repair;public enum RepairPriority{LOW(0),MEDIUM(1),HIGH(2),CRITICAL(3);private final int code;RepairPriority(int code){this.code=code;}public int getCode(){return code;}public static RepairPriority fromCode(int c){for(var v:values())if(v.code==c)return v;throw new IllegalArgumentException("Unknown repair priority");}}

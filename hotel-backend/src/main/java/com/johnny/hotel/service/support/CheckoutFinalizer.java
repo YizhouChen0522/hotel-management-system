@@ -25,6 +25,7 @@ public class CheckoutFinalizer {
     private final com.johnny.hotel.wallet.RefundMapper refunds;
     private final com.johnny.hotel.wallet.WalletCheckoutSettlement walletSettlement;
     private final com.johnny.hotel.extras.ExtrasLedgerRules extrasLedgerRules;
+    private final com.johnny.hotel.damage.DamageLedgerRules damageLedgerRules;
 
     /** Caller owns Booking and current Room; no new Room/Booking locks after Folio. */
     @Transactional(propagation = Propagation.MANDATORY)
@@ -39,7 +40,8 @@ public class CheckoutFinalizer {
         var extensionRates=stayAdjustments.nights(booking.getId());
         require(extensionRates.stream().allMatch(n->folio.getCurrency().equals(n.getCurrency())),"Extension currency mismatch");
         var verified=stayRules.validate(booking,folio,segments,adjustments,posted,now);
-        var withoutExtras=extrasLedgerRules.validate(folio.getId(),verified);
+        var withoutDamage=damageLedgerRules.validate(folio.getId(),verified);
+        var withoutExtras=extrasLedgerRules.validate(folio.getId(),withoutDamage);
         var roomLedger = ExpenseRules.checkout(booking,folio.getId(),expenses.selectByFolioForUpdate(folio.getId()),withoutExtras,com.johnny.hotel.stay.StayPlan.end(booking,adjustments));
         StayLedgerRules.validate(booking, rates, segments, changes, roomLedger,adjustments,extensionRates);
         Folio summary = financial.recalculateSummary(booking.getId());

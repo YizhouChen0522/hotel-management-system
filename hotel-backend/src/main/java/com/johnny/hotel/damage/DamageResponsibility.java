@@ -1,0 +1,1 @@
+package com.johnny.hotel.damage;public enum DamageResponsibility{PENDING(0),CUSTOMER(1),HOTEL(2),WAIVED(3);private final int code;DamageResponsibility(int c){code=c;}public int getCode(){return code;}public static DamageResponsibility fromCode(int c){for(var v:values())if(v.code==c)return v;throw new IllegalArgumentException("Unknown damage responsibility");}}

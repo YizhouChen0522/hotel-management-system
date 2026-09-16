@@ -13,7 +13,7 @@ public interface HotelTaskService {
  HotelTask createGuestService(Long bookingId,String sourceKey,String title,String description,Long actorId);
  HotelTask createRepair(Long roomId,String sourceKey,String description,Long actorId);
  TaskView completeCleaning(Long taskId,String note,boolean force); TaskView cancelCleaning(Long taskId,String note);
- TaskView completeGuestService(Long taskId,String note,boolean force); TaskView cancelGuestService(Long taskId,String note);
+ TaskView completeGuestService(Long taskId,String note,boolean force); TaskView cancelGuestService(Long taskId,String note); TaskView completeRepair(Long taskId,String note,boolean force); TaskView cancelRepair(Long taskId,String note);
  TaskView claimGuestService(Long taskId);
  com.johnny.hotel.pagination.PageResult<TaskRecord> records(Long taskId,Integer recordType,Long actorId,Integer page,Integer pageSize);
 }

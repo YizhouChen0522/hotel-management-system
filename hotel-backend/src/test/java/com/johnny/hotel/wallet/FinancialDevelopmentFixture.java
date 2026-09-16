@@ -48,6 +48,7 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
     }
     @AfterEach void cleanupOnlyFinancialFixture(){
         gate.clear();
+        jdbc.update("DELETE FROM damage_assessment WHERE room_id IN (?,?,?,?)",room1,room2,room3,room4);
         jdbc.update("DELETE FROM room_work_order WHERE room_id IN (?,?,?,?)",room1,room2,room3,room4);
         for(long user:created)jdbc.update("DELETE FROM wallet_transaction WHERE wallet_id IN (SELECT id FROM wallet WHERE user_id=?)",user);
         for(long booking:bookingIds){
@@ -60,6 +61,7 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
             jdbc.update("DELETE FROM invoice WHERE booking_id=?",booking);
             var inspectionTasks=jdbc.queryForList("SELECT followup_task_id FROM housekeeping_inspection WHERE booking_id=? AND followup_task_id IS NOT NULL",Long.class,booking);
             jdbc.update("DELETE FROM rework_cleaning_request WHERE inspection_id IN (SELECT id FROM housekeeping_inspection WHERE booking_id=?)",booking);
+            jdbc.update("DELETE FROM housekeeping_inspection WHERE booking_id=? AND repair_order_id IS NOT NULL",booking);
             jdbc.update("DELETE FROM room_repair_task WHERE inspection_id IN (SELECT id FROM housekeeping_inspection WHERE booking_id=?)",booking);
             jdbc.update("DELETE FROM housekeeping_inspection WHERE booking_id=?",booking);
             jdbc.update("DELETE FROM cleaning_record WHERE booking_id=?",booking);

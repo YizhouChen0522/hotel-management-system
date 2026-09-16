@@ -1,0 +1,1 @@
+package com.johnny.hotel.damage;public enum DamageSourceType{WORK_ORDER(0),ROOM_REPAIR(1),INSPECTION(2);private final int code;DamageSourceType(int c){code=c;}public int getCode(){return code;}public static DamageSourceType fromCode(int c){for(var v:values())if(v.code==c)return v;throw new IllegalArgumentException("Unknown damage source");}}

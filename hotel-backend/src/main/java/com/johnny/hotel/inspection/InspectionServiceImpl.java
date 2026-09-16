@@ -1,7 +1,7 @@
 package com.johnny.hotel.inspection;
 import com.johnny.hotel.cleaning.*;import com.johnny.hotel.exception.BusinessException;import com.johnny.hotel.task.*;import com.johnny.hotel.workorder.*;import lombok.RequiredArgsConstructor;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.*;import java.util.*;
 @Service @RequiredArgsConstructor public class InspectionServiceImpl implements InspectionService{
- private final InspectionMapper mapper;private final HotelTaskService tasks;private final RoomWorkOrderService workOrders;private final HousekeepingAccess access;private final com.johnny.hotel.pagination.PaginationSupport pagination;
+ private final InspectionMapper mapper;private final HotelTaskService tasks;private final RoomWorkOrderService workOrders;private final com.johnny.hotel.repair.RepairOrderService repairs;private final HousekeepingAccess access;private final com.johnny.hotel.pagination.PaginationSupport pagination;
  private void require(boolean b,String m){if(!b)throw new BusinessException(m);}private void one(int n){if(n!=1)throw new BusinessException(409,"Inspection state changed");}
  @Override @Transactional(propagation=Propagation.MANDATORY) public RoomInspection createForTurnover(CleaningRecord c,Long turnoverId){var old=mapper.byCleaning(c.getId());if(old!=null)return old;var i=RoomInspection.builder().roomId(c.getRoomId()).bookingId(c.getBookingId()).assignmentId(c.getAssignmentId()).turnoverTaskId(turnoverId).cleaningRecordId(c.getId()).build();one(mapper.insert(i));return mapper.find(i.getId());}
  @Override @Transactional(propagation=Propagation.MANDATORY) public RoomInspection createForRework(CleaningRecord c,Long parent){var old=mapper.byCleaning(c.getId());if(old!=null)return old;var p=mapper.lock(parent);require(p!=null,"Original inspection does not exist");var i=RoomInspection.builder().roomId(c.getRoomId()).bookingId(c.getBookingId()).assignmentId(c.getAssignmentId()).turnoverTaskId(p.getTurnoverTaskId()).cleaningRecordId(c.getId()).build();one(mapper.insert(i));return mapper.find(i.getId());}
@@ -9,7 +9,7 @@ import com.johnny.hotel.cleaning.*;import com.johnny.hotel.exception.BusinessExc
   if(!r.getPassed()){require(r.getFailureReason()!=null,"Failure reason is required");require(note!=null,"Failure notes are required");reason=r.getFailureReason().getCode();
    if(r.getFailureReason()==InspectionFailureReason.CLEANING_INCOMPLETE){var t=tasks.createCleaning(i.getBookingId(),i.getRoomId(),i.getAssignmentId(),"ROOM_CLEANING_REWORK:"+i.getId(),note,a.id());one(mapper.insertRework(ReworkCleaningRequest.builder().taskId(t.getId()).inspectionId(i.getId()).roomId(i.getRoomId()).bookingId(i.getBookingId()).assignmentId(i.getAssignmentId()).requestedBy(a.id()).build()));follow=t.getId();}
    else if(r.getFailureReason()==InspectionFailureReason.FACILITY_DAMAGE){var w=workOrders.report(WorkOrderRequests.Report.builder().roomId(i.getRoomId()).requestKey("INSPECTION_"+i.getId()).damageType("INSPECTION_FACILITY_DAMAGE").description(note).severity(WorkOrderSeverity.HIGH).blocksRoomRelease(true).build());follow=w.getTaskId();}
-   else {var t=tasks.createRepair(i.getRoomId(),"ROOM_REPAIR_INSPECTION:"+i.getId(),note,a.id());one(mapper.insertRepair(t.getId(),i.getId(),i.getRoomId()));follow=t.getId();}
+   else {var repair=repairs.createForInspection(i,note,a.id());follow=repair.getTaskId();}
   }
   one(mapper.decide(id,r.getPassed()?1:2,a.id(),reason,note,follow));return mapper.find(id);
  }

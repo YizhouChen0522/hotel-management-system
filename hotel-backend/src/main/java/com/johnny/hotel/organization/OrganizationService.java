@@ -13,7 +13,7 @@ import static com.johnny.hotel.organization.OrganizationRequestType.*;
 @Service @RequiredArgsConstructor
 @Transactional(isolation=Isolation.READ_COMMITTED)
 public class OrganizationService {
- private final OrganizationMapper db;private final OrganizationAccess access;private final OrganizationTaskService workflow;private final SysAuditLogMapper audits;private final com.johnny.hotel.pagination.PaginationSupport pagination;
+ private final com.johnny.hotel.task.DepartmentTaskRouting departmentRouting;private final com.johnny.hotel.task.DepartmentTaskMapper departmentTasks;private final OrganizationMapper db;private final OrganizationAccess access;private final OrganizationTaskService workflow;private final SysAuditLogMapper audits;private final com.johnny.hotel.pagination.PaginationSupport pagination;
  // Low-volume organization writes share a MySQL row lock, including manager account disable.
  // Order: organization_guard -> current organization/request data -> approval Task -> Assignment/Todo.
  private void lock(){if(db.guard()==null)throw new BusinessException("Organization guard missing");}
@@ -41,7 +41,7 @@ public class OrganizationService {
   if(d!=null){require(d.getStatus()==1,"Department is disabled");r.setExpectedDepartmentVersion(d.getVersion());r.setExpectedManagerId(d.getManagerUserId());}
   switch(type){
    case CREATE_DEPARTMENT -> {require(c.getDepartmentId()==null&&c.getTargetUserId()==null&&c.getProposedManagerId()==null,"Unexpected target");r.setDepartmentName(text(c.getDepartmentName(),120,true));require(db.named(r.getDepartmentName())==null,"Department name has already been used");}
-   case DISABLE_DEPARTMENT -> {require(c.getTargetUserId()==null&&c.getProposedManagerId()==null,"Unexpected employee");require(d.getManagerUserId()==null&&db.memberCount(d.getId())==0,"Department must have no employees and no manager");}
+   case DISABLE_DEPARTMENT -> {require(c.getTargetUserId()==null&&c.getProposedManagerId()==null,"Unexpected employee");require(!departmentTasks.hasOpenBranches(d.getId()),"Resolve department task branches before disabling department");require(d.getManagerUserId()==null&&db.memberCount(d.getId())==0,"Department must have no employees and no manager");}
    case CHANGE_DEPARTMENT_MANAGER -> {
     require(c.getTargetUserId()==null,"Use proposedManagerId");r.setProposedManagerId(c.getProposedManagerId());
     require(!Objects.equals(d.getManagerUserId(),c.getProposedManagerId()),"Manager is unchanged");
@@ -111,7 +111,7 @@ public class OrganizationService {
    case CHANGE_DEPARTMENT_MANAGER -> {
     var d=department(r.getTargetDepartmentId());Long candidate=r.getProposedManagerId();
     if(candidate!=null){var u=db.user(candidate);if(u.getDepartmentId()==null)one(db.membership(candidate,d.getId(),u.getOrganizationVersion()));}
-    one(db.manager(d.getId(),candidate,d.getVersion()));h.setTargetUserId(candidate);h.setOldDepartmentId(r.getExpectedCurrentDepartmentId());h.setNewDepartmentId(d.getId());h.setOldManagerId(d.getManagerUserId());h.setNewManagerId(candidate);
+    one(db.manager(d.getId(),candidate,d.getVersion()));departmentRouting.managerChanged(d.getId(),candidate,operator);h.setTargetUserId(candidate);h.setOldDepartmentId(r.getExpectedCurrentDepartmentId());h.setNewDepartmentId(d.getId());h.setOldManagerId(d.getManagerUserId());h.setNewManagerId(candidate);
    }
    case REMOVE_EMPLOYEE_FROM_DEPARTMENT,MOVE_EMPLOYEE_TO_DEPARTMENT -> {
     var u=db.user(r.getTargetUserId());Long destination=type==MOVE_EMPLOYEE_TO_DEPARTMENT?r.getTargetDepartmentId():null;

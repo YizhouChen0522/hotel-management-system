@@ -1,0 +1,1 @@
+package com.johnny.hotel.repair;public enum RepairOrderStatus{OPEN(0),IN_PROGRESS(1),COMPLETED(2),CANCELLED(3);private final int code;RepairOrderStatus(int code){this.code=code;}public int getCode(){return code;}public static RepairOrderStatus fromCode(int c){for(var v:values())if(v.code==c)return v;throw new IllegalArgumentException("Unknown repair status");}}
