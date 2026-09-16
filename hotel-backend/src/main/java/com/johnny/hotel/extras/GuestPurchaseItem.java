@@ -1,0 +1,1 @@
+package com.johnny.hotel.extras;import lombok.*;import java.math.BigDecimal;import java.time.LocalDateTime;@Data@Builder@NoArgsConstructor@AllArgsConstructor public class GuestPurchaseItem{private Long id,purchaseId,catalogId,folioItemId;private String catalogCodeSnapshot,nameSnapshot;private BigDecimal unitPriceSnapshot,quantity,amount;private LocalDateTime createTime;}

@@ -230,6 +230,7 @@ public class SysUserServiceImpl implements SysUserService {
                     || "HR_ADMIN".equals(applyRoleCode);
             case "OWNER" -> "STAFF".equals(applyRoleCode)
                     || "HR_ADMIN".equals(applyRoleCode)
+                    || "FINANCE".equals(applyRoleCode)
                     || "MANAGER".equals(applyRoleCode);
             case "SUPER_ADMIN" -> true;
             default -> false;
@@ -320,6 +321,7 @@ public class SysUserServiceImpl implements SysUserService {
                     || "HR_ADMIN".equals(targetRole);
             case "OWNER" -> "STAFF".equals(targetRole)
                     || "HR_ADMIN".equals(targetRole)
+                    || "FINANCE".equals(targetRole)
                     || "MANAGER".equals(targetRole);
             case "SUPER_ADMIN" -> true;
             default -> false;

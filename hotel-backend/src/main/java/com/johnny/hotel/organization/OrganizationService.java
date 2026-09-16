@@ -13,7 +13,7 @@ import static com.johnny.hotel.organization.OrganizationRequestType.*;
 @Service @RequiredArgsConstructor
 @Transactional(isolation=Isolation.READ_COMMITTED)
 public class OrganizationService {
- private final OrganizationMapper db;private final OrganizationAccess access;private final OrganizationTaskService workflow;private final SysAuditLogMapper audits;
+ private final OrganizationMapper db;private final OrganizationAccess access;private final OrganizationTaskService workflow;private final SysAuditLogMapper audits;private final com.johnny.hotel.pagination.PaginationSupport pagination;
  // Low-volume organization writes share a MySQL row lock, including manager account disable.
  // Order: organization_guard -> current organization/request data -> approval Task -> Assignment/Todo.
  private void lock(){if(db.guard()==null)throw new BusinessException("Organization guard missing");}
@@ -83,6 +83,7 @@ public class OrganizationService {
  public List<Department> departments(Integer page,Integer size){access.actor();int[] p=page(page,size);return db.departments(p[0],p[1]);}
  public Department departmentDetails(Long id){access.actor();return department(id);}
  public List<OrganizationChangeHistory> history(Integer page,Integer size){var a=access.actor();if(!access.oversight(a))throw access.denied();int[] p=page(page,size);return db.historyPage(p[0],p[1]);}
+ public com.johnny.hotel.pagination.PageResult<OrganizationChangeHistory> history(Long operator,Integer action,java.time.LocalDateTime from,java.time.LocalDateTime to,Integer page,Integer size){var a=access.actor();if(!access.oversight(a))throw access.denied();require(from==null||to==null||from.isBefore(to),"Invalid date range");boolean search=operator!=null||action!=null||from!=null||to!=null;var w=pagination.window(page,size,search);int limit=pagination.limit(w);var rows=limit==0?List.<OrganizationChangeHistory>of():db.historySearch(operator,action,from,to,w.offset(),limit);return pagination.result(w,rows,db.historyCount(operator,action,from,to));}
  public TaskView task(Long id){var a=access.actor();var r=found(id);read(r,a);return workflow.view(r.getTaskId());}
  public List<Todo> myTodos(){var a=access.actor();access.hr(a);return db.approvalTodos(a.id());}
  public OrganizationChangeRequest claim(Long id){lock();var a=access.actor();var r=found(id);approver(r,a);require(r.getStatus()==0,"Request is not pending");workflow.claim(r,a.id());return r;}

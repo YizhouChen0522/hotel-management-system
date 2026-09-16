@@ -13,11 +13,11 @@ public record FolioVO(Long id, Long bookingId, String currency, Integer status, 
     @Builder
     public record Item(Long id, String itemType, String description, LocalDate businessDate,
             BigDecimal quantity, BigDecimal unitPrice, BigDecimal amount, Long roomId,
-            Long roomTypeId, Long roomAssignmentId, Long sourceItemId, Long stayAdjustmentId) {
+            Long roomTypeId, Long roomAssignmentId, Long sourceItemId, Long stayAdjustmentId, String sourceType, Long sourceId) {
         public static Item from(FolioItem i) {
             return Item.builder().id(i.getId()).itemType(i.getItemType()).description(i.getDescription()).businessDate(i.getBusinessDate())
                     .quantity(i.getQuantity()).unitPrice(i.getUnitPrice()).amount(i.getAmount()).roomId(i.getRoomId()).roomTypeId(i.getRoomTypeId())
-                    .roomAssignmentId(i.getRoomAssignmentId()).sourceItemId(i.getSourceItemId()).stayAdjustmentId(i.getStayAdjustmentId()).build();
+                    .roomAssignmentId(i.getRoomAssignmentId()).sourceItemId(i.getSourceItemId()).stayAdjustmentId(i.getStayAdjustmentId()).sourceType(i.getSourceType()).sourceId(i.getSourceId()).build();
         }
     }
 }

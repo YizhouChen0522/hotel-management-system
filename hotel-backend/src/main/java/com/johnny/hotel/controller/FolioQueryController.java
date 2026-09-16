@@ -12,10 +12,10 @@ import org.springframework.web.bind.annotation.*;
 public class FolioQueryController {
     private final FolioQueryService queries;
     @GetMapping("/api/admin/billing/bookings/{bookingId}/folio")
-    @PreAuthorize("hasAnyRole('STAFF','MANAGER','OWNER','SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF','FINANCE','MANAGER','OWNER','SUPER_ADMIN')")
     public Result<FolioVO> booking(@PathVariable Long bookingId) { return Result.success(queries.byBookingForOperations(bookingId)); }
     @GetMapping("/api/admin/billing/folios/{folioId}")
-    @PreAuthorize("hasAnyRole('STAFF','MANAGER','OWNER','SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF','FINANCE','MANAGER','OWNER','SUPER_ADMIN')")
     public Result<FolioVO> folio(@PathVariable Long folioId) { return Result.success(queries.byFolioForOperations(folioId)); }
     @GetMapping("/api/bookings/{bookingId}/folio")
     @PreAuthorize("hasRole('CUSTOMER')")

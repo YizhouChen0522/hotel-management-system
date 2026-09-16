@@ -17,7 +17,7 @@ public final class ExpenseRules {
     }
     public static String text(String value) {require(value!=null&&!value.isBlank()&&value.length()<=500,"Description and reason must contain 1 to 500 characters");return value.trim();}
     public static void authorize(String type, Collection<String> roles) {
-        boolean manager=roles.stream().anyMatch(Set.of("ROLE_MANAGER","ROLE_OWNER","ROLE_SUPER_ADMIN")::contains);
+        boolean manager=roles.stream().anyMatch(Set.of("ROLE_FINANCE","ROLE_MANAGER","ROLE_OWNER","ROLE_SUPER_ADMIN")::contains);
         if(!manager && (credit(type)||!roles.contains("ROLE_STAFF"))) throw new AccessDeniedException("Insufficient expense permission");
     }
     public static void validate(RegisterExpenseRequest r, Booking b, LocalDate today) {validate(r,b,today,b.getCheckOutDate());}

@@ -29,7 +29,7 @@ public class RefundAccess {
         var u=users.selectById(actor);var r=roles(actor);
         if(u==null || !Integer.valueOf(1).equals(u.getStatus()))throw denied();
         if(r.contains("SUPER_ADMIN"))return;
-        if(r.contains("HR_ADMIN") || r.stream().noneMatch((approval?Set.of("MANAGER","OWNER"):Set.of("STAFF","MANAGER","OWNER"))::contains))throw denied();
+        if(r.contains("HR_ADMIN") || r.stream().noneMatch((approval?Set.of("FINANCE","MANAGER","OWNER"):Set.of("STAFF","FINANCE","MANAGER","OWNER"))::contains))throw denied();
     }
     private AccessDeniedException denied(){return new AccessDeniedException("Refund billing access denied");}
 }

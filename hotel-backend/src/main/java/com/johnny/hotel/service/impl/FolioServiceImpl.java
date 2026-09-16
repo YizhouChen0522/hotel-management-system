@@ -151,6 +151,8 @@ public class FolioServiceImpl implements FolioService {
                     .quantity(command.getQuantity()).unitPrice(command.getUnitPrice()).amount(command.getAmount())
                     .roomId(command.getRoomId()).roomTypeId(command.getRoomTypeId()).roomAssignmentId(command.getRoomAssignmentId())
                     .sourceItemId(command.getSourceItemId()).stayAdjustmentId(command.getStayAdjustmentId()).refundable(Boolean.TRUE.equals(command.getRefundable()) ? 1 : 0).createdBy(operatorId).build();
+            candidate.setSourceType(command.getSourceType());
+            candidate.setSourceId(command.getSourceId());
             FolioItem existing = ledger.stream().filter(i -> key.equalsIgnoreCase(i.getEventKey())).findFirst().orElse(null);
             if (existing != null) {
                 require(sameItem(existing, candidate), "Billing event key was already used with different content");
@@ -337,7 +339,7 @@ public class FolioServiceImpl implements FolioService {
     }
 
     private boolean sameItem(FolioItem a, FolioItem b) {
-        return Objects.equals(a.getStayAdjustmentId(),b.getStayAdjustmentId()) && Objects.equals(a.getItemType(), b.getItemType()) && Objects.equals(a.getDescription(), b.getDescription())
+        return Objects.equals(a.getStayAdjustmentId(),b.getStayAdjustmentId()) && Objects.equals(a.getSourceType(),b.getSourceType()) && Objects.equals(a.getSourceId(),b.getSourceId()) && Objects.equals(a.getItemType(), b.getItemType()) && Objects.equals(a.getDescription(), b.getDescription())
                 && Objects.equals(a.getBusinessDate(), b.getBusinessDate()) && a.getAmount().compareTo(b.getAmount()) == 0
                 && a.getQuantity().compareTo(b.getQuantity()) == 0 && a.getUnitPrice().compareTo(b.getUnitPrice()) == 0
                 && Objects.equals(a.getRoomAssignmentId(), b.getRoomAssignmentId()) && Objects.equals(a.getRoomId(), b.getRoomId())

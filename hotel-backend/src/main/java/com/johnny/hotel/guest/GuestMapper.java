@@ -27,4 +27,6 @@ import org.apache.ibatis.annotations.*;import java.util.List;
  @Select("""
  SELECT bg.booking_id AS bookingId,a.id AS assignmentId,r.room_number AS roomNumber,rt.type_name AS roomTypeName,a.start_time AS actualCheckInTime,a.end_time AS actualCheckOutTime FROM booking_guest bg JOIN booking_room_assignment a ON a.booking_id=bg.booking_id JOIN room r ON r.id=a.room_id JOIN room_type rt ON rt.id=a.room_type_id WHERE bg.guest_id=#{guestId} AND a.end_time IS NOT NULL ORDER BY a.start_time DESC
  """) List<GuestViews.Stay> stays(Long guestId);
+ @Select("SELECT bg.booking_id AS bookingId,a.id AS assignmentId,r.room_number AS roomNumber,rt.type_name AS roomTypeName,a.start_time AS actualCheckInTime,a.end_time AS actualCheckOutTime FROM booking_guest bg JOIN booking_room_assignment a ON a.booking_id=bg.booking_id JOIN room r ON r.id=a.room_id JOIN room_type rt ON rt.id=a.room_type_id WHERE bg.guest_id=#{guestId} AND a.end_time IS NOT NULL ORDER BY a.start_time DESC,a.id DESC LIMIT #{offset},#{size}")List<GuestViews.Stay> stayPage(@Param("guestId")Long guestId,@Param("offset")int offset,@Param("size")int size);
+ @Select("SELECT COUNT(*) FROM booking_guest bg JOIN booking_room_assignment a ON a.booking_id=bg.booking_id WHERE bg.guest_id=#{guestId} AND a.end_time IS NOT NULL")long stayCount(Long guestId);
 }

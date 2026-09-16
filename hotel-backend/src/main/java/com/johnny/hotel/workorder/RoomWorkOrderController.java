@@ -5,7 +5,7 @@ import com.johnny.hotel.common.Result;import com.johnny.hotel.task.TaskView;impo
 public class RoomWorkOrderController {
  private final RoomWorkOrderService service;
  @PostMapping public Result<RoomWorkOrder> report(@Valid @RequestBody WorkOrderRequests.Report r){return Result.success(service.report(r));}
- @GetMapping public Result<List<RoomWorkOrder>> list(@RequestParam(required=false)Integer status,@RequestParam(required=false)Long roomId,@RequestParam(required=false)Integer page,@RequestParam(required=false)Integer size){return Result.success(service.list(status,roomId,page,size));}
+ @GetMapping public Result<com.johnny.hotel.pagination.PageResult<RoomWorkOrder>> list(@RequestParam(required=false)Integer status,@RequestParam(required=false)Long roomId,@RequestParam(required=false)Integer page,@RequestParam(required=false)Integer pageSize){return Result.success(service.page(status,roomId,page,pageSize));}
  @GetMapping("/{id}") public Result<RoomWorkOrder> get(@PathVariable Long id){return Result.success(service.get(id));}
  @GetMapping("/{id}/task") public Result<TaskView> task(@PathVariable Long id){return Result.success(service.task(id));}
  @PostMapping("/{id}/complete") public Result<RoomWorkOrder> complete(@PathVariable Long id,@Valid @RequestBody(required=false)WorkOrderRequests.Complete r){return Result.success(service.complete(id,r,false));}

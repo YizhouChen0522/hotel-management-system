@@ -1,0 +1,1 @@
+package com.johnny.hotel.extras; public enum ChargeType {SERVICE(0),PRODUCT(1);private final int code;ChargeType(int c){code=c;}public int getCode(){return code;}public static ChargeType fromCode(int c){for(var v:values())if(v.code==c)return v;throw new IllegalArgumentException("Unknown charge type");}}

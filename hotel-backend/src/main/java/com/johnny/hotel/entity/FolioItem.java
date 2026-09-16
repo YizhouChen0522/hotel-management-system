@@ -41,6 +41,8 @@ public class FolioItem {
 
     private Long sourceItemId;
     private Long stayAdjustmentId;
+    private String sourceType;
+    private Long sourceId;
 
     private Integer refundable;
 

@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 public class BillingAccess {
-    private static final Set<String> OPERATIONS = Set.of("STAFF", "MANAGER", "OWNER", "SUPER_ADMIN");
+    private static final Set<String> OPERATIONS = Set.of("STAFF", "FINANCE", "MANAGER", "OWNER", "SUPER_ADMIN");
     private final SysUserMapper users;
     private final SysRoleMapper roles;
 

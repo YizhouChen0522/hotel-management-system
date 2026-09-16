@@ -43,3 +43,6 @@ jwt:
 
 hotel:
   currency: CNY
+  pagination:
+    max-page-size: 100
+    browse-limit: 100

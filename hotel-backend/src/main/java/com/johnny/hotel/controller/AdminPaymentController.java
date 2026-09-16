@@ -20,7 +20,7 @@ public class AdminPaymentController {
 
     @PostMapping("/folios/{folioId}/payments")
     @PreAuthorize(
-            "hasAnyRole('STAFF','MANAGER','OWNER','SUPER_ADMIN')"
+            "hasAnyRole('STAFF','FINANCE','MANAGER','OWNER','SUPER_ADMIN')"
     )
     public Result<PaymentVO> recordPayment(
             @PathVariable Long folioId,

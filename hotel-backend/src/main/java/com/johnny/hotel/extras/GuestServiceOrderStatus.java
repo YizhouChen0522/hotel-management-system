@@ -1,0 +1,1 @@
+package com.johnny.hotel.extras; public enum GuestServiceOrderStatus {PENDING(0),IN_PROGRESS(1),COMPLETED(2),CANCELLED(3);private final int code;GuestServiceOrderStatus(int c){code=c;}public int getCode(){return code;}}

@@ -60,5 +60,7 @@ public final class BillingRules {
         require(!credit || c.getSourceItemId() != null, "Credits require an original charge");
         require(c.getSourceItemId() == null || amount.signum() < 0, "Source reference is only supported for credits");
         require(c.getEventKey() == null || !c.getEventKey().isBlank() && c.getEventKey().length() <= 100, "Invalid ledger event key");
+        require((c.getSourceType()==null)==(c.getSourceId()==null),"Billing source type and id must be supplied together");
+        require(c.getSourceType()==null||Set.of("GUEST_SERVICE_ORDER","GUEST_PURCHASE_ITEM").contains(c.getSourceType()),"Unsupported billing source");
     }
 }

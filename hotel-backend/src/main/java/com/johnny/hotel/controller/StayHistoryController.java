@@ -20,28 +20,24 @@ public class StayHistoryController {
     private final SysUserService sysUserService;
 
     @GetMapping("/me")
-    public Result<List<StayHistoryVO>> getMyStayHistory(
-            Authentication authentication) {
+    public Result<com.johnny.hotel.pagination.PageResult<StayHistoryVO>> getMyStayHistory(Authentication authentication,@RequestParam(required=false)Integer page,@RequestParam(required=false)Integer pageSize) {
 
         Long currentUserId = getCurrentUserId(authentication);
 
         return Result.success(
-                stayHistoryService.getByUserId(currentUserId)
+                stayHistoryService.pageByUser(currentUserId,page,pageSize)
         );
     }
 
     @GetMapping("/me/folios/{folioId}")
-    public Result<List<StayHistoryVO>> getMyStayHistoryByFolio(
+    public Result<com.johnny.hotel.pagination.PageResult<StayHistoryVO>> getMyStayHistoryByFolio(
             @PathVariable Long folioId,
-            Authentication authentication) {
+            Authentication authentication,@RequestParam(required=false)Integer page,@RequestParam(required=false)Integer pageSize) {
 
         Long currentUserId = getCurrentUserId(authentication);
 
         return Result.success(
-                stayHistoryService.getByFolioIdAndUserId(
-                        folioId,
-                        currentUserId
-                )
+                stayHistoryService.pageByFolioUser(folioId,currentUserId,page,pageSize)
         );
     }
 

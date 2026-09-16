@@ -1,0 +1,1 @@
+package com.johnny.hotel.invoice;import java.util.*;public enum InvoiceStatus{ISSUED(0),VOIDED(1);private final int code;InvoiceStatus(int c){code=c;}public int getCode(){return code;}public static InvoiceStatus fromCode(int c){return Arrays.stream(values()).filter(v->v.code==c).findFirst().orElseThrow();}}

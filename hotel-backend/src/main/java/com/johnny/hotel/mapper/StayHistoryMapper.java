@@ -47,6 +47,8 @@ public interface StayHistoryMapper {
             ORDER BY actual_check_in_time DESC
             """)
     List<StayHistory> findByUserId(@Param("userId") Long userId);
+    @Select("SELECT * FROM stay_history WHERE user_id=#{userId} ORDER BY actual_check_in_time DESC,id DESC LIMIT #{offset},#{size}")List<StayHistory> pageByUser(@Param("userId")Long userId,@Param("offset")int offset,@Param("size")int size);
+    @Select("SELECT COUNT(*) FROM stay_history WHERE user_id=#{userId}")long countByUser(Long userId);
 
     @Select("""
             SELECT
@@ -68,6 +70,8 @@ public interface StayHistoryMapper {
             @Param("folioId") Long folioId,
             @Param("userId") Long userId
     );
+    @Select("SELECT * FROM stay_history WHERE folio_id=#{folioId} AND user_id=#{userId} ORDER BY actual_check_in_time DESC,id DESC LIMIT #{offset},#{size}")List<StayHistory> pageByFolioUser(@Param("folioId")Long folioId,@Param("userId")Long userId,@Param("offset")int offset,@Param("size")int size);
+    @Select("SELECT COUNT(*) FROM stay_history WHERE folio_id=#{folioId} AND user_id=#{userId}")long countByFolioUser(@Param("folioId")Long folioId,@Param("userId")Long userId);
 
     @Select("""
             SELECT COUNT(*)

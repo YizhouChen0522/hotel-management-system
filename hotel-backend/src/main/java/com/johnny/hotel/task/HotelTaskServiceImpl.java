@@ -23,6 +23,8 @@ public class HotelTaskServiceImpl implements HotelTaskService {
  private final SysRoleMapper roles;
  private final SysAuditLogMapper audits;
  private final Clock clock;
+ private final com.johnny.hotel.pagination.PaginationSupport pagination;
+ private final List<TaskLifecycleObserver> lifecycleObservers;
  private record Actor(Long id,boolean manager){}
  private Actor actor(){
   var a=SecurityContextHolder.getContext().getAuthentication();
@@ -104,13 +106,19 @@ public class HotelTaskServiceImpl implements HotelTaskService {
   conflict(tasks.insert(t)==1);record(t.getId(),null,TaskRecordType.TASK_CREATED,actorId,"Room cleaning requested for assignment "+assignmentId);record(t.getId(),null,TaskRecordType.CLEANING_REQUESTED,actorId,"Room "+roomId);audit(actorId,t.getId(),"REQUEST_ROOM_CLEANING");return t;
  }
  @Override @Transactional(propagation=Propagation.MANDATORY)
+ public HotelTask createGuestService(Long bookingId,String sourceKey,String title,String description,Long actorId){
+  var requester=users.selectById(actorId);var requesterRoles=roles.selectRolesByUserId(actorId).stream().map(SysRole::getRoleCode).collect(Collectors.toSet());require(requester!=null&&Integer.valueOf(1).equals(requester.getStatus())&&!requesterRoles.contains("HR_ADMIN")&&requesterRoles.stream().anyMatch(Set.of("CUSTOMER","STAFF","MANAGER","OWNER","SUPER_ADMIN")::contains),"Active customer or operational employee required");var existing=tasks.bySourceForUpdate(sourceKey);if(existing!=null)return existing;
+  var t=HotelTask.builder().taskType(6).status(0).assignmentMode(0).executionType(0).title(title).description(description).sourceKey(sourceKey).createdBy(actorId).build();conflict(tasks.insert(t)==1);record(t.getId(),null,TaskRecordType.TASK_CREATED,actorId,"Guest service requested for booking "+bookingId);audit(actorId,t.getId(),"CREATE_GUEST_SERVICE_TASK");return t;
+ }
+ @Override @Transactional(propagation=Propagation.MANDATORY)
  public HotelTask createRepair(Long roomId,String sourceKey,String description,Long actorId){actor(actorId);var existing=tasks.bySourceForUpdate(sourceKey);if(existing!=null)return existing;var t=HotelTask.builder().taskType(5).status(0).assignmentMode(0).executionType(0).title("Structural repair for room "+roomId).description(description).sourceKey(sourceKey).createdBy(actorId).build();conflict(tasks.insert(t)==1);record(t.getId(),null,TaskRecordType.TASK_CREATED,actorId,"Structural repair required for room "+roomId);audit(actorId,t.getId(),"CREATE_ROOM_REPAIR_TASK");return t;}
  @Override public List<HotelTask> list(Integer status,Integer type,Integer page,Integer size){
-  actor();if(status!=null)require(status>=0&&status<=4,"Invalid task status");if(type!=null)require(Set.of(0,1,4,5).contains(type),"Invalid task type");
+  actor();if(status!=null)require(status>=0&&status<=4,"Invalid task status");if(type!=null)require(Set.of(0,1,4,5,6).contains(type),"Invalid task type");
   int[] p=pagination(page,size);return tasks.page(status,type,p[0],p[1]);
  }
  private int[] pagination(Integer page,Integer size){int p=page==null?1:page,s=size==null?50:size;require(p>0&&s>0&&s<=100&&((long)p-1)*s<=Integer.MAX_VALUE,"Invalid pagination");return new int[]{(p-1)*s,s};}
  @Override public TaskView get(Long id){actor();var t=found(tasks.find(id));if(t.getTaskType()==2)throw denied();return view(t);}
+ @Override public com.johnny.hotel.pagination.PageResult<TaskRecord> records(Long id,Integer type,Long actorId,Integer page,Integer size){actor();var t=found(tasks.find(id));if(t.getTaskType()==2)throw denied();var w=pagination.window(page,size,true);int limit=pagination.limit(w);var rows=limit==0?List.<TaskRecord>of():records.page(id,type,actorId,w.offset(),limit);return pagination.result(w,rows,records.count(id,type,actorId));}
  @Override public List<TaskAssignment> myTodo(){return assignments.todo(actor().id());}
  private TaskView view(HotelTask t){return TaskView.builder().task(t).assignments(assignments.byTask(t.getId())).records(records.byTask(t.getId())).build();}
  @Override public List<Todo> todos(Integer page,Integer size){var a=actor();int[] p=pagination(page,size);return todos.mine(a.id(),p[0],p[1]);}
@@ -133,7 +141,7 @@ public class HotelTaskServiceImpl implements HotelTaskService {
   if(old==4&&next==1)record(t.getId(),null,TaskRecordType.TASK_RESUMED,a.id(),null);
  }
  @Override @Transactional public TaskView claim(Long id){
-  var a=actor();var t=lock(id);
+  var a=actor();var t=lock(id);if(t.getTaskType()==6)throw new BusinessException(409,"Use the Guest Service claim endpoint");
   boolean initial=t.getStatus()==0&&t.getAssignmentMode()==0&&assignments.currentCount(id)==0;
   boolean rescue=t.getStatus()==4&&collective(t);
   boolean sharedPartner=t.getStatus()==1&&t.getAssignmentMode()==0&&t.getExecutionType()==1&&assignments.currentCount(id)==1;
@@ -143,17 +151,17 @@ public class HotelTaskServiceImpl implements HotelTaskService {
   state(t,1,a);audit(a.id(),id,"CLAIM_TASK");return view(tasks.find(id));
  }
  @Override @Transactional public TaskView accept(Long id){
-  var a=actor();var t=lock(id);var todo=todos.current(id,a.id());if(todo==null)throw denied();
+  var a=actor();var t=lock(id);if(t.getTaskType()==6)throw new BusinessException(409,"Use the Guest Service accept endpoint");var todo=todos.current(id,a.id());if(todo==null)throw denied();
   mutate(t,todo,a,"ACKNOWLEDGE",null);return view(tasks.find(id));
  }
  @Override @Transactional public TaskView complete(Long id,String note){
-  var a=actor();var t=lock(id);if(Set.of(0,4).contains(t.getTaskType()))throw new BusinessException(409,"Use the Cleaning completion endpoint");if(t.getTaskType()==3)throw new BusinessException(409,"Use the WorkOrder completion endpoint");var todo=todos.current(id,a.id());if(todo==null)throw denied();
+  var a=actor();var t=lock(id);if(Set.of(0,4).contains(t.getTaskType()))throw new BusinessException(409,"Use the Cleaning completion endpoint");if(t.getTaskType()==3)throw new BusinessException(409,"Use the WorkOrder completion endpoint");if(t.getTaskType()==6)throw new BusinessException(409,"Use the Guest Service completion endpoint");var todo=todos.current(id,a.id());if(todo==null)throw denied();
   mutate(t,todo,a,"COMPLETE",note);return view(tasks.find(id));
  }
  @Override @Transactional public Todo updateTodo(Long id,String action,String note){
   var a=actor();var identity=owned(id,a);var task=lock(identity.getTaskId());
-  if(Set.of(0,4).contains(task.getTaskType())&&"COMPLETE".equals(action))throw new BusinessException(409,"Use the Cleaning completion endpoint");if(task.getTaskType()==3&&"COMPLETE".equals(action))throw new BusinessException(409,"Use the WorkOrder completion endpoint");
-  var todo=owned(id,a);mutate(task,todo,a,action,note);return owned(id,a);
+  if(Set.of(0,4).contains(task.getTaskType())&&"COMPLETE".equals(action))throw new BusinessException(409,"Use the Cleaning completion endpoint");if(task.getTaskType()==3&&"COMPLETE".equals(action))throw new BusinessException(409,"Use the WorkOrder completion endpoint");if(task.getTaskType()==6&&"COMPLETE".equals(action))throw new BusinessException(409,"Use the Guest Service completion endpoint");
+  var todo=owned(id,a);mutate(task,todo,a,action,note);if("ACKNOWLEDGE".equals(action))lifecycleObservers.forEach(observer->observer.acknowledged(task,todo,a.id()));return owned(id,a);
  }
  private void mutate(HotelTask task,Todo todo,Actor a,String action,String note){
   conflict(todo.getIsActive()==1);normalize(note);int before=todo.getStatus();int next;TaskRecordType event;
@@ -228,13 +236,13 @@ public class HotelTaskServiceImpl implements HotelTaskService {
  }
  @Override @Transactional public TaskView cancel(Long id,String note){
   var a=actor();manager(a);var t=lock(id);
-  if(Set.of(0,4).contains(t.getTaskType()))throw new BusinessException(409,"Use the Cleaning cancellation endpoint");if(t.getTaskType()==3)throw new BusinessException(409,"Use the WorkOrder cancellation endpoint");
+  if(Set.of(0,4).contains(t.getTaskType()))throw new BusinessException(409,"Use the Cleaning cancellation endpoint");if(t.getTaskType()==3)throw new BusinessException(409,"Use the WorkOrder cancellation endpoint");if(t.getTaskType()==6)throw new BusinessException(409,"Use the Guest Service cancellation endpoint");
   require(tasks.children(id).stream().noneMatch(this::open),"Resolve active subtasks before cancellation");
   retire(t,a,note);state(t,3,a);record(id,null,TaskRecordType.TASK_CANCELLED,a.id(),note);audit(a.id(),id,"CANCEL_TASK");return view(tasks.find(id));
  }
  @Override @Transactional public TaskView forceComplete(Long id,String note){
   var a=actor();manager(a);var t=lock(id);require(childrenDone(t),"Complete all subtasks before completing the parent");
-  if(Set.of(0,4).contains(t.getTaskType()))throw new BusinessException(409,"Use the Cleaning completion endpoint");if(t.getTaskType()==3)throw new BusinessException(409,"Use the WorkOrder completion endpoint");
+  if(Set.of(0,4).contains(t.getTaskType()))throw new BusinessException(409,"Use the Cleaning completion endpoint");if(t.getTaskType()==3)throw new BusinessException(409,"Use the WorkOrder completion endpoint");if(t.getTaskType()==6)throw new BusinessException(409,"Use the Guest Service completion endpoint");
   finishTodos(t,a,note);conflict(tasks.forceComplete(id,now())==1);t.setStatus(2);
   record(id,null,TaskRecordType.TASK_FORCE_COMPLETED,a.id(),note);sync(t,a);audit(a.id(),id,"FORCE_COMPLETE_TASK");return view(tasks.find(id));
  }
@@ -253,4 +261,7 @@ public class HotelTaskServiceImpl implements HotelTaskService {
  public TaskView completeCleaning(Long id,String note,boolean force){var a=actor();var t=lock(id);require(Set.of(0,4).contains(t.getTaskType()),"Cleaning task required");if(force){manager(a);finishTodos(t,a,note);conflict(tasks.forceComplete(id,now())==1);t.setStatus(2);record(id,null,TaskRecordType.TASK_FORCE_COMPLETED,a.id(),note);}else{var todo=todos.current(id,a.id());if(todo==null)throw denied();mutate(t,todo,a,"COMPLETE",note);}record(id,null,TaskRecordType.CLEANING_COMPLETED,a.id(),note);audit(a.id(),id,"COMPLETE_CLEANING_TASK");return view(tasks.find(id));}
  @Override @Transactional(propagation=Propagation.MANDATORY)
  public TaskView cancelCleaning(Long id,String note){var a=actor();manager(a);var t=lock(id);require(Set.of(0,4).contains(t.getTaskType()),"Cleaning task required");retire(t,a,note);state(t,3,a);record(id,null,TaskRecordType.CLEANING_CANCELLED,a.id(),note);record(id,null,TaskRecordType.TASK_CANCELLED,a.id(),note);audit(a.id(),id,"CANCEL_CLEANING_TASK");return view(tasks.find(id));}
+ @Override @Transactional(propagation=Propagation.MANDATORY) public TaskView claimGuestService(Long id){var a=actor();var t=lock(id);require(t.getTaskType()==6,"Guest service task required");conflict(t.getStatus()==0&&t.getAssignmentMode()==0&&assignments.currentCount(id)==0);add(t,a.id(),a,assignments.maxRound(id)+1,TaskRecordType.TASK_CLAIMED,null);state(t,1,a);audit(a.id(),id,"CLAIM_GUEST_SERVICE");return view(tasks.find(id));}
+ @Override @Transactional(propagation=Propagation.MANDATORY) public TaskView completeGuestService(Long id,String note,boolean force){var a=actor();var t=lock(id);require(t.getTaskType()==6,"Guest service task required");if(force){manager(a);finishTodos(t,a,note);conflict(tasks.forceComplete(id,now())==1);t.setStatus(2);record(id,null,TaskRecordType.TASK_FORCE_COMPLETED,a.id(),note);}else{var todo=todos.current(id,a.id());if(todo==null)throw denied();mutate(t,todo,a,"COMPLETE",note);}audit(a.id(),id,"COMPLETE_GUEST_SERVICE");return view(tasks.find(id));}
+ @Override @Transactional(propagation=Propagation.MANDATORY) public TaskView cancelGuestService(Long id,String note){var a=actor();var t=lock(id);require(t.getTaskType()==6,"Guest service task required");retire(t,a,note);state(t,3,a);record(id,null,TaskRecordType.TASK_CANCELLED,a.id(),note);audit(a.id(),id,"CANCEL_GUEST_SERVICE");return view(tasks.find(id));}
 }

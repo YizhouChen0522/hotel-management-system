@@ -2,7 +2,7 @@ package com.johnny.hotel.workorder;
 import com.johnny.hotel.entity.*;import com.johnny.hotel.exception.BusinessException;import com.johnny.hotel.mapper.*;import com.johnny.hotel.task.*;
 import lombok.RequiredArgsConstructor;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.*;import java.math.*;import java.util.*;
 @Service @RequiredArgsConstructor public class RoomWorkOrderServiceImpl implements RoomWorkOrderService {
- private final RoomWorkOrderMapper orders;private final RoomMapper rooms;private final HotelTaskService tasks;private final WorkOrderAccess access;private final SysAuditLogMapper audits;
+ private final RoomWorkOrderMapper orders;private final RoomMapper rooms;private final HotelTaskService tasks;private final WorkOrderAccess access;private final SysAuditLogMapper audits;private final com.johnny.hotel.pagination.PaginationSupport pagination;
  private void require(boolean ok,String message){if(!ok)throw new BusinessException(message);}private void one(int rows){if(rows!=1)throw new BusinessException(409,"WorkOrder state changed");}
  private String text(String value,int max,String field){String v=value==null?null:value.trim();require(v!=null&&!v.isEmpty(),field+" required");require(v.length()<=max,field+" too long");return v;}
  private int[] page(Integer page,Integer size){int p=page==null?1:page,s=size==null?50:size;require(p>0&&s>0&&s<=100&&(long)(p-1)*s<=Integer.MAX_VALUE,"Invalid pagination");return new int[]{(p-1)*s,s};}
@@ -22,7 +22,8 @@ import lombok.RequiredArgsConstructor;import org.springframework.stereotype.Serv
  }
  private BigDecimal money(BigDecimal value){if(value==null)return null;try{var v=value.setScale(2,RoundingMode.UNNECESSARY);require(v.signum()>=0&&v.precision()<=12,"Invalid cost");return v;}catch(ArithmeticException e){throw new BusinessException("Cost supports at most two decimals");}}
  @Override public RoomWorkOrder get(Long id){access.actor();return found(id);}
- @Override public List<RoomWorkOrder> list(Integer status,Long roomId,Integer page,Integer size){access.actor();if(status!=null)require(status>=0&&status<=2,"Invalid status");int[] p=page(page,size);return orders.page(status,roomId,p[0],p[1]);}
+ @Override public List<RoomWorkOrder> list(Integer status,Long roomId,Integer page,Integer size){return page(status,roomId,page,size).getItems();}
+ @Override public com.johnny.hotel.pagination.PageResult<RoomWorkOrder> page(Integer status,Long roomId,Integer page,Integer size){access.actor();if(status!=null)require(status>=0&&status<=2,"Invalid status");boolean search=status!=null||roomId!=null;var w=pagination.window(page,size,search);int limit=pagination.limit(w);var rows=limit==0?List.<RoomWorkOrder>of():orders.page(status,roomId,w.offset(),limit);return pagination.result(w,rows,orders.count(status,roomId));}
  @Override public TaskView task(Long id){var w=get(id);return tasks.get(w.getTaskId());}
  @Override @Transactional public RoomWorkOrder complete(Long id,WorkOrderRequests.Complete r,boolean force){
   var a=access.actor();if(force)access.manager(a);var w=orders.lock(id);require(w!=null,"WorkOrder not found");if(w.getStatus()==1)return w;require(w.getStatus()==0,"Cancelled WorkOrder cannot be completed");

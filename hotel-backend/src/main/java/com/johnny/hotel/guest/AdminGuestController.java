@@ -6,5 +6,5 @@ import com.johnny.hotel.common.Result;import jakarta.validation.Valid;import lom
  @GetMapping("/{guestId}") public Result<GuestViews.Profile> get(@PathVariable Long guestId,Authentication a){return Result.success(service.get(guestId,id(a)));}
  @PutMapping("/{guestId}") public Result<GuestViews.Profile> update(@PathVariable Long guestId,@Valid @RequestBody GuestRequests.Profile r,Authentication a){return Result.success(service.update(guestId,r,id(a)));}
  @PostMapping("/duplicates") public Result<List<GuestViews.Profile>> duplicates(@Valid @RequestBody GuestRequests.Profile r,Authentication a){return Result.success(service.duplicateCandidates(r,id(a)));}
- @GetMapping("/{guestId}/stays") public Result<List<GuestViews.Stay>> stays(@PathVariable Long guestId,Authentication a){return Result.success(service.stays(guestId,id(a)));}
+ @GetMapping("/{guestId}/stays") public Result<com.johnny.hotel.pagination.PageResult<GuestViews.Stay>> stays(@PathVariable Long guestId,@RequestParam(required=false)Integer page,@RequestParam(required=false)Integer pageSize,Authentication a){return Result.success(service.stayPage(guestId,id(a),page,pageSize));}
 }

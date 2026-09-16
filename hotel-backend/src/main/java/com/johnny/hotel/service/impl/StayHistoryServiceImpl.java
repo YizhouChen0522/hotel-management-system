@@ -15,6 +15,7 @@ import java.util.List;
 public class StayHistoryServiceImpl implements StayHistoryService {
 
     private final StayHistoryMapper stayHistoryMapper;
+    private final com.johnny.hotel.pagination.PaginationSupport pagination;
 
     @Override
     @Transactional
@@ -64,6 +65,8 @@ public class StayHistoryServiceImpl implements StayHistoryService {
                 .map(this::toVO)
                 .toList();
     }
+    public com.johnny.hotel.pagination.PageResult<StayHistoryVO> pageByUser(Long userId,Integer page,Integer size){var w=pagination.window(page,size,true);var rows=stayHistoryMapper.pageByUser(userId,w.offset(),pagination.limit(w)).stream().map(this::toVO).toList();return pagination.result(w,rows,stayHistoryMapper.countByUser(userId));}
+    public com.johnny.hotel.pagination.PageResult<StayHistoryVO> pageByFolioUser(Long folio,Long user,Integer page,Integer size){var w=pagination.window(page,size,true);var rows=stayHistoryMapper.pageByFolioUser(folio,user,w.offset(),pagination.limit(w)).stream().map(this::toVO).toList();return pagination.result(w,rows,stayHistoryMapper.countByFolioUser(folio,user));}
 
     private StayHistoryVO toVO(StayHistory stayHistory) {
         return StayHistoryVO.builder()

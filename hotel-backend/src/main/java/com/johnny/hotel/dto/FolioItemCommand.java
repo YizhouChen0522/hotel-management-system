@@ -30,6 +30,8 @@ public class FolioItemCommand {
 
     private Long sourceItemId;
     private Long stayAdjustmentId;
+    private String sourceType;
+    private Long sourceId;
 
     private Boolean refundable;
     private String eventKey;

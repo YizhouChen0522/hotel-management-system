@@ -1,0 +1,1 @@
+package com.johnny.hotel.pagination;import lombok.*;import java.util.*;@Data @Builder @NoArgsConstructor @AllArgsConstructor public class PageResult<T>{private List<T> items;private int page,pageSize;private long total;private boolean hasNext;private boolean searchMode;}

@@ -11,7 +11,7 @@ import java.util.List;
 
 @RestController @RequiredArgsConstructor
 @RequestMapping("/api/admin/billing/folios/{folioId}/expenses")
-@PreAuthorize("hasAnyRole('STAFF','MANAGER','OWNER','SUPER_ADMIN')")
+@PreAuthorize("hasAnyRole('STAFF','FINANCE','MANAGER','OWNER','SUPER_ADMIN')")
 public class AdminExpenseController {
     private final ExpenseService service;
     private final FolioQueryService queries;

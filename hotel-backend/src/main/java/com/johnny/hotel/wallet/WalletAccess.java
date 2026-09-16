@@ -28,6 +28,7 @@ public class WalletAccess {
     public void read(Long actor,Wallet wallet) {
         if(wallet==null) throw denied();
         if(actor.equals(wallet.getUserId())) return;
+        if(roles(actor).contains("FINANCE")) return;
         manage(actor,wallet);
     }
     public void own(Long actor,Wallet wallet) {

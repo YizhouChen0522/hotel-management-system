@@ -1,0 +1,1 @@
+package com.johnny.hotel.invoice;import lombok.*;import java.util.*;@Data @Builder @NoArgsConstructor @AllArgsConstructor public class InvoiceView{private Invoice invoice;private List<InvoiceLine> lines;}

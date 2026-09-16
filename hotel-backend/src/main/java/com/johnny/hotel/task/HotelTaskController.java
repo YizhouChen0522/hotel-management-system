@@ -5,6 +5,7 @@ public class HotelTaskController { private final HotelTaskService service;
  @PostMapping("/{id}/subtasks") public Result<HotelTask> child(@PathVariable Long id,@Valid @RequestBody TaskRequests.CreateGeneral r){return Result.success(service.subtask(id,r));}
  @GetMapping public Result<List<HotelTask>> list(@RequestParam(required=false)Integer status,@RequestParam(required=false)Integer type,@RequestParam(required=false)Integer page,@RequestParam(required=false)Integer size){return Result.success(service.list(status,type,page,size));}
  @GetMapping("/{id}") public Result<TaskView> get(@PathVariable Long id){return Result.success(service.get(id));}
+ @GetMapping("/{id}/records") public Result<com.johnny.hotel.pagination.PageResult<TaskRecord>> records(@PathVariable Long id,@RequestParam(required=false)Integer recordType,@RequestParam(required=false)Long actorId,@RequestParam(required=false)Integer page,@RequestParam(required=false)Integer pageSize){return Result.success(service.records(id,recordType,actorId,page,pageSize));}
  @PostMapping("/general") public Result<HotelTask> create(@Valid @RequestBody TaskRequests.CreateGeneral r){return Result.success(service.createGeneral(r));}
  @PostMapping("/{id}/claim") public Result<TaskView> claim(@PathVariable Long id){return Result.success(service.claim(id));}
  @PostMapping("/{id}/accept") public Result<TaskView> accept(@PathVariable Long id){return Result.success(service.accept(id));}

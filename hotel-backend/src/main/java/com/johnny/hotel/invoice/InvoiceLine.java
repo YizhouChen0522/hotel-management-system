@@ -1,0 +1,1 @@
+package com.johnny.hotel.invoice;import lombok.*;import java.math.*;import java.time.*;@Data @Builder @NoArgsConstructor @AllArgsConstructor public class InvoiceLine{private Long id,invoiceId,folioItemId;private Integer lineNumber;private String itemType,description;private LocalDate businessDate;private BigDecimal quantity,unitPrice,amount;private LocalDateTime createTime;}

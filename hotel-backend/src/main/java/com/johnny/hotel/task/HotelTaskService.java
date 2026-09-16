@@ -10,6 +10,10 @@ public interface HotelTaskService {
  HotelTask createMaintenance(Long roomId,String title,String description,String requestKey,Long actorId);
  TaskView completeMaintenance(Long taskId,String note,boolean force); TaskView cancelMaintenance(Long taskId,String note);
  HotelTask createCleaning(Long bookingId,Long roomId,Long assignmentId,String sourceKey,String description,Long actorId);
+ HotelTask createGuestService(Long bookingId,String sourceKey,String title,String description,Long actorId);
  HotelTask createRepair(Long roomId,String sourceKey,String description,Long actorId);
  TaskView completeCleaning(Long taskId,String note,boolean force); TaskView cancelCleaning(Long taskId,String note);
+ TaskView completeGuestService(Long taskId,String note,boolean force); TaskView cancelGuestService(Long taskId,String note);
+ TaskView claimGuestService(Long taskId);
+ com.johnny.hotel.pagination.PageResult<TaskRecord> records(Long taskId,Integer recordType,Long actorId,Integer page,Integer pageSize);
 }

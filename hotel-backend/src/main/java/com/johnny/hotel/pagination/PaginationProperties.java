@@ -1,0 +1,2 @@
+package com.johnny.hotel.pagination;import jakarta.validation.constraints.*;import lombok.Data;import org.springframework.boot.context.properties.ConfigurationProperties;import org.springframework.stereotype.Component;import org.springframework.validation.annotation.Validated;
+@Data @Validated @Component @ConfigurationProperties(prefix="hotel.pagination") public class PaginationProperties{@Min(1)private int maxPageSize=100;@Min(1)private int browseLimit=100;}

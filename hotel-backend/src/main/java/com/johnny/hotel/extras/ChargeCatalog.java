@@ -1,0 +1,1 @@
+package com.johnny.hotel.extras; import lombok.*;import java.math.BigDecimal;import java.time.LocalDateTime;@Data@Builder@NoArgsConstructor@AllArgsConstructor public class ChargeCatalog{private Long id;private String code,name,category,description;private Integer chargeType,status;private BigDecimal unitPrice;private LocalDateTime createTime,updateTime;}
