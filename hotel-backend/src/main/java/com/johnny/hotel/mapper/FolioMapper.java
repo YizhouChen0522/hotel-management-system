@@ -8,10 +8,13 @@ import java.math.BigDecimal;
 @Mapper
 public interface FolioMapper {
 
+    @Select("SELECT f.*,(SELECT s.booking_id FROM stay s WHERE s.id=f.stay_id) AS booking_id FROM folio f WHERE f.id=(SELECT id FROM folio WHERE stay_id=#{stayId}) FOR UPDATE")
+    Folio selectByStayIdForUpdate(Long stayId);
+
     @Insert("""
             INSERT INTO folio
             (
-                booking_id,
+                stay_id,
                 currency,
                 total_amount,
                 paid_amount,
@@ -19,7 +22,7 @@ public interface FolioMapper {
             )
             VALUES
             (
-                #{bookingId},
+                #{stayId},
                 #{currency},
                 #{totalAmount},
                 #{paidAmount},
@@ -34,9 +37,9 @@ public interface FolioMapper {
 
 
     @Select("""
-            SELECT *
-            FROM folio
-            WHERE id = #{id}
+            SELECT f.*,(SELECT s.booking_id FROM stay s WHERE s.id=f.stay_id) AS booking_id
+            FROM folio f
+            WHERE f.id = #{id}
             """)
     Folio selectById(
             @Param("id") Long id
@@ -44,9 +47,9 @@ public interface FolioMapper {
 
 
     @Select("""
-            SELECT *
-            FROM folio
-            WHERE booking_id = #{bookingId}
+            SELECT f.*,(SELECT s.booking_id FROM stay s WHERE s.id=f.stay_id) AS booking_id
+            FROM folio f
+            WHERE f.stay_id = (SELECT s.id FROM stay s WHERE s.booking_id=#{bookingId})
             """)
     Folio selectByBookingId(
             @Param("bookingId") Long bookingId
@@ -56,9 +59,9 @@ public interface FolioMapper {
     // Resolve immutable booking -> folio identity without a secondary-index lock, then lock PRIMARY.
     // Otherwise Payment(PRIMARY) -> summary(uk_folio_booking) can deadlock with checkout.
     @Select("""
-            SELECT *
-            FROM folio
-            WHERE id = (SELECT f.id FROM folio f WHERE f.booking_id = #{bookingId})
+            SELECT f.*,(SELECT s.booking_id FROM stay s WHERE s.id=f.stay_id) AS booking_id
+            FROM folio f
+            WHERE f.id = (SELECT x.id FROM folio x JOIN stay s ON s.id=x.stay_id WHERE s.booking_id = #{bookingId})
             FOR UPDATE
             """)
     Folio selectByBookingIdForUpdate(
@@ -87,9 +90,9 @@ public interface FolioMapper {
     );
 
     @Select("""
-        SELECT *
-        FROM folio
-        WHERE id = #{folioId}
+        SELECT f.*,(SELECT s.booking_id FROM stay s WHERE s.id=f.stay_id) AS booking_id
+        FROM folio f
+        WHERE f.id = #{folioId}
         FOR UPDATE
         """)
     Folio selectByIdForUpdate(

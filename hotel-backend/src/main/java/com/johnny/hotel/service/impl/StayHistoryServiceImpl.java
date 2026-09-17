@@ -15,14 +15,15 @@ import java.util.List;
 public class StayHistoryServiceImpl implements StayHistoryService {
 
     private final StayHistoryMapper stayHistoryMapper;
+    private final com.johnny.hotel.service.support.BillingAccess access;
     private final com.johnny.hotel.pagination.PaginationSupport pagination;
 
     @Override
     @Transactional
-    public void createForCompletedStay(Long bookingId) {
+    public void createForCompletedStay(Long stayId) {
 
         List<StayHistory> snapshots =
-                stayHistoryMapper.findCompletedAssignmentSnapshots(bookingId);
+                stayHistoryMapper.findCompletedAssignmentSnapshots(stayId);
 
         for (StayHistory snapshot : snapshots) {
 
@@ -33,11 +34,9 @@ public class StayHistoryServiceImpl implements StayHistoryService {
 
             stayHistoryMapper.insert(
                     StayHistory.builder()
-                            .userId(snapshot.getUserId())
+                            .stayId(snapshot.getStayId())
                             .folioId(snapshot.getFolioId())
                             .assignmentId(snapshot.getAssignmentId())
-                            .actualCheckInTime(snapshot.getActualCheckInTime())
-                            .actualCheckOutTime(snapshot.getActualCheckOutTime())
                             .roomNumber(snapshot.getRoomNumber())
                             .roomTypeName(snapshot.getRoomTypeName())
                             .build()
@@ -50,7 +49,7 @@ public class StayHistoryServiceImpl implements StayHistoryService {
     public List<StayHistoryVO> getByFolioIdAndUserId(
             Long folioId,
             Long userId) {
-
+        access.currentCustomer(userId);
         return stayHistoryMapper
                 .findByFolioIdAndUserId(folioId, userId)
                 .stream()
@@ -60,18 +59,19 @@ public class StayHistoryServiceImpl implements StayHistoryService {
 
     @Override
     public List<StayHistoryVO> getByUserId(Long userId) {
+        access.currentCustomer(userId);
         return stayHistoryMapper.findByUserId(userId)
                 .stream()
                 .map(this::toVO)
                 .toList();
     }
-    public com.johnny.hotel.pagination.PageResult<StayHistoryVO> pageByUser(Long userId,Integer page,Integer size){var w=pagination.window(page,size,true);var rows=stayHistoryMapper.pageByUser(userId,w.offset(),pagination.limit(w)).stream().map(this::toVO).toList();return pagination.result(w,rows,stayHistoryMapper.countByUser(userId));}
-    public com.johnny.hotel.pagination.PageResult<StayHistoryVO> pageByFolioUser(Long folio,Long user,Integer page,Integer size){var w=pagination.window(page,size,true);var rows=stayHistoryMapper.pageByFolioUser(folio,user,w.offset(),pagination.limit(w)).stream().map(this::toVO).toList();return pagination.result(w,rows,stayHistoryMapper.countByFolioUser(folio,user));}
+    public com.johnny.hotel.pagination.PageResult<StayHistoryVO> pageByUser(Long userId,Integer page,Integer size){access.currentCustomer(userId);var w=pagination.window(page,size,true);var rows=stayHistoryMapper.pageByUser(userId,w.offset(),pagination.limit(w)).stream().map(this::toVO).toList();return pagination.result(w,rows,stayHistoryMapper.countByUser(userId));}
+    public com.johnny.hotel.pagination.PageResult<StayHistoryVO> pageByFolioUser(Long folio,Long user,Integer page,Integer size){access.currentCustomer(user);var w=pagination.window(page,size,true);var rows=stayHistoryMapper.pageByFolioUser(folio,user,w.offset(),pagination.limit(w)).stream().map(this::toVO).toList();return pagination.result(w,rows,stayHistoryMapper.countByFolioUser(folio,user));}
 
     private StayHistoryVO toVO(StayHistory stayHistory) {
         return StayHistoryVO.builder()
                 .id(stayHistory.getId())
-                .userId(stayHistory.getUserId())
+                .stayId(stayHistory.getStayId())
                 .folioId(stayHistory.getFolioId())
                 .actualCheckInTime(stayHistory.getActualCheckInTime())
                 .actualCheckOutTime(stayHistory.getActualCheckOutTime())

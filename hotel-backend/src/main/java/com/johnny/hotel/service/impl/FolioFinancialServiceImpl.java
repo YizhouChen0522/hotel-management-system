@@ -28,11 +28,11 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
     @Override
     @Transactional
     public Folio recalculateSummary(
-            Long bookingId) {
+            Long folioId) {
 
         Folio folio =
-                folioMapper.selectByBookingIdForUpdate(
-                        bookingId
+                folioMapper.selectByIdForUpdate(
+                        folioId
                 );
 
         if (folio == null) {
@@ -93,8 +93,8 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
          * 返回数据库中的最新状态，
          * 而不是返回内存里那个旧 folio 对象。
          */
-        return folioMapper.selectByBookingIdForUpdate(
-                bookingId
+        return folioMapper.selectByIdForUpdate(
+                folioId
         );
     }
 }

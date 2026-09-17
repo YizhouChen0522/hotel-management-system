@@ -103,7 +103,7 @@ abstract class WalletDevelopmentFixture {
     }
     long uid(String role){return actors.get(role);}
     long wid(String role){return wallets.byUser(uid(role)).getId();}
-    UsernamePasswordAuthenticationToken auth(String role){var a=new UsernamePasswordAuthenticationToken("wallet-test",null,List.of(new SimpleGrantedAuthority("ROLE_"+role)));a.setDetails(uid(role));return a;}
+    UsernamePasswordAuthenticationToken auth(String role){var a=new UsernamePasswordAuthenticationToken("wallet-test",null,List.of(new SimpleGrantedAuthority("ROLE_"+(role.equals("OTHER_CUSTOMER")?"CUSTOMER":role))));a.setDetails(uid(role));return a;}
     void as(String role){SecurityContextHolder.getContext().setAuthentication(auth(role));}
     WalletRequests.TopUp amount(String amount,String key){return WalletRequests.TopUp.builder().amount(new BigDecimal(amount)).requestKey(key).build();}
     WalletRequests.Decision decision(String key){return WalletRequests.Decision.builder().requestKey(key).reason("Cash receipt verified in test").build();}

@@ -10,7 +10,7 @@ import static com.johnny.hotel.service.support.BillingRules.*;
 public class StayCheckoutRules {
     private final StayTimes times;
     private final RoomConflictReader conflicts;
-    public List<FolioItem> validate(Booking booking,Folio folio,List<BookingRoomAssignment> segments,List<StayAdjustment> rows,List<FolioItem> ledger,LocalDateTime now) {
+    public List<FolioItem> validate(Booking booking,Folio folio,List<StayRoomAssignment> segments,List<StayAdjustment> rows,List<FolioItem> ledger,LocalDateTime now) {
         var end=StayPlan.end(booking,rows);Set<Long> consumed=new HashSet<>();StayAdjustment previousLate=null;boolean early=false;
         for(var a:rows) {
             require(a.getFolioId().equals(folio.getId())&&!early,"Adjustment account or chronology is inconsistent");
@@ -46,11 +46,12 @@ public class StayCheckoutRules {
             require(now.toLocalTime().isBefore(times.getLateCutoff()),"Late cutoff reached; explicit Extension is required");
             if(now.toLocalTime().isAfter(times.freeUntil())) {
                 require(previousLate!=null,"Explicit Late Checkout adjustment is required");
-                boolean conflict=!now.toLocalTime().isBefore(times.getNormalCheckin())&&!conflicts.arriving(booking.getAssignedRoomId(),booking.getId(),end).isEmpty();
+                var active=segments.stream().filter(s->s.getEndTime()==null).findFirst().orElseThrow(()->new com.johnny.hotel.exception.BusinessException("Active Stay assignment is missing"));
+                boolean conflict=!now.toLocalTime().isBefore(times.getNormalCheckin())&&!conflicts.arriving(active.getRoomId(),booking.getId(),end).isEmpty();
                 require(previousLate.getLockedRate()!=null&&(previousLate.getConflictBookingId()!=null)==conflict,"Late checkout conditions changed; explicitly reassess the adjustment");
             }
         }
         return ledger.stream().filter(i->!consumed.contains(i.getId())).toList();
     }
-    private void attribution(StayAdjustment a,BookingRoomAssignment segment,FolioItem i){require(i.getRoomAssignmentId().equals(segment.getId())&&i.getRoomId().equals(segment.getRoomId())&&i.getRoomTypeId().equals(segment.getRoomTypeId())&&i.getCreatedBy().equals(a.getOperatorId())&&i.getQuantity().compareTo(BigDecimal.ONE)==0&&i.getUnitPrice().compareTo(i.getAmount())==0,"Stay fee attribution mismatch");}
+    private void attribution(StayAdjustment a,StayRoomAssignment segment,FolioItem i){require(i.getRoomAssignmentId().equals(segment.getId())&&i.getRoomId().equals(segment.getRoomId())&&i.getRoomTypeId().equals(segment.getRoomTypeId())&&i.getCreatedBy().equals(a.getOperatorId())&&i.getQuantity().compareTo(BigDecimal.ONE)==0&&i.getUnitPrice().compareTo(i.getAmount())==0,"Stay fee attribution mismatch");}
 }

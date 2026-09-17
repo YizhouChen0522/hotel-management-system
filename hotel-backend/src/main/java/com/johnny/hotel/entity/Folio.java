@@ -18,6 +18,8 @@ public class Folio {
 
     private Long id;
 
+    private Long stayId;
+
     private Long bookingId;
 
     private Integer status;

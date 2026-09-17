@@ -13,11 +13,12 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/stay-history")
+@org.springframework.security.access.prepost.PreAuthorize("hasRole('CUSTOMER')")
 @RequiredArgsConstructor
 public class StayHistoryController {
 
     private final StayHistoryService stayHistoryService;
-    private final SysUserService sysUserService;
+
 
     @GetMapping("/me")
     public Result<com.johnny.hotel.pagination.PageResult<StayHistoryVO>> getMyStayHistory(Authentication authentication,@RequestParam(required=false)Integer page,@RequestParam(required=false)Integer pageSize) {
@@ -43,11 +44,6 @@ public class StayHistoryController {
 
     private Long getCurrentUserId(Authentication authentication) {
 
-        String email = authentication.getName();
-
-        UserVO currentUser =
-                sysUserService.getUserByEmail(email);
-
-        return currentUser.getId();
+        return (Long) authentication.getDetails();
     }
 }

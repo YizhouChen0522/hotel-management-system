@@ -27,7 +27,7 @@ public final class ExpenseRules {
         BigDecimal amount=money(r.getAmount(),12);
         require(credit(r.getItemType())?amount.signum()<0:amount.signum()>0,"Expense type and amount sign disagree");
         require(credit(r.getItemType())?r.getSourceExpenseId()!=null&&r.getSourceExpenseId()>0:r.getSourceExpenseId()==null,"Credits require a positive source expense; charges cannot reference a source");
-        require(b.getStatus()==com.johnny.hotel.enums.BookingStatus.CHECKED_IN.getCode(),"Expenses currently require a checked-in booking");
+        require(b.getStatus()==com.johnny.hotel.enums.BookingStatus.APPROVED.getCode(),"Expense reservation must remain approved; actual Stay eligibility is enforced by the service");
         LocalDate date=r.getBusinessDate();
         require(date!=null&&!date.isBefore(b.getCheckInDate())&&!date.isAfter(effectiveEnd)&&!date.isAfter(today),"Expense date must be an elapsed business day within the contracted stay");
         require(!today.isBefore(b.getCheckInDate())&&!today.isAfter(effectiveEnd),"Expenses outside contracted stay dates are unsupported");

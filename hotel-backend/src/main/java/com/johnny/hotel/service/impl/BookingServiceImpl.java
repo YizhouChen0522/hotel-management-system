@@ -29,39 +29,34 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BookingServiceImpl implements BookingService {
     private final java.time.Clock clock;
-    private final com.johnny.hotel.stay.StayPlan stayPlan;
+    private final com.johnny.hotel.booking.deposit.DepositService deposits;
+    private final com.johnny.hotel.stay.StayMapper stays;
+    private final com.johnny.hotel.stay.StayApplicationService stayApplication;
     private final com.johnny.hotel.stay.RoomConflictReader roomConflicts;
-    private final FolioMapper folioMapper;
     private final com.johnny.hotel.service.support.PriceSnapshotValidator snapshotValidator;
-    private final com.johnny.hotel.service.support.CheckoutFinalizer checkoutFinalizer;
     private final BookingMapper bookingMapper;
     private final RoomTypeMapper roomTypeMapper;
     private final RoomMapper roomMapper;
     private final SysAuditLogMapper sysAuditLogMapper;
-    private final BookingRoomAssignmentMapper bookingRoomAssignmentMapper;
     private final BookingPriceVersionMapper bookingPriceVersionMapper;
-    private final BookingNightlyRateMapper bookingNightlyRateMapper;
-    private final FolioService folioService;
     private final BookingPricingService bookingPricingService;
-    private final StayHistoryService stayHistoryService;
-    private final com.johnny.hotel.service.RoomTurnoverTaskService turnoverTasks;
-    private final com.johnny.hotel.guest.GuestService guestService;
 
     private BookingVO toVO(com.johnny.hotel.entity.Booking booking) {
         RoomType roomType = roomTypeMapper.selectById(booking.getRoomTypeId());
 
         Room assignedRoom = null;
-        if (booking.getAssignedRoomId() != null) {
-            assignedRoom = roomMapper.selectById(booking.getAssignedRoomId());
+        if (booking.getReservedRoomId() != null) {
+            assignedRoom = roomMapper.selectById(booking.getReservedRoomId());
         }
 
         return BookingVO.builder()
+                .reservationSource(booking.getReservationSource())
                 .id(booking.getId())
                 .userId(booking.getUserId())
                 .roomTypeId(booking.getRoomTypeId())
                 .roomTypeName(roomType == null ? null : roomType.getTypeName())
-                .assignedRoomId(booking.getAssignedRoomId())
-                .assignedRoomNumber(assignedRoom == null ? null : assignedRoom.getRoomNumber())
+                .reservedRoomId(booking.getReservedRoomId())
+                .reservedRoomNumber(assignedRoom == null ? null : assignedRoom.getRoomNumber())
                 .guestCount(booking.getGuestCount())
                 .checkInDate(booking.getCheckInDate())
                 .checkOutDate(booking.getCheckOutDate())
@@ -203,8 +198,9 @@ public class BookingServiceImpl implements BookingService {
         Booking booking = new Booking();
 
         booking.setUserId(currentUserId);
+        booking.setReservationSource("DIRECT");
         booking.setRoomTypeId(request.getRoomTypeId());
-        booking.setAssignedRoomId(null);
+        booking.setReservedRoomId(null);
         booking.setGuestCount(request.getGuestCount());
         booking.setCheckInDate(request.getCheckInDate());
         booking.setCheckOutDate(request.getCheckOutDate());
@@ -236,17 +232,7 @@ public class BookingServiceImpl implements BookingService {
                 currentUserId
         );
 
-        /*
-         * 为新 Booking 创建空 Folio创建 Folio 不代表已经收费。
-         * 此时：
-         * totalAmount = 0
-         * paidAmount = 0
-         * balanceAmount = 0
-         * status = COMPLETED (zero balance; not finally closed)
-         */
-        folioService.ensureFolioExists(
-                booking.getId()
-        );
+        deposits.openForReservation(booking.getId());
 
         return getBookingByIdInternal(
                 booking.getId()
@@ -265,6 +251,7 @@ public class BookingServiceImpl implements BookingService {
         if (booking == null) {
             throw new BusinessException("Booking does not exist");
         }
+        require(stays.byBooking(bookingId)==null,"Reservation already converted to a Stay");
         require(!booking.getCheckInDate().isBefore(LocalDate.now(clock)), "Expired arrivals cannot be assigned or repriced");
 
         if (booking.getStatus() != BookingStatus.PENDING.getCode()) {
@@ -347,212 +334,14 @@ public class BookingServiceImpl implements BookingService {
     public BookingVO checkIn(
             Long bookingId,
             Long currentUserId) {
-
-        Booking booking =
-                bookingMapper.selectByIdForUpdate(bookingId);
-
-        if (booking == null) {
-            throw new BusinessException(
-                    "Booking does not exist"
-            );
-        }
-
-        /*
-         * 2. 只有 APPROVED Booking 才能 check-in。
-         *
-         * Booking status:
-         * 0 PENDING
-         * 1 APPROVED
-         * 2 CHECKED_IN
-         * 3 CHECKED_OUT
-         * 4 CANCELLED
-         * 5 REJECTED
-         */
-        if (booking.getStatus() != BookingStatus.APPROVED.getCode()) {
-            throw new BusinessException(
-                    "Only approved bookings can be checked in"
-            );
-        }
-
-        guestService.validateForCheckIn(bookingId, currentUserId);
-
-        if (booking.getAssignedRoomId() == null) {
-            throw new BusinessException(
-                    "Booking does not have an assigned room"
-            );
-        }
-
-        require(LocalDate.now(clock).equals(booking.getCheckInDate()), "Check-in is supported only on the contracted arrival date");
-        validateSnapshot(booking);
-        BookingPriceVersion activePriceVersion =
-                bookingPriceVersionMapper
-                        .selectActiveByBookingId(bookingId);
-
-        if (activePriceVersion == null) {
-            throw new BusinessException(
-                    "Booking price snapshot does not exist"
-            );
-        }
-
-        BookingRoomAssignment existingAssignment =
-                bookingRoomAssignmentMapper
-                        .selectActiveByBookingId(bookingId);
-
-        if (existingAssignment != null) {
-            throw new BusinessException(
-                    "Booking already has an active room assignment"
-            );
-        }
-
-        Long roomId =
-                booking.getAssignedRoomId();
-
-        Room room =
-                roomMapper.selectByIdForUpdate(roomId);
-
-        if (room == null) {
-            throw new BusinessException(
-                    "Assigned room does not exist"
-            );
-        }
-
-        if (room.getStatus() != RoomStatus.BOOKED.getCode() && room.getStatus() != RoomStatus.AVAILABLE.getCode()) {
-            throw new BusinessException(
-                    "Assigned room is not in booked status"
-            );
-        }
-
-        if (!room.getRoomTypeId()
-                .equals(booking.getRoomTypeId())) {
-
-            throw new BusinessException(
-                    "Assigned room type does not match booking room type"
-            );
-        }
-
-        LocalDateTime checkInTime =
-                LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
-
-
-        int bookingUpdated =
-                bookingMapper.transitionStatus(bookingId, BookingStatus.APPROVED.getCode(), BookingStatus.CHECKED_IN.getCode());
-
-        if (bookingUpdated != 1) {
-            throw new BusinessException(
-                    "Failed to update booking check-in status"
-            );
-        }
-
-        int roomUpdated =
-                roomMapper.transitionStatus(roomId, room.getStatus(), RoomStatus.OCCUPIED.getCode());
-
-        if (roomUpdated != 1) {
-            throw new BusinessException(
-                    "Failed to update room occupancy status"
-            );
-        }
-
-        BookingRoomAssignment assignment = BookingRoomAssignment.builder()
-                .bookingId(bookingId)
-                .roomId(roomId)
-                .roomTypeId(room.getRoomTypeId())
-                .assignmentType("CHECK_IN")
-                .startTime(checkInTime)
-                .changeReason("Initial check-in")
-                .createdBy(currentUserId)
-                .build();
-
-        int assignmentInserted =
-                bookingRoomAssignmentMapper
-                        .insert(assignment);
-
-        if (assignmentInserted != 1
-                || assignment.getId() == null) {
-
-            throw new BusinessException(
-                    "Failed to create room assignment"
-            );
-        }
-
-        List<BookingNightlyRate> nightlyRates =
-                bookingNightlyRateMapper
-                        .selectActiveByBookingId(
-                                bookingId
-                        );
-
-        if (nightlyRates == null
-                || nightlyRates.isEmpty()) {
-
-            throw new BusinessException(
-                    "Booking nightly price snapshot does not exist"
-            );
-        }
-
-
-        List<FolioItemCommand> roomChargeCommands =
-                new ArrayList<>();
-
-        for (BookingNightlyRate nightlyRate
-                : nightlyRates) {
-
-            FolioItemCommand command = FolioItemCommand.builder()
-                    .itemType("ROOM_CHARGE")
-                    .description("Room charge for " + nightlyRate.getStayDate())
-                    .businessDate(nightlyRate.getStayDate())
-                    .quantity(BigDecimal.ONE)
-                    .unitPrice(nightlyRate.getRateAmount())
-                    .amount(nightlyRate.getRateAmount())
-                    .roomId(roomId)
-                    .roomTypeId(nightlyRate.getRoomTypeId())
-                    .roomAssignmentId(assignment.getId())
-                    .sourceItemId(null)
-                    .refundable(true)
-                    .build();
-
-            roomChargeCommands.add(command);
-        }
-        folioService.addItems(
-                bookingId,
-                roomChargeCommands,
-                currentUserId
-        );
-
-        one(sysAuditLogMapper.insert(
-                SysAuditLog.builder()
-                        .operatorId(currentUserId)
-                        .targetUserId(booking.getUserId())
-                        .action("CHECK_IN")
-                        .detail(
-                                "Booking " + bookingId
-                                        + " checked in to roomId "
-                                        + roomId
-                                        + ", assignmentId "
-                                        + assignment.getId()
-                        )
-                        .build()
-        ));
+        stayApplication.checkIn(bookingId,currentUserId);
         return getBookingByIdInternal(bookingId);
     }
 
     @Override
     @Transactional(noRollbackFor=com.johnny.hotel.exception.WalletSettlementIncompleteException.class)
     public BookingVO checkOut(Long bookingId, Long currentUserId) {
-        Booking booking = lockBooking(bookingId);
-        require(booking.getStatus() == BookingStatus.CHECKED_IN.getCode(), "Only checked-in bookings can be checked out");
-
-        require(booking.getAssignedRoomId() != null, "Booking has no current room");
-        Room room = roomMapper.selectByIdForUpdate(booking.getAssignedRoomId());
-        BookingRoomAssignment assignment = bookingRoomAssignmentMapper.selectActiveByBookingId(bookingId);
-        require(assignment != null && assignment.getRoomId().equals(booking.getAssignedRoomId()), "Current assignment does not match booking");
-        require(room != null && room.getStatus() == RoomStatus.OCCUPIED.getCode() && room.getRoomTypeId().equals(assignment.getRoomTypeId()), "Current room does not match active stay");
-        LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
-        if (!checkoutFinalizer.finalizeStay(booking, now, currentUserId)) {throw new com.johnny.hotel.exception.WalletSettlementIncompleteException();}
-        one(bookingRoomAssignmentMapper.closeAssignment(assignment.getId(), now));
-        stayHistoryService.createForCompletedStay(bookingId);
-        one(bookingMapper.transitionStatus(bookingId, BookingStatus.CHECKED_IN.getCode(), BookingStatus.CHECKED_OUT.getCode()));
-        one(roomMapper.transitionStatus(room.getId(), RoomStatus.OCCUPIED.getCode(), RoomStatus.MAINTENANCE.getCode()));
-        turnoverTasks.createForClosedAssignment(assignment.getId(), currentUserId);
-        audit(booking, currentUserId, "CHECK_OUT");
+        stayApplication.checkOut(stayApplication.stayIdForBooking(bookingId),currentUserId);
         return getBookingByIdInternal(bookingId);
     }
 
@@ -836,6 +625,7 @@ public class BookingServiceImpl implements BookingService {
         if (booking == null) {
             throw new BusinessException("Booking does not exist");
         }
+        require(stays.byBooking(bookingId)==null,"Reservation already converted to a Stay");
         require(!booking.getCheckInDate().isBefore(LocalDate.now(clock)), "Expired arrivals cannot be assigned or repriced");
 
         if (booking.getStatus() != BookingStatus.APPROVED.getCode()) {
@@ -844,7 +634,7 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        Long oldRoomId = booking.getAssignedRoomId();
+        Long oldRoomId = booking.getReservedRoomId();
         Long newRoomId = request.getNewRoomId();
 
         if (oldRoomId == null) {
@@ -963,6 +753,7 @@ public class BookingServiceImpl implements BookingService {
                     "Booking does not exist"
             );
         }
+        require(stays.byBooking(bookingId)==null,"Reservation already converted to a Stay");
         require(!booking.getCheckInDate().isBefore(LocalDate.now(clock)), "Expired arrivals cannot be assigned or repriced");
         validateSnapshot(booking);
 
@@ -972,14 +763,14 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        if (booking.getAssignedRoomId() == null) {
+        if (booking.getReservedRoomId() == null) {
             throw new BusinessException(
                     "Booking does not currently have an assigned room"
             );
         }
 
         Long oldRoomId =
-                booking.getAssignedRoomId();
+                booking.getReservedRoomId();
 
         Long newRoomId =
                 request.getNewRoomId();
@@ -1151,253 +942,8 @@ public class BookingServiceImpl implements BookingService {
             Long bookingId,
             ChangeRoomDuringStayRequest request,
             Long currentUserId) {
-
-        Booking booking =
-                bookingMapper.selectByIdForUpdate(bookingId);
-
-        if (booking == null) {
-            throw new BusinessException(
-                    "Booking does not exist"
-            );
-        }
-
-        if (booking.getStatus() != BookingStatus.CHECKED_IN.getCode()) {
-            throw new BusinessException(
-                    "Only checked-in bookings can change room during stay"
-            );
-        }
-
-        if (booking.getAssignedRoomId() == null) {
-            throw new BusinessException(
-                    "Booking does not have a current assigned room"
-            );
-        }
-
-        Long oldRoomId = booking.getAssignedRoomId();
-
-        Long newRoomId = request.getNewRoomId();
-
-        if (oldRoomId.equals(newRoomId)) {
-            throw new BusinessException(
-                    "New room must be different from the current room"
-            );
-        }
-
-        stayPlan.mayChangeRoom(booking);
-        var effectiveEnd=stayPlan.end(booking);
-        require(!LocalDate.now(clock).isBefore(booking.getCheckInDate()) && !LocalDate.now(clock).isAfter(effectiveEnd), "Room change must be within effective stay dates");
-        validateSnapshot(booking);
-        BookingRoomAssignment currentAssignment =
-                bookingRoomAssignmentMapper
-                        .selectActiveByBookingId(bookingId);
-
-        if (currentAssignment == null) {
-            throw new BusinessException(
-                    "Active room assignment does not exist"
-            );
-        }
-
-        /*
-         * Booking 当前房间和住宿历史当前房间
-         * 必须保持一致。
-         * 如果不一致，说明数据库状态已经损坏，
-         * 不应该继续自动修。
-         */
-        if (!currentAssignment.getRoomId()
-                .equals(oldRoomId)) {
-
-            throw new BusinessException(
-                    "Current room assignment does not match booking assigned room"
-            );
-        }
-
-        Map<Long, Room> lockedRooms =
-                lockRoomsInOrder(
-                        oldRoomId,
-                        newRoomId
-                );
-
-        Room oldRoom =
-                lockedRooms.get(oldRoomId);
-
-        Room newRoom =
-                lockedRooms.get(newRoomId);
-
-        if (oldRoom == null) {
-            throw new BusinessException(
-                    "Current room does not exist"
-            );
-        }
-
-        if (newRoom == null) {
-            throw new BusinessException(
-                    "New room does not exist"
-            );
-        }
-        if (!currentAssignment.getRoomTypeId().equals(oldRoom.getRoomTypeId())) {
-            throw new BusinessException(
-                    "Current room assignment type does not match current room type"
-            );
-        }
-
-        if (oldRoom.getStatus() != RoomStatus.OCCUPIED.getCode()) {
-            throw new BusinessException(
-                    "Current room is not occupied"
-            );
-        }
-
-        if (newRoom.getStatus() != RoomStatus.AVAILABLE.getCode() && newRoom.getStatus() != RoomStatus.BOOKED.getCode()) {
-            throw new BusinessException(
-                    "New room is not available"
-            );
-        }
-
-        RoomType newRoomType =
-                roomTypeMapper.selectById(
-                        newRoom.getRoomTypeId()
-                );
-
-        if (newRoomType == null) {
-            throw new BusinessException(
-                    "New room type does not exist"
-            );
-        }
-
-        if (newRoomType.getStatus() != RoomTypeStatus.ENABLED.getCode()) {
-            throw new BusinessException(
-                    "New room type is disabled"
-            );
-        }
-
-        if (booking.getGuestCount()
-                > newRoomType.getCapacity()) {
-
-            throw new BusinessException(
-                    "Guest count exceeds new room type capacity"
-            );
-        }
-
-        LocalDateTime changeTime =
-                LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
-
-        int assignmentClosed = bookingRoomAssignmentMapper.closeAssignment(
-                                currentAssignment.getId(),
-                                changeTime
-                        );
-
-        if (assignmentClosed != 1) {
-            throw new BusinessException(
-                    "Failed to close current room assignment"
-            );
-        }
-
-        /*
-         * 6. 客人已经真实住过旧房。
-         * 所以不能：
-         * OCCUPIED -> AVAILABLE
-         * 必须：
-         * OCCUPIED -> MAINTENANCE
-         * 等清洁完成后再由员工：
-         * MAINTENANCE -> AVAILABLE
-         */
-        int oldRoomUpdated =
-                roomMapper.transitionStatus(oldRoomId, RoomStatus.OCCUPIED.getCode(), RoomStatus.MAINTENANCE.getCode());
-
-        if (oldRoomUpdated != 1) {
-            throw new BusinessException(
-                    "Failed to release current room for maintenance"
-            );
-        }
-
-        turnoverTasks.createForClosedAssignment(currentAssignment.getId(), currentUserId);
-        require(roomConflicts.overlapping(newRoomId,bookingId,changeTime.toLocalDate(),effectiveEnd.isAfter(changeTime.toLocalDate())?effectiveEnd:effectiveEnd.plusDays(1)).isEmpty(),"Target room has an overlapping future reservation");
-        int newRoomUpdated = roomMapper.transitionStatus(newRoomId, newRoom.getStatus(), RoomStatus.OCCUPIED.getCode());
-
-        if (newRoomUpdated != 1) {
-            throw new BusinessException(
-                    "Failed to occupy new room"
-            );
-        }
-
-        int bookingUpdated =
-                bookingMapper.updateAssignedRoom(
-                        bookingId,
-                        newRoomId
-                );
-
-        if (bookingUpdated != 1) {
-            throw new BusinessException(
-                    "Failed to update booking assigned room"
-            );
-        }
-
-        BookingRoomAssignment newAssignment = BookingRoomAssignment.builder()
-                .bookingId(bookingId)
-                .roomId(newRoomId)
-                .roomTypeId(newRoom.getRoomTypeId())
-                .assignmentType("ROOM_CHANGE")
-                .startTime(changeTime)
-                .endTime(null)
-                .changeReason(normalizeReason(request.getReason()))
-                .createdBy(currentUserId)
-                .build();
-
-        int assignmentInserted = bookingRoomAssignmentMapper.insert(newAssignment);
-
-        if (assignmentInserted != 1
-                || newAssignment.getId() == null) {
-
-            throw new BusinessException(
-                    "Failed to create new room assignment"
-            );
-        }
-        folioService.applyRoomChangeBilling(
-                RoomChangeBillingCommand.builder()
-                        .bookingId(bookingId)
-                        .oldAssignmentId(currentAssignment.getId())
-                        .newAssignmentId(newAssignment.getId())
-                        .oldRoomId(oldRoomId)
-                        .newRoomId(newRoomId)
-                        .oldRoomTypeId(currentAssignment.getRoomTypeId())
-                        .newRoomTypeId(newRoom.getRoomTypeId())
-                        .changeDate(changeTime.toLocalDate())
-                        .checkOutDate(effectiveEnd)
-                        .reason(normalizeReason(request.getReason()))
-                        .operatorId(currentUserId)
-                        .build()
-        );
-
-        one(sysAuditLogMapper.insert(
-                SysAuditLog.builder()
-                        .operatorId(currentUserId)
-                        .targetUserId(booking.getUserId())
-                        .action("CHANGE_ROOM_DURING_STAY")
-                        .detail(
-                                "Booking "
-                                        + bookingId
-                                        + ": roomId "
-                                        + oldRoomId
-                                        + " -> "
-                                        + newRoomId
-                                        + ", roomTypeId "
-                                        + oldRoom.getRoomTypeId()
-                                        + " -> "
-                                        + newRoom.getRoomTypeId()
-                                        + ", assignmentId "
-                                        + currentAssignment.getId()
-                                        + " -> "
-                                        + newAssignment.getId()
-                                        + ", reason: "
-                                        + normalizeReason(
-                                        request.getReason()
-                                )
-                        )
-                        .build()
-        ));
-
-        return getBookingByIdInternal(
-                bookingId
-        );
+        stayApplication.changeRoomDuringStay(stayApplication.stayIdForBooking(bookingId),request,currentUserId);
+        return getBookingByIdInternal(bookingId);
     }
 
 
@@ -1407,9 +953,9 @@ public class BookingServiceImpl implements BookingService {
         return b;
     }
     private void validateSnapshot(Booking b) {
-        Folio f = folioMapper.selectByBookingId(b.getId());
-        require(f != null, "Booking folio does not exist");
-        snapshotValidator.validate(b, f.getCurrency());
+        var price=bookingPriceVersionMapper.selectActiveByBookingId(b.getId());
+        require(price!=null,"Reservation price snapshot is missing");
+        snapshotValidator.validate(b,price.getCurrency());
     }
     private void audit(Booking b, Long operator, String action) {
         one(sysAuditLogMapper.insert(SysAuditLog.builder().operatorId(operator).targetUserId(b.getUserId())
@@ -1417,13 +963,13 @@ public class BookingServiceImpl implements BookingService {
     }
     private BookingVO cancelLocked(Booking b, Long operator) {
         require(b.getStatus() == BookingStatus.PENDING.getCode() || b.getStatus() == BookingStatus.APPROVED.getCode(), "Only pending or approved bookings can be cancelled");
-        require(bookingRoomAssignmentMapper.selectActiveByBookingId(b.getId()) == null, "Booking has an active stay");
+        require(stays.byBooking(b.getId()) == null, "Reservation already converted to a Stay");
         if (b.getStatus() == BookingStatus.APPROVED.getCode()) {
-            require(b.getAssignedRoomId() != null, "Approved booking has no room");
-            Room room = roomMapper.selectByIdForUpdate(b.getAssignedRoomId());
+            require(b.getReservedRoomId() != null, "Approved booking has no room");
+            Room room = roomMapper.selectByIdForUpdate(b.getReservedRoomId());
             require(room != null, "Reserved room is missing");
             if(room.getStatus()==RoomStatus.BOOKED.getCode())one(roomMapper.transitionStatus(room.getId(), RoomStatus.BOOKED.getCode(), RoomStatus.AVAILABLE.getCode()));
-        } else require(b.getAssignedRoomId() == null, "Pending booking unexpectedly reserves a room");
+        } else require(b.getReservedRoomId() == null, "Pending booking unexpectedly reserves a room");
         one(bookingMapper.transitionStatus(b.getId(), b.getStatus(), BookingStatus.CANCELLED_BY_USER.getCode()));
         audit(b, operator, "CANCEL_BOOKING");
         return getBookingByIdInternal(b.getId());

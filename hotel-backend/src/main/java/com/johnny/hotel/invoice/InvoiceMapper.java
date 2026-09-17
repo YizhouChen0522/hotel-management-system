@@ -1,6 +1,6 @@
 package com.johnny.hotel.invoice;import org.apache.ibatis.annotations.*;import java.util.*;
 @Mapper public interface InvoiceMapper{
- @Insert("INSERT IGNORE INTO invoice_request_lock(request_key) VALUES(#{key})")int ensureRequest(String key);
+ @Insert("INSERT INTO invoice_request_lock(request_key) VALUES(#{key}) ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)")int ensureRequest(String key);
  @Select("SELECT request_key FROM invoice_request_lock WHERE request_key=#{key} FOR UPDATE")String lockRequest(String key);
  @Insert("INSERT INTO invoice_number_sequence VALUES()")@Options(useGeneratedKeys=true,keyProperty="id")int sequence(InvoiceNumber n);
  @Insert("INSERT INTO invoice(invoice_number,request_key,folio_id,booking_id,currency,recipient_name,recipient_email,billing_address,tax_identifier,status,subtotal,total_amount,issued_by,issued_time) VALUES(#{invoiceNumber},#{requestKey},#{folioId},#{bookingId},#{currency},#{recipientName},#{recipientEmail},#{billingAddress},#{taxIdentifier},#{status},#{subtotal},#{totalAmount},#{issuedBy},#{issuedTime})")@Options(useGeneratedKeys=true,keyProperty="id")int insert(Invoice i);

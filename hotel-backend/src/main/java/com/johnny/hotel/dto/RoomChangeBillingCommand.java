@@ -9,7 +9,7 @@ import java.time.LocalDate;
 @Builder
 public class RoomChangeBillingCommand {
 
-    private Long bookingId;
+    private Long stayId;
 
     private Long oldAssignmentId;
 

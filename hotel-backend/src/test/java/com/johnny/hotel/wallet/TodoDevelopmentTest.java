@@ -188,7 +188,7 @@ class TodoDevelopmentTest extends FinancialDevelopmentFixture {
  }
  @ParameterizedTest @ValueSource(booleans={true,false})
  void turnoverTodoKeepsMaintenance(boolean claim){
-  long b=stay();pay(b,"300");clock.day(3);checkout(b);long turnover=jdbc.queryForObject("SELECT id FROM room_turnover_task WHERE booking_id=?",Long.class,b);long task=jdbc.queryForObject("SELECT task_id FROM room_turnover_task WHERE id=?",Long.class,turnover);
+  long b=stay();pay(b,"300");clock.day(3);checkout(b);long turnover=jdbc.queryForObject("SELECT id FROM room_turnover_task WHERE stay_id=(SELECT id FROM stay WHERE booking_id=?)",Long.class,b);long task=jdbc.queryForObject("SELECT task_id FROM room_turnover_task WHERE id=?",Long.class,turnover);
   if(claim){as("STAFF");tasks.claim(task);}else assign(task,"STAFF");
   as("STAFF");assertEquals(0,todoService.get(my(task)).getStatus());ack("STAFF",task);turnoverTasks.complete(turnover,"Done");assertEquals(2,taskStatus(task));assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM cleaning_record WHERE task_id=?",Integer.class,task));assertEquals(3,jdbc.queryForObject("SELECT status FROM room WHERE id=?",Integer.class,room1));
  }

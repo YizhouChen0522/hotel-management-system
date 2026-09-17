@@ -1,1 +1,1 @@
-package com.johnny.hotel.inspection; import lombok.*;import java.time.*;@Data @Builder @NoArgsConstructor @AllArgsConstructor public class ReworkCleaningRequest {private Long id,taskId,inspectionId,roomId,bookingId,assignmentId,requestedBy;private LocalDateTime createTime;}
+package com.johnny.hotel.inspection; import lombok.*;import java.time.*;@Data @Builder @NoArgsConstructor @AllArgsConstructor public class ReworkCleaningRequest {private Long id,taskId,inspectionId,roomId,stayId,assignmentId,requestedBy;private LocalDateTime createTime;}

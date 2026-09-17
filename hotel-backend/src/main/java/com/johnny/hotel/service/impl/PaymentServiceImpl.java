@@ -206,7 +206,7 @@ public class PaymentServiceImpl implements PaymentService {
          */
         folioFinancialService
                 .recalculateSummary(
-                        folio.getBookingId()
+                        folio.getId()
                 );
 
         /*

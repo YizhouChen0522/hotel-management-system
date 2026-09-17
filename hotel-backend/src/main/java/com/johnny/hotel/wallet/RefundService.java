@@ -52,7 +52,7 @@ public class RefundService {
         var amount=money(request.getAmount(),12);require(amount.signum()>0,"Refund amount must be positive");
         boolean customer=access.isCustomer(actor);var a=lock(folioId,customer,actor);access.create(actor,a.booking().getUserId());
         // Current reads under Folio: ledger -> payments -> refunds. Never Refund -> Folio.
-        var summary=financial.recalculateSummary(a.booking().getId());var rows=refunds.forFolio(folioId);
+        var summary=financial.recalculateSummary(a.folio().getId());var rows=refunds.forFolio(folioId);
         var existing=rows.stream().filter(r->r.getRequestKey().equals(key)).findFirst().orElse(null);
         if(existing!=null){require(existing.getAmount().compareTo(amount)==0 && existing.getReason().equals(reason),"Request key already used for another refund");return RefundVO.from(existing);}
         open(a);require(summary.getBalanceAmount().negate().subtract(pending(rows)).compareTo(amount)>=0,"Insufficient unreserved Folio credit");
@@ -70,7 +70,7 @@ public class RefundService {
         Long actor=access.actor();require(request!=null,"Processing request is required");String key=key(request.getRequestKey()),reason=reason(request.getReason());
         access.operational(actor,true);
         var a=lock(folioId);access.approve(actor,a.booking().getUserId());
-        var summary=financial.recalculateSummary(a.booking().getId());var rows=refunds.forFolio(folioId);
+        var summary=financial.recalculateSummary(a.folio().getId());var rows=refunds.forFolio(folioId);
         var r=rows.stream().filter(row->row.getId().equals(id)).findFirst().orElse(null);require(r!=null,"Refund does not belong to this Folio");
         int target=success?RefundStatus.SUCCESS.getCode():RefundStatus.FAILED.getCode();
         if(r.getStatus()!=RefundStatus.PENDING.getCode()){
@@ -84,7 +84,7 @@ public class RefundService {
             posting.creditRefund(w,r,actor);
         }
         one(refunds.process(id,target,actor,key,reason));audit(actor,a,success?"REFUND_SUCCESS":"REFUND_FAILED",id,reason);
-        financial.recalculateSummary(a.booking().getId());
+        financial.recalculateSummary(a.folio().getId());
         return RefundVO.from(refunds.forFolio(folioId).stream().filter(row->row.getId().equals(id)).findFirst().orElseThrow());
     }
 }

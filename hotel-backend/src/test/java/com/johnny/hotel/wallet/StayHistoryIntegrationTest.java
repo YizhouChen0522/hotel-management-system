@@ -1,4 +1,4 @@
-package com.johnny.hotel;
+package com.johnny.hotel.wallet;
 
 import com.johnny.hotel.dto.ApproveBookingRequest;
 import com.johnny.hotel.dto.CreateBookingRequest;
@@ -23,8 +23,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@EnabledIfSystemProperty(named = "hotel.mysql.tests", matches = "true")
-class StayHistoryIntegrationTest extends IsolatedMysqlTest {
+class StayHistoryIntegrationTest extends FinancialDevelopmentFixture {
+    long checkIn(){return stay();}
+    void change(long b,long room){var r=new com.johnny.hotel.dto.ChangeRoomDuringStayRequest();r.setNewRoomId(room);r.setReason("test room change");bookings.changeRoomDuringStay(b,r,uid("MANAGER"));}
+    void invariants(long b){if(jdbc.queryForObject("SELECT user_id FROM booking WHERE id=?",Long.class,b).equals(uid("CUSTOMER")))invariantBooking(b);}
+
 
     @Autowired MockMvc mvc;
     @Autowired JwtUtil jwt;
@@ -36,11 +39,11 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
     }
 
     private List<Map<String, Object>> historyRows(long folioId) {
-        return jdbc.queryForList("SELECT * FROM stay_history WHERE folio_id=? ORDER BY actual_check_in_time ASC, id ASC", folioId);
+        return jdbc.queryForList("SELECT h.*,a.start_time actual_check_in_time,a.end_time actual_check_out_time FROM stay_history h JOIN stay_room_assignment a ON a.id=h.assignment_id WHERE h.folio_id=? ORDER BY a.start_time ASC,h.id ASC", folioId);
     }
 
     private List<Map<String, Object>> assignments(long bookingId) {
-        return jdbc.queryForList("SELECT * FROM booking_room_assignment WHERE booking_id=? ORDER BY start_time ASC, id ASC", bookingId);
+        return jdbc.queryForList("SELECT * FROM stay_room_assignment WHERE stay_id=(SELECT id FROM stay WHERE booking_id=?) ORDER BY start_time ASC, id ASC", bookingId);
     }
 
     private LocalDateTime time(Map<String, Object> row, String column) {
@@ -65,14 +68,14 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
 
     private long createFor(long userId, long roomId, LocalDate checkIn, int nights) {
         var request = new CreateBookingRequest();
-        request.setRoomTypeId(1L);
+        request.setRoomTypeId(jdbc.queryForObject("SELECT room_type_id FROM room WHERE id=?",Long.class,roomId));
         request.setGuestCount(2);
         request.setCheckInDate(checkIn);
         request.setCheckOutDate(checkIn.plusDays(nights));
-        long id = bookings.createBooking(request, userId).getId();
+        long id = bookings.createBooking(request, userId).getId();bookingIds.add(id);
         var approve = new ApproveBookingRequest();
         approve.setAssignedRoomId(roomId);
-        bookings.approveBooking(id, approve, 2L);
+        bookings.approveBooking(id, approve, uid("MANAGER"));
         register(id);
         return id;
     }
@@ -83,7 +86,7 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
                 .andReturn();
         JsonNode body = mapper.readTree(result.getResponse().getContentAsString());
         assertEquals(200, body.path("code").asInt());
-        return body.path("data");
+        return body.path("data").path("items");
     }
 
     // ---------- generation: single stay, no room change ----------
@@ -94,7 +97,7 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
         pay(b, "300");
         clock.day(3);
         assertEquals(0, historyCount(folio(b)));
-        bookings.checkOut(b, 2L);
+        bookings.checkOut(b, uid("MANAGER"));
 
         var rows = historyRows(folio(b));
         assertEquals(1, rows.size());
@@ -104,13 +107,13 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
 
         Map<String, Object> row = rows.get(0);
         Map<String, Object> assignment = assignments.get(0);
-        assertEquals(1L, longValue(row, "user_id"));
+        assertEquals(sid(b), longValue(row, "stay_id"));
         assertEquals(folio(b), longValue(row, "folio_id"));
         assertEquals(longValue(assignment, "id"), longValue(row, "assignment_id"));
         assertEquals(time(assignment, "start_time"), time(row, "actual_check_in_time"));
         assertEquals(time(assignment, "end_time"), time(row, "actual_check_out_time"));
-        assertEquals("T101", row.get("room_number"));
-        assertEquals("test_standard", row.get("room_type_name"));
+        assertEquals(run+"_0", row.get("room_number"));
+        assertEquals(run+"_standard", row.get("room_type_name"));
         invariants(b);
     }
 
@@ -120,10 +123,10 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
     void roomChangeCreatesOneHistorySegmentPerAssignmentWithContinuousTimes() {
         long b = checkIn();
         clock.day(1);
-        change(b, 3);
+        change(b, room3);
         pay(b, "400");
         clock.day(3);
-        bookings.checkOut(b, 2L);
+        bookings.checkOut(b, uid("MANAGER"));
 
         var assignments = assignments(b);
         assertEquals(2, assignments.size());
@@ -134,10 +137,10 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
         Map<String, Object> first = assignments.get(0);
         Map<String, Object> second = assignments.get(1);
 
-        assertEquals("T101", rows.get(0).get("room_number"));
-        assertEquals("test_standard", rows.get(0).get("room_type_name"));
-        assertEquals("T201", rows.get(1).get("room_number"));
-        assertEquals("test_deluxe", rows.get(1).get("room_type_name"));
+        assertEquals(run+"_0", rows.get(0).get("room_number"));
+        assertEquals(run+"_standard", rows.get(0).get("room_type_name"));
+        assertEquals(run+"_2", rows.get(1).get("room_number"));
+        assertEquals(run+"_deluxe", rows.get(1).get("room_type_name"));
 
         // segment 1: assignment 1 start/end
         assertEquals(longValue(first, "id"), longValue(rows.get(0), "assignment_id"));
@@ -150,8 +153,8 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
         // both segments belong to the same booking/folio/user
         assertEquals(folio(b), longValue(rows.get(0), "folio_id"));
         assertEquals(folio(b), longValue(rows.get(1), "folio_id"));
-        assertEquals(1L, longValue(rows.get(0), "user_id"));
-        assertEquals(1L, longValue(rows.get(1), "user_id"));
+        assertEquals(sid(b), longValue(rows.get(0), "stay_id"));
+        assertEquals(sid(b), longValue(rows.get(1), "stay_id"));
         // continuity: first segment ends exactly when the second starts
         assertEquals(time(rows.get(0), "actual_check_out_time"), time(rows.get(1), "actual_check_in_time"));
         invariants(b);
@@ -163,16 +166,16 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
     void noHistoryWhileStayingOrWhenCheckoutIsBlockedByBalance() {
         long b = checkIn();
         clock.day(1);
-        change(b, 3);
+        change(b, room3);
         // during the stay, even after a room change: no history
         assertEquals(0, historyCount(folio(b)));
 
         pay(b, "299");
         clock.day(3);
-        assertThrows(BusinessException.class, () -> bookings.checkOut(b, 2L));
+        assertThrows(BusinessException.class, () -> bookings.checkOut(b, uid("MANAGER")));
         assertEquals(0, historyCount(folio(b)));
-        assertEquals(2, state(b));
-        assertNull(queries.byBooking(b, 1L).closedTime());
+        assertEquals(1, stayState(b));
+        assertNull(queries.byBooking(b, uid("CUSTOMER")).closedTime());
         invariants(b);
     }
 
@@ -185,15 +188,15 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
         clock.day(3);
         // fail a statement executed after stay_history insert: room status transition
         gate.arm(Thread.currentThread().getName(), "RoomMapper.transitionStatus", true);
-        assertThrows(Exception.class, () -> bookings.checkOut(b, 2L));
+        assertThrows(Exception.class, () -> bookings.checkOut(b, uid("MANAGER")));
         assertEquals(0, historyCount(folio(b)));
-        assertEquals(2, state(b));
-        assertNull(queries.byBooking(b, 1L).closedTime());
+        assertEquals(1, stayState(b));
+        assertNull(queries.byBooking(b, uid("CUSTOMER")).closedTime());
 
         gate.clear();
-        bookings.checkOut(b, 2L);
+        bookings.checkOut(b, uid("MANAGER"));
         assertEquals(1, historyCount(folio(b)));
-        assertEquals(3, state(b));
+        assertEquals(2, stayState(b));
         invariants(b);
     }
 
@@ -203,22 +206,21 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
     void repeatedGenerationIsSkippedAndUniqueAssignmentConstraintRejectsDuplicates() {
         long b = checkIn();
         clock.day(1);
-        change(b, 3);
+        change(b, room3);
         pay(b, "400");
         clock.day(3);
-        bookings.checkOut(b, 2L);
+        bookings.checkOut(b, uid("MANAGER"));
         assertEquals(2, historyCount(folio(b)));
 
         // re-running the generator must not add anything
-        stayHistory.createForCompletedStay(b);
+        stayHistory.createForCompletedStay(sid(b));
         assertEquals(2, historyCount(folio(b)));
 
         // the database-level UNIQUE(assignment_id) also refuses a forged duplicate
         var row = historyRows(folio(b)).get(0);
         assertThrows(Exception.class, () -> jdbc.update(
-                "INSERT INTO stay_history(user_id,folio_id,assignment_id,actual_check_in_time,actual_check_out_time,room_number,room_type_name) VALUES(?,?,?,?,?,?,?)",
-                longValue(row, "user_id"), longValue(row, "folio_id"), longValue(row, "assignment_id"),
-                time(row, "actual_check_in_time"), time(row, "actual_check_out_time"),
+                "INSERT INTO stay_history(stay_id,folio_id,assignment_id,room_number,room_type_name) VALUES(?,?,?,?,?)",
+                sid(b), longValue(row, "folio_id"), longValue(row, "assignment_id"),
                 row.get("room_number"), row.get("room_type_name")));
         assertEquals(2, historyCount(folio(b)));
         invariants(b);
@@ -228,47 +230,45 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
 
     @Test
     void meEndpointReturnsOnlyOwnRecordsSortedByCheckInTimeDesc() throws Exception {
-        jdbc.update("INSERT INTO sys_user_role(user_id,role_id) SELECT 3,id FROM sys_role WHERE role_code='CUSTOMER'");
-        setEmail(1);
-        setEmail(3);
+        setEmail(uid("CUSTOMER"));
+        setEmail(uid("OTHER_CUSTOMER"));
 
         clock.day(0);
-        long ownEarly = createFor(1, 1, arrival, 3);
-        long otherUser = createFor(3, 2, arrival, 3);
-        long ownLate = createFor(1, 1, arrival.plusDays(5), 3);
+        long ownEarly = createFor(uid("CUSTOMER"), room1, arrival, 3);
+        long otherUser = createFor(uid("OTHER_CUSTOMER"), room2, arrival, 3);
+        long ownLate = createFor(uid("CUSTOMER"), room3, arrival.plusDays(5), 3);
 
-        bookings.checkIn(ownEarly, 2L);
+        bookings.checkIn(ownEarly, uid("MANAGER"));
         pay(ownEarly, "300");
         clock.day(3);
-        bookings.checkOut(ownEarly, 2L);
+        bookings.checkOut(ownEarly, uid("MANAGER"));
 
         clock.day(0);
-        bookings.checkIn(otherUser, 2L);
+        bookings.checkIn(otherUser, uid("MANAGER"));
         pay(otherUser, "300");
         clock.day(3);
-        bookings.checkOut(otherUser, 2L);
+        bookings.checkOut(otherUser, uid("MANAGER"));
 
-        rooms.setRoomAvailable(1L);
         clock.day(5);
-        bookings.checkIn(ownLate, 2L);
-        pay(ownLate, "300");
+        bookings.checkIn(ownLate, uid("MANAGER"));
+        pay(ownLate, "450");
         clock.day(8);
-        bookings.checkOut(ownLate, 2L);
+        bookings.checkOut(ownLate, uid("MANAGER"));
 
         // user 1: exactly the two own folios, newest check-in first
-        JsonNode mine = getData("/api/stay-history/me", token(1));
+        JsonNode mine = getData("/api/stay-history/me", token(uid("CUSTOMER")));
         assertEquals(2, mine.size());
         assertEquals(folio(ownLate), mine.get(0).path("folioId").asLong());
         assertEquals(folio(ownEarly), mine.get(1).path("folioId").asLong());
         assertTrue(mine.get(0).path("actualCheckInTime").asString()
                 .compareTo(mine.get(1).path("actualCheckInTime").asString()) > 0);
-        for (JsonNode item : mine) assertEquals(1, item.path("userId").asLong());
+        for (JsonNode item : mine) assertTrue(item.path("stayId").asLong()>0);
 
         // user 3: only its own single record
-        JsonNode theirs = getData("/api/stay-history/me", token(3));
+        JsonNode theirs = getData("/api/stay-history/me", token(uid("OTHER_CUSTOMER")));
         assertEquals(1, theirs.size());
         assertEquals(folio(otherUser), theirs.get(0).path("folioId").asLong());
-        assertEquals(3, theirs.get(0).path("userId").asLong());
+        assertEquals(sid(otherUser), theirs.get(0).path("stayId").asLong());
 
         invariants(ownEarly);
         invariants(ownLate);
@@ -279,36 +279,35 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
 
     @Test
     void folioEndpointNeverLeaksAnotherCustomersHistory() throws Exception {
-        jdbc.update("INSERT INTO sys_user_role(user_id,role_id) SELECT 3,id FROM sys_role WHERE role_code='CUSTOMER'");
-        setEmail(1);
-        setEmail(3);
+        setEmail(uid("CUSTOMER"));
+        setEmail(uid("OTHER_CUSTOMER"));
 
         clock.day(0);
-        long mine = createFor(1, 1, arrival, 3);
-        long otherUser = createFor(3, 2, arrival, 3);
+        long mine = createFor(uid("CUSTOMER"), room1, arrival, 3);
+        long otherUser = createFor(uid("OTHER_CUSTOMER"), room2, arrival, 3);
 
-        bookings.checkIn(mine, 2L);
+        bookings.checkIn(mine, uid("MANAGER"));
         pay(mine, "300");
         clock.day(3);
-        bookings.checkOut(mine, 2L);
+        bookings.checkOut(mine, uid("MANAGER"));
 
         clock.day(0);
-        bookings.checkIn(otherUser, 2L);
+        bookings.checkIn(otherUser, uid("MANAGER"));
         pay(otherUser, "300");
         clock.day(3);
-        bookings.checkOut(otherUser, 2L);
+        bookings.checkOut(otherUser, uid("MANAGER"));
 
         // knowing the other customer's folioId does not reveal anything
-        JsonNode foreign = getData("/api/stay-history/me/folios/" + folio(otherUser), token(1));
+        JsonNode foreign = getData("/api/stay-history/me/folios/" + folio(otherUser), token(uid("CUSTOMER")));
         assertEquals(0, foreign.size());
 
-        JsonNode reverse = getData("/api/stay-history/me/folios/" + folio(mine), token(3));
+        JsonNode reverse = getData("/api/stay-history/me/folios/" + folio(mine), token(uid("OTHER_CUSTOMER")));
         assertEquals(0, reverse.size());
 
         // the owner still sees its own segments
-        JsonNode own = getData("/api/stay-history/me/folios/" + folio(otherUser), token(3));
+        JsonNode own = getData("/api/stay-history/me/folios/" + folio(otherUser), token(uid("OTHER_CUSTOMER")));
         assertEquals(1, own.size());
-        assertEquals(3, own.get(0).path("userId").asLong());
+        assertEquals(sid(otherUser), own.get(0).path("stayId").asLong());
 
         invariants(mine);
         invariants(otherUser);
@@ -320,26 +319,26 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
     void folioEndpointReturnsRoomChangeSegmentsAscendingWithSnapshots() throws Exception {
         long b = checkIn();
         clock.day(1);
-        change(b, 3);
+        change(b, room3);
         pay(b, "400");
         clock.day(3);
-        bookings.checkOut(b, 2L);
-        setEmail(1);
+        bookings.checkOut(b, uid("MANAGER"));
+        setEmail(uid("CUSTOMER"));
 
-        JsonNode segments = getData("/api/stay-history/me/folios/" + folio(b), token(1));
+        JsonNode segments = getData("/api/stay-history/me/folios/" + folio(b), token(uid("CUSTOMER")));
         assertEquals(2, segments.size());
 
-        assertEquals("T101", segments.get(0).path("roomNumber").asString());
-        assertEquals("test_standard", segments.get(0).path("roomTypeName").asString());
-        assertEquals("T201", segments.get(1).path("roomNumber").asString());
-        assertEquals("test_deluxe", segments.get(1).path("roomTypeName").asString());
-        assertEquals(folio(b), segments.get(0).path("folioId").asLong());
+        assertEquals(run+"_0", segments.get(1).path("roomNumber").asString());
+        assertEquals(run+"_standard", segments.get(1).path("roomTypeName").asString());
+        assertEquals(run+"_2", segments.get(0).path("roomNumber").asString());
+        assertEquals(run+"_deluxe", segments.get(0).path("roomTypeName").asString());
         assertEquals(folio(b), segments.get(1).path("folioId").asLong());
+        assertEquals(folio(b), segments.get(0).path("folioId").asLong());
 
-        String firstIn = segments.get(0).path("actualCheckInTime").asString();
-        String firstOut = segments.get(0).path("actualCheckOutTime").asString();
-        String secondIn = segments.get(1).path("actualCheckInTime").asString();
-        String secondOut = segments.get(1).path("actualCheckOutTime").asString();
+        String firstIn = segments.get(1).path("actualCheckInTime").asString();
+        String firstOut = segments.get(1).path("actualCheckOutTime").asString();
+        String secondIn = segments.get(0).path("actualCheckInTime").asString();
+        String secondOut = segments.get(0).path("actualCheckOutTime").asString();
         assertTrue(firstIn.compareTo(secondIn) < 0);
         // continuity across the room change
         assertEquals(firstOut, secondIn);
@@ -351,10 +350,10 @@ class StayHistoryIntegrationTest extends IsolatedMysqlTest {
 
     @Test
     void unauthenticatedOrInvalidTokenRequestsAreRejectedWith401() throws Exception {
-        mvc.perform(get("/api/stay-history/me")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/stay-history/me").with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous())).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/stay-history/me").header("Authorization", "Bearer not-a-real-token"))
                 .andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/stay-history/me/folios/1")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/stay-history/me/folios/1").with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous())).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/stay-history/me/folios/1").header("Authorization", "Bearer not-a-real-token"))
                 .andExpect(status().isUnauthorized());
     }

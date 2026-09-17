@@ -12,18 +12,18 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class StayLedgerRulesTest {
     LocalDate day=LocalDate.of(2026,10,1);
-    Booking booking;List<BookingNightlyRate> rates=new ArrayList<>();List<BookingRoomAssignment> segments=new ArrayList<>();List<FolioItem> items=new ArrayList<>();List<RoomBillingEvent> events=new ArrayList<>();
+    Booking booking;List<BookingNightlyRate> rates=new ArrayList<>();List<StayRoomAssignment> segments=new ArrayList<>();List<FolioItem> items=new ArrayList<>();List<RoomBillingEvent> events=new ArrayList<>();
     void scenario(boolean sameType) {
-        booking=new Booking();booking.setId(1L);booking.setRoomTypeId(1L);booking.setAssignedRoomId(2L);booking.setCheckInDate(day);booking.setCheckOutDate(day.plusDays(3));
-        segments.add(BookingRoomAssignment.builder().id(1L).bookingId(1L).roomId(1L).roomTypeId(1L).assignmentType("CHECK_IN").startTime(day.atTime(14,0)).endTime(day.plusDays(1).atTime(12,0)).build());
-        segments.add(BookingRoomAssignment.builder().id(2L).bookingId(1L).roomId(2L).roomTypeId(sameType?1L:2L).assignmentType("ROOM_CHANGE").startTime(day.plusDays(1).atTime(12,0)).build());
+        booking=new Booking();booking.setId(1L);booking.setRoomTypeId(1L);booking.setReservedRoomId(1L);booking.setCheckInDate(day);booking.setCheckOutDate(day.plusDays(3));
+        segments.add(StayRoomAssignment.builder().id(1L).stayId(1L).bookingId(1L).roomId(1L).roomTypeId(1L).assignmentType("CHECK_IN").startTime(day.atTime(14,0)).endTime(day.plusDays(1).atTime(12,0)).build());
+        segments.add(StayRoomAssignment.builder().id(2L).stayId(1L).bookingId(1L).roomId(2L).roomTypeId(sameType?1L:2L).assignmentType("ROOM_CHANGE").startTime(day.plusDays(1).atTime(12,0)).build());
         for(int i=0;i<3;i++) {
             rates.add(BookingNightlyRate.builder().stayDate(day.plusDays(i)).rateAmount(new BigDecimal("100")).build());
             items.add(charge(i+1,1,1,day.plusDays(i),"100"));
             if(i>0){var reverse=charge(i+10,1,1,day.plusDays(i),"-100");reverse.setItemType("ROOM_RATE_ADJUSTMENT");reverse.setSourceItemId((long)i+1);items.add(reverse);
                 items.add(charge(i+20,2,sameType?1:2,day.plusDays(i),sameType?"100":"150"));}
         }
-        events.add(RoomBillingEvent.builder().id(1L).bookingId(1L).oldAssignmentId(1L).newAssignmentId(2L).changeDate(day.plusDays(1)).newChargesTotal(new BigDecimal(sameType?"200":"300")).build());
+        events.add(RoomBillingEvent.builder().id(1L).stayId(1L).oldAssignmentId(1L).newAssignmentId(2L).changeDate(day.plusDays(1)).newChargesTotal(new BigDecimal(sameType?"200":"300")).build());
     }
     FolioItem charge(long id,long assignment,long type,LocalDate date,String amount){return FolioItem.builder().id(id).roomAssignmentId(assignment).roomId(assignment).roomTypeId(type).itemType("ROOM_CHARGE").businessDate(date).quantity(BigDecimal.ONE).amount(new BigDecimal(amount)).unitPrice(new BigDecimal(amount)).build();}
     @ParameterizedTest @ValueSource(booleans={true,false}) void roomChangeNetAmountAndAllReversalsReconcile(boolean sameType){scenario(sameType);StayLedgerRules.validate(booking,rates,segments,events,items);assertEquals(sameType?300:400,items.stream().map(FolioItem::getAmount).reduce(BigDecimal.ZERO,BigDecimal::add).intValueExact());}

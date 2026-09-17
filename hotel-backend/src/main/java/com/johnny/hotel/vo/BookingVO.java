@@ -18,9 +18,10 @@ public class BookingVO {
 
     private String roomTypeName;
 
-    private Long assignedRoomId;
+    private Long reservedRoomId;
+    private String reservationSource;
 
-    private String assignedRoomNumber;
+    private String reservedRoomNumber;
 
     private Integer guestCount;
 

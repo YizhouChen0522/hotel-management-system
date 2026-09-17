@@ -9,11 +9,11 @@ import java.util.List;
 
 public interface FolioService {
 
-    Folio ensureFolioExists(Long bookingId);
+    Folio ensureFolioExists(Long stayId);
 
-    FolioItem addItem(Long bookingId, FolioItemCommand command, Long operatorId);
+    FolioItem addItem(Long stayId, FolioItemCommand command, Long operatorId);
 
-    List<FolioItem> addItems(Long bookingId, List<FolioItemCommand> commands, Long operatorId);
+    List<FolioItem> addItems(Long stayId, List<FolioItemCommand> commands, Long operatorId);
 
     void applyRoomChangeBilling(RoomChangeBillingCommand command
     );

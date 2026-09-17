@@ -4,7 +4,7 @@ import java.time.*;
 import java.math.BigDecimal;
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class StayAdjustment {
-    private Long id,bookingId,folioId,assignmentId,operatorId,previousLateId,conflictBookingId,basisItemId;
+    private Long id,stayId,folioId,assignmentId,operatorId,previousLateId,conflictBookingId,basisItemId;
     private Integer adjustmentType;
     private LocalDate oldEnd,newEnd;
     private LocalDateTime effectiveTime,createTime;

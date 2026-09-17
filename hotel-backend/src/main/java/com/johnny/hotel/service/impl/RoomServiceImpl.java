@@ -189,7 +189,7 @@ public class RoomServiceImpl implements RoomService {
             throw new BusinessException("Room maintenance requires a READ_COMMITTED transaction");
         Room room=roomMapper.selectByIdForUpdate(id);
         Integer inspection=inspections.latestStatus(id);
-        if(room==null||room.getStatus()!=RoomStatus.MAINTENANCE.getCode()||roomMapper.hasActualUse(id)||roomWorkOrders.hasOpenBlockingOrder(id)||inspections.hasOpenRepair(id)||(inspection!=null&&inspection!=com.johnny.hotel.inspection.InspectionStatus.PASSED.getCode()))throw new BusinessException("Room release requires no active stay, no blocking repair, and a passed latest turnover inspection");
+        if(room==null||room.getStatus()!=RoomStatus.MAINTENANCE.getCode()||roomMapper.hasActualUse(id)||roomWorkOrders.hasOpenBlockingOrder(id)||inspections.hasOpenRepair(id)||inspections.hasUninspectedTurnover(id)||(inspection!=null&&inspection!=com.johnny.hotel.inspection.InspectionStatus.PASSED.getCode()))throw new BusinessException("Room release requires no active stay, no blocking repair, and a passed latest turnover inspection");
         requireOne(roomMapper.transitionStatus(id,RoomStatus.MAINTENANCE.getCode(),RoomStatus.AVAILABLE.getCode()));
     }
 

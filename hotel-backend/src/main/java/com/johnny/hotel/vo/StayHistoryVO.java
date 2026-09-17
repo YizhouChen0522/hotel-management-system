@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class StayHistoryVO {
     private Long id;
-    private Long userId;
+    private Long stayId;
     private Long folioId;
     private LocalDateTime actualCheckInTime;
     private LocalDateTime actualCheckOutTime;

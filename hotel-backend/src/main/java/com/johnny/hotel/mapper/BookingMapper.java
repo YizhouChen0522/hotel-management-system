@@ -12,7 +12,7 @@ public interface BookingMapper {
             INSERT INTO booking (
                 user_id,
                 room_type_id,
-                assigned_room_id,
+                reserved_room_id,
                 guest_count,
                 check_in_date,
                 check_out_date,
@@ -24,7 +24,7 @@ public interface BookingMapper {
             VALUES (
                 #{userId},
                 #{roomTypeId},
-                #{assignedRoomId},
+                #{reservedRoomId},
                 #{guestCount},
                 #{checkInDate},
                 #{checkOutDate},
@@ -64,7 +64,7 @@ public interface BookingMapper {
 
 @Update("""
             UPDATE booking
-            SET assigned_room_id = #{assignedRoomId},
+            SET reserved_room_id = #{assignedRoomId},
                 status = #{status},
                 update_time = NOW()
             WHERE id = #{id} AND status = 0
@@ -121,9 +121,9 @@ public interface BookingMapper {
 
     @Update("""
         UPDATE booking
-        SET assigned_room_id = #{newRoomId},
+        SET reserved_room_id = #{newRoomId},
             update_time = NOW()
-        WHERE id = #{bookingId} AND status IN (1,2)
+        WHERE id = #{bookingId} AND status = 1
         """)
     int updateAssignedRoom(@Param("bookingId") Long bookingId,
                            @Param("newRoomId") Long newRoomId);
@@ -139,7 +139,7 @@ public interface BookingMapper {
     @Update("""
         UPDATE booking
         SET room_type_id = #{newRoomTypeId},
-            assigned_room_id = #{newRoomId},
+            reserved_room_id = #{newRoomId},
             update_time = NOW()
         WHERE id = #{bookingId} AND status = 1
         """)

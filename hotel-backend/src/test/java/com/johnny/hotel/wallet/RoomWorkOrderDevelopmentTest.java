@@ -57,9 +57,9 @@ class RoomWorkOrderDevelopmentTest extends FinancialDevelopmentFixture {
   var w=create("STAFF",room1,true);as(role);var cancelled=workOrders.cancel(w.getId(),"Duplicate report");assertEquals(2,cancelled.getStatus());assertEquals(3,taskStatus(w.getTaskId()));assertEquals(1,roomStatus(room1));assertEquals(2,workOrders.cancel(w.getId(),null).getStatus());
  }
  @Test void occupiedRoomReportPreservesBookingAssignmentAndLaterCheckoutMaintenance(){
-  long b=stay();long assignment=jdbc.queryForObject("SELECT id FROM booking_room_assignment WHERE booking_id=? AND end_time IS NULL",Long.class,b);var w=create("STAFF",room1,true);
-  assertEquals(4,roomStatus(room1));assertEquals(2,bookingState(b));assertNull(jdbc.queryForObject("SELECT end_time FROM booking_room_assignment WHERE id=?",java.time.LocalDateTime.class,assignment));
-  pay(b,"300");clock.day(3);checkout(b);assertEquals(3,roomStatus(room1));assertEquals(3,bookingState(b));assertEquals(0,workOrders.get(w.getId()).getStatus());
+  long b=stay();long assignment=jdbc.queryForObject("SELECT id FROM stay_room_assignment WHERE stay_id=(SELECT id FROM stay WHERE booking_id=?) AND end_time IS NULL",Long.class,b);var w=create("STAFF",room1,true);
+  assertEquals(4,roomStatus(room1));assertEquals(1,stayState(b));assertNull(jdbc.queryForObject("SELECT end_time FROM stay_room_assignment WHERE id=?",java.time.LocalDateTime.class,assignment));
+  pay(b,"300");clock.day(3);checkout(b);assertEquals(3,roomStatus(room1));assertEquals(2,stayState(b));assertEquals(0,workOrders.get(w.getId()).getStatus());
  }
  @Test void bookedRoomReportPreservesReservationLifecycle(){
   long b=createBooking("CUSTOMER");var approve=new com.johnny.hotel.dto.ApproveBookingRequest();approve.setAssignedRoomId(room1);bookings.approveBooking(b,approve,uid("MANAGER"));var w=create("STAFF",room1,true);
@@ -86,7 +86,7 @@ class RoomWorkOrderDevelopmentTest extends FinancialDevelopmentFixture {
   assertEquals(1,workOrders.get(w.getId()).getStatus());assertEquals(1,records(w.getTaskId(),12));assertEquals(2,taskStatus(w.getTaskId()));
  }
  @Test void actualCostDoesNotCreateFolioCharge(){
-  long b=createBooking("CUSTOMER");int before=jdbc.queryForObject("SELECT COUNT(*) FROM folio_item WHERE folio_id=?",Integer.class,folio(b));var w=create("STAFF",room1,false);tasks.claim(w.getTaskId());todoService.acknowledge(todo(w.getTaskId()),null);workOrders.complete(w.getId(),WorkOrderRequests.Complete.builder().actualCost(new BigDecimal("500.00")).build(),false);
+  long b=stay();int before=jdbc.queryForObject("SELECT COUNT(*) FROM folio_item WHERE folio_id=?",Integer.class,folio(b));var w=create("STAFF",room1,false);tasks.claim(w.getTaskId());todoService.acknowledge(todo(w.getTaskId()),null);workOrders.complete(w.getId(),WorkOrderRequests.Complete.builder().actualCost(new BigDecimal("500.00")).build(),false);
   assertEquals(before,jdbc.queryForObject("SELECT COUNT(*) FROM folio_item WHERE folio_id=?",Integer.class,folio(b)));
  }
  @Test void openBlockingOrderBlocksManualReleaseUntilResolved(){

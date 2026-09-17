@@ -5,9 +5,9 @@ import java.util.List;
 
 @Mapper
 public interface RoomBillingEventMapper {
-    @Select("SELECT * FROM room_billing_event WHERE booking_id=#{bookingId} ORDER BY id FOR UPDATE")
-    List<RoomBillingEvent> selectByBookingIdForUpdate(Long bookingId);
-    @Insert("INSERT INTO room_billing_event(booking_id,old_assignment_id,new_assignment_id,change_date,new_charges_total) VALUES(#{bookingId},#{oldAssignmentId},#{newAssignmentId},#{changeDate},#{newChargesTotal})")
+    @Select("SELECT * FROM room_billing_event WHERE stay_id=#{stayId} ORDER BY id FOR UPDATE")
+    List<RoomBillingEvent> selectByStayIdForUpdate(Long stayId);
+    @Insert("INSERT INTO room_billing_event(stay_id,old_assignment_id,new_assignment_id,change_date,new_charges_total) VALUES(#{stayId},#{oldAssignmentId},#{newAssignmentId},#{changeDate},#{newChargesTotal})")
     @Options(useGeneratedKeys=true, keyProperty="id")
     int insert(RoomBillingEvent event);
 }

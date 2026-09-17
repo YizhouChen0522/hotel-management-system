@@ -14,6 +14,16 @@ class WalletPostingService {
     private final WalletPostingMapper mapper;
 
     @Transactional(propagation=Propagation.MANDATORY)
+    public void creditDepositRefund(Wallet locked,com.johnny.hotel.booking.deposit.DepositRefund source,Long actor) {
+        require(locked.getId().equals(source.getWalletId()) && locked.getUserId().equals(source.getUserId())
+                && locked.getCurrency().equals(source.getCurrency()) && source.getStatus()==0
+                && !actor.equals(source.getUserId()) && !actor.equals(source.getRequestedBy()),"Invalid deposit refund source");
+        var amount=money(source.getAmount(),12);require(amount.signum()>0,"Refund must be positive");
+        append(locked,amount,WalletTransactionType.DEPOSIT_REFUND_CREDIT,"DEPOSIT_REFUND",source.getId(),actor,"deposit-refund:"+source.getId());
+        one(mapper.credit(locked.getId(),amount));
+    }
+
+    @Transactional(propagation=Propagation.MANDATORY)
     public void creditRefund(Wallet locked,Refund source,Long actor) {
         require(locked.getId().equals(source.getWalletId()) && locked.getUserId().equals(source.getUserId())
                 && locked.getCurrency().equals(source.getCurrency()) && source.getStatus()==com.johnny.hotel.enums.RefundStatus.PENDING.getCode(),"Invalid refund source");

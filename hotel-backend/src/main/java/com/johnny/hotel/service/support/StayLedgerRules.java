@@ -12,10 +12,10 @@ public final class StayLedgerRules {
     private StayLedgerRules() {}
 
     public static void validate(Booking booking, List<BookingNightlyRate> snapshot,
-            List<BookingRoomAssignment> segments, List<RoomBillingEvent> events, List<FolioItem> items) {
+            List<StayRoomAssignment> segments, List<RoomBillingEvent> events, List<FolioItem> items) {
         validate(booking,snapshot,segments,events,items,List.of(),List.of());
     }
-    public static void validate(Booking booking,List<BookingNightlyRate> snapshot,List<BookingRoomAssignment> segments,
+    public static void validate(Booking booking,List<BookingNightlyRate> snapshot,List<StayRoomAssignment> segments,
             List<RoomBillingEvent> events,List<FolioItem> items,List<StayAdjustment> adjustments,List<ExtensionNightlyRate> extensionRates) {
         require(!segments.isEmpty(), "Stay history is missing");
         StayPlan.end(booking,adjustments);
@@ -28,7 +28,7 @@ public final class StayLedgerRules {
         for (BookingNightlyRate n : snapshot) previous.put(n.getStayDate(), n.getRateAmount());
         Set<Long> eventIds = new HashSet<>();
         for (int index = 0; index < segments.size(); index++) {
-            BookingRoomAssignment segment = segments.get(index);
+            StayRoomAssignment segment = segments.get(index);
             require(segment.getBookingId().equals(booking.getId()), "Stay history belongs to another booking");
             LocalDate from = segment.getStartTime().toLocalDate();
             LocalDate endAtRoomChange=chargedEnd;
@@ -38,7 +38,7 @@ public final class StayLedgerRules {
                 require(extension.getOldEnd().equals(chargedEnd)&&extension.getNewEnd().isAfter(chargedEnd),"Extension chronology is invalid");
                 var nights=extensionRates.stream().filter(n->n.getAdjustmentId().equals(extension.getId())).toList();
                 require(nights.size()==java.time.temporal.ChronoUnit.DAYS.between(chargedEnd,extension.getNewEnd()),"Extension snapshot coverage is incomplete");
-                for(var n:nights){require(n.getBookingId().equals(booking.getId())&&n.getRoomTypeId().equals(segment.getRoomTypeId())&&!n.getStayDate().isBefore(chargedEnd)&&n.getStayDate().isBefore(extension.getNewEnd())&&n.getRateAmount().signum()>0&&extensionByDate.put(n.getStayDate(),n)==null,"Invalid extension nightly snapshot");previous.put(n.getStayDate(),n.getRateAmount());usedSnapshots.add(n.getId());}
+                for(var n:nights){require(n.getStayId().equals(segment.getStayId())&&n.getRoomTypeId().equals(segment.getRoomTypeId())&&!n.getStayDate().isBefore(chargedEnd)&&n.getStayDate().isBefore(extension.getNewEnd())&&n.getRateAmount().signum()>0&&extensionByDate.put(n.getStayDate(),n)==null,"Invalid extension nightly snapshot");previous.put(n.getStayDate(),n.getRateAmount());usedSnapshots.add(n.getId());}
                 chargedEnd=extension.getNewEnd();
             }
             require(!from.isBefore(booking.getCheckInDate()) && !from.isAfter(chargedEnd), "Stay history is outside effective dates");
@@ -46,11 +46,11 @@ public final class StayLedgerRules {
                 require("CHECK_IN".equals(segment.getAssignmentType()) && from.equals(booking.getCheckInDate())
                         && segment.getRoomTypeId().equals(booking.getRoomTypeId()), "Initial stay does not match reservation");
             } else {
-                BookingRoomAssignment old = segments.get(index - 1);
+                StayRoomAssignment old = segments.get(index - 1);
                 require("ROOM_CHANGE".equals(segment.getAssignmentType()) && segment.getStartTime().equals(old.getEndTime()), "Stay history has a gap or overlap");
             }
             boolean last = index == segments.size() - 1;
-            require(last ? segment.getEndTime() == null && segment.getRoomId().equals(booking.getAssignedRoomId())
+            require(last ? segment.getEndTime() == null
                     : segment.getEndTime() != null && !segment.getEndTime().isBefore(segment.getStartTime()), "Active stay history is inconsistent");
             Map<LocalDate, BigDecimal> current = new HashMap<>();
             for (LocalDate date = from; date.isBefore(chargedEnd); date = date.plusDays(1)) {
@@ -81,11 +81,11 @@ public final class StayLedgerRules {
                 }
             }
             if (index > 0) {
-                BookingRoomAssignment old = segments.get(index - 1);
+                StayRoomAssignment old = segments.get(index - 1);
                 List<RoomBillingEvent> matches = events.stream().filter(e -> e.getOldAssignmentId().equals(old.getId()) && e.getNewAssignmentId().equals(segment.getId()) && e.getChangeDate().equals(from)).toList();
                 require(matches.size() == 1, "Room change has no completed billing event");
                 RoomBillingEvent event = matches.get(0);
-                require(event.getBookingId().equals(booking.getId()) && event.getNewChargesTotal().compareTo(current.entrySet().stream().filter(e->e.getKey().isBefore(endAtRoomChange)).map(Map.Entry::getValue).reduce(BigDecimal.ZERO, BigDecimal::add)) == 0,
+                require(event.getStayId().equals(segment.getStayId()) && event.getNewChargesTotal().compareTo(current.entrySet().stream().filter(e->e.getKey().isBefore(endAtRoomChange)).map(Map.Entry::getValue).reduce(BigDecimal.ZERO, BigDecimal::add)) == 0,
                         "Room change posted total does not match billing event");
                 eventIds.add(event.getId());
             }

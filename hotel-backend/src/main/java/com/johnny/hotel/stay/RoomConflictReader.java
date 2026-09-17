@@ -10,6 +10,10 @@ import java.util.List;
 @Service @RequiredArgsConstructor
 public class RoomConflictReader {
     private final RoomConflictMapper mapper;
+    private final com.johnny.hotel.mapper.StayRoomAssignmentMapper assignments;
+    /** Caller owns Booking and Stay; obtain current routing identity before locking physical rooms. */
+    @Transactional(propagation=Propagation.REQUIRES_NEW,isolation=Isolation.READ_COMMITTED,readOnly=true)
+    public com.johnny.hotel.entity.StayRoomAssignment activeAssignment(Long stayId){return assignments.activeIdentity(stayId);}
     @Transactional(propagation=Propagation.REQUIRES_NEW,isolation=Isolation.READ_COMMITTED,readOnly=true)
     public List<Booking> overlapping(Long room,Long excluded,LocalDate start,LocalDate end){return mapper.overlapping(room,excluded,start,end);}
     @Transactional(propagation=Propagation.REQUIRES_NEW,isolation=Isolation.READ_COMMITTED,readOnly=true)

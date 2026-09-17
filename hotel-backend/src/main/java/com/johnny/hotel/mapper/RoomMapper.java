@@ -63,9 +63,9 @@ public interface RoomMapper {
     int transitionStatus(@Param("id") Long id, @Param("expectedStatus") Integer expectedStatus, @Param("status") Integer status);
 
     // Nonlocking existence reads while Room is locked. All legitimate assignments acquire Room first.
-    @Select("SELECT EXISTS(SELECT 1 FROM booking WHERE assigned_room_id=#{id} AND status IN (1,2)) OR EXISTS(SELECT 1 FROM booking_room_assignment WHERE room_id=#{id} AND end_time IS NULL)")
+    @Select("SELECT EXISTS(SELECT 1 FROM booking b WHERE reserved_room_id=#{id} AND status=1 AND NOT EXISTS(SELECT 1 FROM stay s WHERE s.booking_id=b.id)) OR EXISTS(SELECT 1 FROM stay_room_assignment WHERE room_id=#{id} AND end_time IS NULL)")
     boolean hasLiveUse(@Param("id") Long id);
-    @Select("SELECT EXISTS(SELECT 1 FROM booking WHERE assigned_room_id=#{id} AND status=2) OR EXISTS(SELECT 1 FROM booking_room_assignment WHERE room_id=#{id} AND end_time IS NULL)")
+    @Select("SELECT EXISTS(SELECT 1 FROM stay_room_assignment WHERE room_id=#{id} AND end_time IS NULL)")
     boolean hasActualUse(@Param("id") Long id);
 
 }

@@ -8,12 +8,14 @@ import static com.johnny.hotel.service.support.BillingRules.*;
 @Component @RequiredArgsConstructor
 public class StayPlan {
     private final StayAdjustmentMapper adjustments;
-    public LocalDate end(Booking b){return end(b,adjustments.forBooking(b.getId()));}
+    private final StayMapper stays;
+    private List<StayAdjustment> rows(Booking b){var stay=stays.byBooking(b.getId());return stay==null?List.of():adjustments.forStay(stay.getId());}
+    public LocalDate end(Booking b){return end(b,rows(b));}
     public static LocalDate end(Booking b,List<StayAdjustment> rows){
         LocalDate end=b.getCheckOutDate();
-        for(var r:rows){require(r.getBookingId().equals(b.getId())&&r.getOldEnd().equals(end),"Stay adjustment end chain is inconsistent");end=r.getNewEnd();}
+        for(var r:rows){require(r.getOldEnd().equals(end),"Stay adjustment end chain is inconsistent");end=r.getNewEnd();}
         return end;
     }
-    public LocalDate chargedThrough(Booking b){return adjustments.forBooking(b.getId()).stream().filter(r->r.getAdjustmentType()==1).map(StayAdjustment::getNewEnd).reduce(b.getCheckOutDate(),(a,c)->a.isAfter(c)?a:c);}
-    public void mayChangeRoom(Booking b){require(adjustments.forBooking(b.getId()).stream().noneMatch(r->r.getAdjustmentType()==2),"Early departure has already been processed");}
+    public LocalDate chargedThrough(Booking b){return rows(b).stream().filter(r->r.getAdjustmentType()==1).map(StayAdjustment::getNewEnd).reduce(b.getCheckOutDate(),(a,c)->a.isAfter(c)?a:c);}
+    public void mayChangeRoom(Booking b){require(rows(b).stream().noneMatch(r->r.getAdjustmentType()==2),"Early departure has already been processed");}
 }

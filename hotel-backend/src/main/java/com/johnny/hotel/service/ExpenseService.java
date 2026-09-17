@@ -16,7 +16,7 @@ import static com.johnny.hotel.service.support.BillingRules.*;
 
 @Service @RequiredArgsConstructor
 public class ExpenseService {
-    private final BookingMapper bookings;
+    private final BookingMapper bookings; private final com.johnny.hotel.stay.StayMapper stays;
     private final FolioMapper folios;
     private final ExpenseMapper expenses;
     private final FolioService ledger;
@@ -31,7 +31,7 @@ public class ExpenseService {
         Booking b=bookings.selectByIdForUpdate(identity.getBookingId());require(b!=null,"Booking does not exist");
         Folio f=folios.selectByIdForUpdate(id);
         require(f!=null&&f.getBookingId().equals(b.getId())&&f.getClosedTime()==null,"Folio is missing, void or finalized");
-        require(b.getStatus()==com.johnny.hotel.enums.BookingStatus.CHECKED_IN.getCode(),"Expenses currently require a checked-in booking");
+        require(stays.byBooking(b.getId())!=null && stays.byBooking(b.getId()).getStatus()==1,"Expenses currently require a checked-in booking");
         require(!LocalDate.now(clock).isBefore(b.getCheckInDate())&&!LocalDate.now(clock).isAfter(stayPlan.end(b)),"Expense processing outside contracted stay dates is unsupported");
         return new Account(b,f);
     }
@@ -74,7 +74,7 @@ public class ExpenseService {
         ExpenseRules.validate(RegisterExpenseRequest.builder().idempotencyKey(e.getRequestKey()).itemType(e.getItemType()).amount(e.getAmount())
                 .businessDate(e.getBusinessDate()).description(e.getDescription()).reason(e.getReason()).sourceExpenseId(e.getSourceExpenseId()).build(),a.booking(),LocalDate.now(clock),stayPlan.end(a.booking()));
         var source=ExpenseRules.sourceAndCapacity(e,rows);
-        FolioItem posted=ledger.addItem(a.booking().getId(),FolioItemCommand.builder().itemType(e.getItemType()).description(e.getDescription())
+        FolioItem posted=ledger.addItem(a.folio().getStayId(),FolioItemCommand.builder().itemType(e.getItemType()).description(e.getDescription())
                 .businessDate(e.getBusinessDate()).quantity(BigDecimal.ONE).unitPrice(e.getAmount()).amount(e.getAmount())
                 .sourceItemId(source==null?null:source.getLedgerItemId()).eventKey("EXPENSE:"+e.getId()).refundable(false).build(),actor);
         e.setStatus("CONFIRMED");e.setLedgerItemId(posted.getId());e.setResolvedBy(actor);e.setResolvedTime(LocalDateTime.now(clock));

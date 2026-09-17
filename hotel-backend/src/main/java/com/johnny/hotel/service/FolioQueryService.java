@@ -12,6 +12,7 @@ import static com.johnny.hotel.service.support.BillingRules.*;
 @RequiredArgsConstructor
 public class FolioQueryService {
     private final FolioMapper folios;
+    private final com.johnny.hotel.stay.StayAccess stays;
     private final BookingMapper bookings;
     private final FolioItemMapper items;
     private final PaymentMapper payments;
@@ -46,12 +47,19 @@ public class FolioQueryService {
     public FolioVO byFolio(Long folioId, Long customerId) {
         return view(folios.selectByIdForUpdate(folioId), customerId);
     }
+    @Transactional
+    public FolioVO byStay(Long stayId) {
+        stays.read(stayId);
+        Folio folio=folios.selectByStayIdForUpdate(stayId);
+        if(folio==null)throw new BusinessException(404,"Folio not found");
+        return view(folio,null);
+    }
     private FolioVO view(Folio f, Long customerId) {
         require(f != null, "Folio does not exist");
         Booking b = bookings.selectById(f.getBookingId()); // Immutable owner, deliberately no Booking lock after Folio.
         require(b != null, "Booking does not exist");
         if (customerId != null && !customerId.equals(b.getUserId())) throw new BusinessException(403, "Forbidden");
-        return FolioVO.builder().id(f.getId()).bookingId(f.getBookingId()).currency(f.getCurrency()).status(f.getStatus())
+        return FolioVO.builder().id(f.getId()).stayId(f.getStayId()).bookingId(f.getBookingId()).currency(f.getCurrency()).status(f.getStatus())
                 .totalAmount(f.getTotalAmount()).paidAmount(f.getPaidAmount()).refundedAmount(f.getRefundedAmount()).balanceAmount(f.getBalanceAmount()).closedTime(f.getClosedTime())
                 .items(items.selectByFolioIdForUpdate(f.getId()).stream().map(FolioVO.Item::from).toList())
                 .expenses(expenses.selectByFolioForUpdate(f.getId()).stream().map(ExpenseVO::from).toList())

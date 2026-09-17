@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class FolioQueryController {
     private final FolioQueryService queries;
+    @GetMapping("/api/stays/{stayId}/folio")
+    @PreAuthorize("hasAnyRole('CUSTOMER','STAFF','FINANCE','MANAGER','OWNER','SUPER_ADMIN')")
+    public Result<FolioVO> stay(@PathVariable Long stayId){return Result.success(queries.byStay(stayId));}
     @GetMapping("/api/admin/billing/bookings/{bookingId}/folio")
     @PreAuthorize("hasAnyRole('STAFF','FINANCE','MANAGER','OWNER','SUPER_ADMIN')")
     public Result<FolioVO> booking(@PathVariable Long bookingId) { return Result.success(queries.byBookingForOperations(bookingId)); }

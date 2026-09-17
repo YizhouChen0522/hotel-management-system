@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class StayHistory {
     private Long id;
-    private Long userId;
+    private Long stayId;
     private Long folioId;
     private Long assignmentId;
     private LocalDateTime actualCheckInTime;

@@ -11,10 +11,13 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BookingRoomAssignment {
+public class StayRoomAssignment {
 
     private Long id;
 
+    private Long stayId;
+
+    /** Derived through Stay; never persisted in this table. */
     private Long bookingId;
 
     private Long roomId;

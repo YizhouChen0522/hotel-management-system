@@ -16,13 +16,13 @@ class ExpenseRulesTest {
     final LocalDate day=LocalDate.of(2026,10,1);
     RegisterExpenseRequest request(){return RegisterExpenseRequest.builder().idempotencyKey(UUID.randomUUID().toString()).itemType("SERVICE_CHARGE").amount(new BigDecimal("10"))
             .businessDate(day).description("laundry").reason("guest order").build();}
-    Booking booking(){var b=new Booking();b.setStatus(2);b.setCheckInDate(day);b.setCheckOutDate(day.plusDays(3));return b;}
+    Booking booking(){var b=new Booking();b.setStatus(1);b.setCheckInDate(day);b.setCheckOutDate(day.plusDays(3));return b;}
     @Test void positiveExpenseAndCheckoutDayAllowed(){ExpenseRules.validate(request(),booking(),day);var r=request();r.setBusinessDate(day.plusDays(3));ExpenseRules.validate(r,booking(),day.plusDays(3));}
     @ParameterizedTest @ValueSource(strings={"zero","negative","precision","range","type","date","future","source","reason","uuid"}) void rejectsInvalidInput(String kind){var r=request();switch(kind){
         case "zero"->r.setAmount(BigDecimal.ZERO);case "negative"->r.setAmount(new BigDecimal("-1"));case "precision"->r.setAmount(new BigDecimal("1.001"));case "range"->r.setAmount(new BigDecimal("10000000000"));
         case "type"->r.setItemType("REFUND");case "date"->r.setBusinessDate(day.minusDays(1));case "future"->r.setBusinessDate(day.plusDays(1));case "source"->r.setSourceExpenseId(1L);case "reason"->r.setReason(" ");case "uuid"->r.setIdempotencyKey("1-1-1-1-1");}
         assertThrows(BusinessException.class,()->ExpenseRules.validate(r,booking(),day));}
-    @ParameterizedTest @ValueSource(ints={0,1,3,4,5}) void onlyCheckedInSupportsNewExpenses(int state){var b=booking();b.setStatus(state);assertThrows(BusinessException.class,()->ExpenseRules.validate(request(),b,day));}
+    @ParameterizedTest @ValueSource(ints={0,2,3,4,5}) void requiresAnApprovedReservationContract(int state){var b=booking();b.setStatus(state);assertThrows(BusinessException.class,()->ExpenseRules.validate(request(),b,day));}
     @ParameterizedTest @ValueSource(strings={"ROLE_HR_ADMIN","ROLE_CUSTOMER"}) void nonOperatorsCannotPost(String role){assertThrows(AccessDeniedException.class,()->ExpenseRules.authorize("SERVICE_CHARGE",List.of(role)));}
     @ParameterizedTest @ValueSource(strings={"DISCOUNT","FEE_REVERSAL"}) void creditsRequireManagerAndSource(String type){assertThrows(AccessDeniedException.class,()->ExpenseRules.authorize(type,List.of("ROLE_STAFF")));var r=request();r.setItemType(type);r.setAmount(new BigDecimal("-5"));assertThrows(BusinessException.class,()->ExpenseRules.validate(r,booking(),day));r.setSourceExpenseId(1L);ExpenseRules.validate(r,booking(),day);}
     @ParameterizedTest @ValueSource(strings={"ROLE_MANAGER","ROLE_OWNER","ROLE_SUPER_ADMIN"}) void managersMayAdjust(String role){ExpenseRules.authorize("DISCOUNT",List.of(role));ExpenseRules.authorize("FEE_REVERSAL",List.of(role));}
