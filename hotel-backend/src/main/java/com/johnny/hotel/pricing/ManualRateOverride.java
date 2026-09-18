@@ -1,0 +1,2 @@
+package com.johnny.hotel.pricing; import lombok.*;import java.math.BigDecimal;import java.time.*;
+@Data @Builder @NoArgsConstructor @AllArgsConstructor public class ManualRateOverride{private Long id,roomTypeId;private LocalDate stayDate;private String overrideType;private BigDecimal overrideValue;private String reason;private Integer activeSlot;private Long createdBy,updatedBy;private LocalDateTime createTime,updateTime,cancelledTime;}

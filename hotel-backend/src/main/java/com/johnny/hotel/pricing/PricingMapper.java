@@ -1,0 +1,31 @@
+package com.johnny.hotel.pricing;
+import org.apache.ibatis.annotations.*;import java.time.LocalDate;import java.util.List;
+@Mapper public interface PricingMapper{
+ @Select("SELECT id FROM dynamic_pricing_control WHERE id=1 FOR UPDATE") Integer lockControl();
+ @Select("SELECT * FROM dynamic_pricing_policy WHERE active_slot=1") DynamicPolicy active();
+ @Select("SELECT * FROM dynamic_pricing_policy WHERE id=#{id}") DynamicPolicy policy(Long id);
+ @Select("SELECT * FROM dynamic_pricing_policy ORDER BY version_no DESC LIMIT #{offset},#{size}") List<DynamicPolicy> policies(@Param("offset")int offset,@Param("size")int size);
+ @Select("SELECT COUNT(*) FROM dynamic_pricing_policy") long policyCount();
+ @Select("SELECT COALESCE(MAX(version_no),0)+1 FROM dynamic_pricing_policy FOR UPDATE") int nextVersion();
+ @Insert("INSERT INTO dynamic_pricing_policy(version_no,name,status,active_slot,minimum_multiplier,maximum_multiplier,created_by) VALUES(#{versionNo},#{name},#{status},#{activeSlot},#{minimumMultiplier},#{maximumMultiplier},#{createdBy})") @Options(useGeneratedKeys=true,keyProperty="id") int insertPolicy(DynamicPolicy p);
+ @Update("UPDATE dynamic_pricing_policy SET name=#{name},minimum_multiplier=#{minimumMultiplier},maximum_multiplier=#{maximumMultiplier} WHERE id=#{id} AND status=0") int updateDraft(DynamicPolicy p);
+ @Delete("DELETE FROM dynamic_pricing_cell WHERE policy_id=#{id}") int deleteCells(Long id);
+ @Delete("DELETE FROM dynamic_occupancy_band WHERE policy_id=#{id}") int deleteOccupancy(Long id);
+ @Delete("DELETE FROM dynamic_booking_window_band WHERE policy_id=#{id}") int deleteWindows(Long id);
+ @Delete("DELETE FROM dynamic_pricing_policy WHERE id=#{id} AND status=0") int deleteDraft(Long id);
+ @Insert("INSERT INTO dynamic_occupancy_band(policy_id,label,lower_inclusive,upper_exclusive,sort_order) VALUES(#{policyId},#{label},#{lowerInclusive},#{upperExclusive},#{sortOrder})") @Options(useGeneratedKeys=true,keyProperty="id") int insertOccupancy(OccupancyBand b);
+ @Insert("INSERT INTO dynamic_booking_window_band(policy_id,label,min_days,max_days,sort_order) VALUES(#{policyId},#{label},#{minDays},#{maxDays},#{sortOrder})") @Options(useGeneratedKeys=true,keyProperty="id") int insertWindow(BookingWindowBand b);
+ @Insert("INSERT INTO dynamic_pricing_cell(policy_id,occupancy_band_id,booking_window_band_id,adjustment_percent) VALUES(#{policyId},#{occupancyBandId},#{bookingWindowBandId},#{adjustmentPercent})") int insertCell(DynamicPricingCell c);
+ @Select("SELECT * FROM dynamic_occupancy_band WHERE policy_id=#{id} ORDER BY sort_order") List<OccupancyBand> occupancy(Long id);
+ @Select("SELECT * FROM dynamic_booking_window_band WHERE policy_id=#{id} ORDER BY sort_order") List<BookingWindowBand> windows(Long id);
+ @Select("SELECT * FROM dynamic_pricing_cell WHERE policy_id=#{id} ORDER BY occupancy_band_id,booking_window_band_id") List<DynamicPricingCell> cells(Long id);
+ @Update("UPDATE dynamic_pricing_policy SET status=2,active_slot=NULL WHERE active_slot=1") int retireActive();
+ @Update("UPDATE dynamic_pricing_policy SET status=1,active_slot=1,activated_by=#{actor},activated_time=NOW(6) WHERE id=#{id} AND status=0") int activate(@Param("id")Long id,@Param("actor")Long actor);
+ @Select("SELECT * FROM manual_rate_override WHERE room_type_id=#{type} AND stay_date=#{date} AND active_slot=1") ManualRateOverride override(@Param("type")Long type,@Param("date")LocalDate date);
+ @Select("SELECT * FROM manual_rate_override WHERE room_type_id=#{type} AND stay_date BETWEEN #{start} AND #{end} AND active_slot=1 ORDER BY stay_date") List<ManualRateOverride> overrides(@Param("type")Long type,@Param("start")LocalDate start,@Param("end")LocalDate end);
+ @Insert("INSERT INTO manual_rate_override(room_type_id,stay_date,override_type,override_value,reason,active_slot,created_by,updated_by) VALUES(#{roomTypeId},#{stayDate},#{overrideType},#{overrideValue},#{reason},1,#{createdBy},#{updatedBy})") @Options(useGeneratedKeys=true,keyProperty="id") int insertOverride(ManualRateOverride o);
+ @Update("UPDATE manual_rate_override SET override_type=#{overrideType},override_value=#{overrideValue},reason=#{reason},updated_by=#{updatedBy} WHERE id=#{id} AND active_slot=1") int updateOverride(ManualRateOverride o);
+ @Update("UPDATE manual_rate_override SET active_slot=NULL,cancelled_time=NOW(6),updated_by=#{actor},reason=#{reason} WHERE id=#{id} AND active_slot=1") int cancelOverride(@Param("id")Long id,@Param("actor")Long actor,@Param("reason")String reason);
+ @Select("SELECT COUNT(*) FROM room WHERE status IN (1,2,4)") int sellable();
+ @Select("SELECT COUNT(DISTINCT CASE WHEN s.id IS NULL THEN b.reserved_room_id WHEN s.status=1 THEN a.room_id ELSE NULL END) FROM booking b LEFT JOIN stay s ON s.booking_id=b.id LEFT JOIN stay_room_assignment a ON a.stay_id=s.id AND a.end_time IS NULL WHERE b.status=1 AND b.check_in_date<=#{date} AND COALESCE((SELECT sa.new_end FROM stay_adjustment sa WHERE sa.stay_id=s.id ORDER BY sa.id DESC LIMIT 1),b.check_out_date)>#{date} AND ((s.id IS NULL AND b.reserved_room_id IS NOT NULL) OR (s.status=1 AND a.room_id IS NOT NULL)) AND (CASE WHEN s.id IS NULL THEN b.reserved_room_id ELSE a.room_id END) IN (SELECT id FROM room WHERE status IN (1,2,4))") int committed(LocalDate date);
+}

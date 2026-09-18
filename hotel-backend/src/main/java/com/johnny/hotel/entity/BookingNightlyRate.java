@@ -29,5 +29,8 @@ public class BookingNightlyRate {
 
     private String rateSource;
 
+    private Long dynamicPolicyId;
+    private Long manualOverrideId;
+
     private LocalDateTime createTime;
 }

@@ -16,7 +16,9 @@ public interface BookingNightlyRateMapper {
                 stay_date,
                 room_type_id,
                 rate_amount,
-                rate_source
+                rate_source,
+                dynamic_policy_id,
+                manual_override_id
             )
             VALUES
             (
@@ -25,7 +27,9 @@ public interface BookingNightlyRateMapper {
                 #{stayDate},
                 #{roomTypeId},
                 #{rateAmount},
-                #{rateSource}
+                #{rateSource},
+                #{dynamicPolicyId},
+                #{manualOverrideId}
             )
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")

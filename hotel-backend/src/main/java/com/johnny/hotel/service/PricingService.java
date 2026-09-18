@@ -11,4 +11,5 @@ public interface PricingService {
             LocalDate checkInDate,
             LocalDate checkOutDate
     );
+    java.util.List<com.johnny.hotel.pricing.PricingDecision> explain(Long roomTypeId, LocalDate checkInDate, LocalDate checkOutDate);
 }

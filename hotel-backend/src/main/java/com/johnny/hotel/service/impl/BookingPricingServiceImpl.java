@@ -108,6 +108,8 @@ public class BookingPricingServiceImpl implements BookingPricingService {
                     .roomTypeId(nightlyRate.getRoomTypeId())
                     .rateAmount(nightlyRate.getPrice())
                     .rateSource(nightlyRate.getRateSource())
+                    .dynamicPolicyId(nightlyRate.getDynamicPolicyId())
+                    .manualOverrideId(nightlyRate.getManualOverrideId())
                     .build();
 
             int inserted =
@@ -231,6 +233,8 @@ public class BookingPricingServiceImpl implements BookingPricingService {
                 snapshot.setRateSource(
                         oldRate.getRateSource()
                 );
+                snapshot.setDynamicPolicyId(oldRate.getDynamicPolicyId());
+                snapshot.setManualOverrideId(oldRate.getManualOverrideId());
 
             } else {
 
@@ -251,6 +255,8 @@ public class BookingPricingServiceImpl implements BookingPricingService {
                 snapshot.setRateSource(
                         currentRate.getRateSource()
                 );
+                snapshot.setDynamicPolicyId(currentRate.getDynamicPolicyId());
+                snapshot.setManualOverrideId(currentRate.getManualOverrideId());
             }
 
             newTotal =

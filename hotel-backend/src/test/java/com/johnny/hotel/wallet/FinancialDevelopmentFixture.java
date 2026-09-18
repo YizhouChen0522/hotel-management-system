@@ -115,6 +115,7 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
             for(long guest:bookerIds)jdbc.update("DELETE FROM guest_profile WHERE id=? AND linked_user_id IS NULL",guest);
         }
         jdbc.update("DELETE FROM walk_in_request_lock WHERE request_key LIKE ?",run+"%");
+        jdbc.update("DELETE FROM manual_rate_override WHERE room_type_id IN (?,?)",type1,type2);
         jdbc.update("DELETE FROM room WHERE id IN (?,?,?,?)",room1,room2,room3,room4);
         jdbc.update("DELETE FROM room_rate WHERE room_type_id IN (?,?)",type1,type2);
         jdbc.update("DELETE FROM room_type WHERE id IN (?,?)",type1,type2);

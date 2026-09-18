@@ -1,0 +1,2 @@
+package com.johnny.hotel.pricing; import lombok.*;import java.math.BigDecimal;import java.time.LocalDate;
+@Value @Builder public class PricingDecision{LocalDate stayDate;Long roomTypeId;BigDecimal baseRate,propertyOccupancy;Integer sellableRoomCount,committedRoomCount,leadDays;Long dynamicPolicyId;Integer dynamicPolicyVersion;String occupancyBand,bookingWindowBand;BigDecimal dynamicAdjustmentPercent,rawDynamicRate,dynamicRecommendedRate;Long manualOverrideId;String manualOverrideType;BigDecimal manualValue,finalRate;String rateSource;}
