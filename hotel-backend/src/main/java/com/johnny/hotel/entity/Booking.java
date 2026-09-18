@@ -14,9 +14,12 @@ import java.time.LocalDateTime;
 public class Booking {
     private Long id;
     private Long userId;
+    private Long bookerGuestProfileId;
+    private Long createdByUserId;
     private Long roomTypeId;
     private Long reservedRoomId;
     private String reservationSource;
+    private String walkInRequestKey;
     private Integer guestCount;
     private LocalDate checkInDate;
     private LocalDate checkOutDate;

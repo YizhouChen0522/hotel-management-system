@@ -46,6 +46,7 @@ public class DepositTransferService {
         access.employee(actor);
         var stay=stays.find(stayId);require(stay!=null && stay.getStatus()==1,"Deposit transfer requires an actual in-house Stay");
         var booking=bookings.selectByIdForUpdate(stay.getBookingId());require(booking!=null,"Reservation is missing");
+        if("WALK_IN".equals(booking.getReservationSource()))return null;
         var identity=deposits.byBooking(booking.getId());require(identity!=null,"Reservation deposit account is missing");
         var account=deposits.lock(identity.getId());
         var receipts=deposits.payments(account.getId());var refunds=deposits.refunds(account.getId());var transfers=deposits.transfers(account.getId());

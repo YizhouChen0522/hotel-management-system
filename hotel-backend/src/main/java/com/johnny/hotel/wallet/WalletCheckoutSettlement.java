@@ -21,6 +21,7 @@ public class WalletCheckoutSettlement {
     /** Caller holds Booking -> Room -> Folio -> ledger/Payment/Refund. No inverse acquisition from Wallet. */
     @Transactional(propagation=Propagation.MANDATORY)
     public boolean contribute(Booking booking,Folio summary,Long actor) {
+        if("WALK_IN".equals(booking.getReservationSource()))return false;
         access.operational(actor,false);access.customer(booking.getUserId());
         var identity=wallets.byUser(booking.getUserId());require(identity!=null,"Customer Wallet is missing");
         var wallet=wallets.lock(identity.getId());
@@ -44,6 +45,7 @@ public class WalletCheckoutSettlement {
     public void validateHistory(Booking booking,Long folioId) {
         var rows=payments.selectByFolioIdForUpdate(folioId).stream().filter(p->"WALLET".equals(p.getPaymentMethod())).toList();
         var credits=refunds.forFolio(folioId).stream().filter(r->r.getStatus()==com.johnny.hotel.enums.RefundStatus.SUCCESS.getCode()).toList();
+        if("WALK_IN".equals(booking.getReservationSource())){require(rows.isEmpty()&&credits.isEmpty(),"Walk-in reservations cannot use Wallet settlement or Wallet refund");return;}
         if(rows.isEmpty() && credits.isEmpty())return;
         var identity=wallets.byUser(booking.getUserId());require(identity!=null,"Wallet payment owner missing");var wallet=wallets.lock(identity.getId());
         for(var payment:rows)validate(payment,wallet);

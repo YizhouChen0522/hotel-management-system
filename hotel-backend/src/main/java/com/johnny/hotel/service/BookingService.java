@@ -8,6 +8,8 @@ import java.util.List;
 public interface BookingService {
     BookingVO createBooking(CreateBookingRequest request, Long currentUserId);
 
+    BookingVO createWalkInContract(com.johnny.hotel.walkin.WalkInContractCommand command, Long operatorId);
+
     List<BookingVO> getMyBookings(Long currentUserId);
 
     List<BookingVO> getBookingsPage(Integer page, Integer size);

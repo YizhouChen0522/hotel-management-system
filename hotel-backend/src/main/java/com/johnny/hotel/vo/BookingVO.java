@@ -13,6 +13,8 @@ public class BookingVO {
     private Long id;
 
     private Long userId;
+    private Long bookerGuestProfileId;
+    private Long createdByUserId;
 
     private Long roomTypeId;
 

@@ -11,8 +11,12 @@ public interface BookingMapper {
     @Insert("""
             INSERT INTO booking (
                 user_id,
+                booker_guest_profile_id,
+                created_by_user_id,
                 room_type_id,
                 reserved_room_id,
+                reservation_source,
+                walk_in_request_key,
                 guest_count,
                 check_in_date,
                 check_out_date,
@@ -23,8 +27,12 @@ public interface BookingMapper {
             )
             VALUES (
                 #{userId},
+                #{bookerGuestProfileId},
+                #{createdByUserId},
                 #{roomTypeId},
                 #{reservedRoomId},
+                #{reservationSource},
+                #{walkInRequestKey},
                 #{guestCount},
                 #{checkInDate},
                 #{checkOutDate},
@@ -39,6 +47,18 @@ public interface BookingMapper {
 
     @Select("SELECT * FROM booking WHERE id = #{id}")
     Booking selectById(@Param("id") Long id);
+
+    @Select("SELECT * FROM booking WHERE walk_in_request_key=#{key}")
+    Booking selectByWalkInRequestKey(String key);
+
+    @Select("SELECT * FROM booking WHERE walk_in_request_key=#{key} FOR UPDATE")
+    Booking selectByWalkInRequestKeyForUpdate(String key);
+
+    @Insert("INSERT INTO walk_in_request_lock(request_key) VALUES(#{key}) ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)")
+    int ensureWalkInRequest(String key);
+
+    @Select("SELECT request_key FROM walk_in_request_lock WHERE request_key=#{key} FOR UPDATE")
+    String lockWalkInRequest(String key);
 
     @Select("SELECT * FROM booking WHERE user_id = #{userId} ORDER BY id DESC")
     List<Booking> selectByUserId(@Param("userId") Long userId);

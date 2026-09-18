@@ -27,6 +27,7 @@ public class RefundService {
         if(f==null) {if(hideExistence)throw new com.johnny.hotel.exception.BusinessException(404,"Refund resource not found");require(false,"Folio does not exist");}
         var b=bookings.selectById(f.getBookingId());
         if(b==null || hideExistence && !owner.equals(b.getUserId()))throw new com.johnny.hotel.exception.BusinessException(hideExistence?404:400,hideExistence?"Refund resource not found":"Booking does not exist");
+        require(b.getUserId()!=null && !"WALK_IN".equals(b.getReservationSource()),"Walk-in Folios do not support Wallet refunds");
         return new Account(f,b);
     }
     private void open(Account a) {require(a.folio().getClosedTime()==null,"Finalized or void Folio cannot acquire refund obligations");}
@@ -50,7 +51,9 @@ public class RefundService {
     public RefundVO create(Long folioId,RefundRequests.Create request) {
         Long actor=access.actor();require(request!=null,"Refund request is required");String key=key(request.getRequestKey()),reason=reason(request.getReason());
         var amount=money(request.getAmount(),12);require(amount.signum()>0,"Refund amount must be positive");
-        boolean customer=access.isCustomer(actor);var a=lock(folioId,customer,actor);access.create(actor,a.booking().getUserId());
+        boolean customer=access.isCustomer(actor);var a=lock(folioId,customer,actor);
+        require(a.booking().getUserId()!=null && !"WALK_IN".equals(a.booking().getReservationSource()),"Walk-in Folios do not support Wallet refunds");
+        access.create(actor,a.booking().getUserId());
         // Current reads under Folio: ledger -> payments -> refunds. Never Refund -> Folio.
         var summary=financial.recalculateSummary(a.folio().getId());var rows=refunds.forFolio(folioId);
         var existing=rows.stream().filter(r->r.getRequestKey().equals(key)).findFirst().orElse(null);
@@ -69,7 +72,9 @@ public class RefundService {
     private RefundVO process(Long folioId,Long id,RefundRequests.Process request,boolean success) {
         Long actor=access.actor();require(request!=null,"Processing request is required");String key=key(request.getRequestKey()),reason=reason(request.getReason());
         access.operational(actor,true);
-        var a=lock(folioId);access.approve(actor,a.booking().getUserId());
+        var a=lock(folioId);
+        require(a.booking().getUserId()!=null && !"WALK_IN".equals(a.booking().getReservationSource()),"Walk-in Folios do not support Wallet refunds");
+        access.approve(actor,a.booking().getUserId());
         var summary=financial.recalculateSummary(a.folio().getId());var rows=refunds.forFolio(folioId);
         var r=rows.stream().filter(row->row.getId().equals(id)).findFirst().orElse(null);require(r!=null,"Refund does not belong to this Folio");
         int target=success?RefundStatus.SUCCESS.getCode():RefundStatus.FAILED.getCode();

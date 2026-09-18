@@ -40,6 +40,9 @@ public class BookingServiceImpl implements BookingService {
     private final SysAuditLogMapper sysAuditLogMapper;
     private final BookingPriceVersionMapper bookingPriceVersionMapper;
     private final BookingPricingService bookingPricingService;
+    private final com.johnny.hotel.guest.GuestMapper guestMapper;
+    private final SysUserMapper sysUserMapper;
+    private final com.johnny.hotel.guest.GuestAccess guestAccess;
 
     private BookingVO toVO(com.johnny.hotel.entity.Booking booking) {
         RoomType roomType = roomTypeMapper.selectById(booking.getRoomTypeId());
@@ -53,6 +56,8 @@ public class BookingServiceImpl implements BookingService {
                 .reservationSource(booking.getReservationSource())
                 .id(booking.getId())
                 .userId(booking.getUserId())
+                .bookerGuestProfileId(booking.getBookerGuestProfileId())
+                .createdByUserId(booking.getCreatedByUserId())
                 .roomTypeId(booking.getRoomTypeId())
                 .roomTypeName(roomType == null ? null : roomType.getTypeName())
                 .reservedRoomId(booking.getReservedRoomId())
@@ -197,8 +202,19 @@ public class BookingServiceImpl implements BookingService {
 
         Booking booking = new Booking();
 
+        var booker=guestMapper.byUser(currentUserId);
+        if(booker==null){
+            var user=sysUserMapper.selectById(currentUserId);require(user!=null,"Customer account does not exist");
+            String display=user.getRealName()==null||user.getRealName().isBlank()?user.getUsername():user.getRealName().trim();
+            String[] names=display.split("\\s+",2);
+            booker=com.johnny.hotel.guest.GuestProfile.builder().linkedUserId(currentUserId).firstName(names[0])
+                    .lastName(names.length==2?names[1]:names[0]).phone(user.getPhone()).email(user.getEmail()).status(1).build();
+            one(guestMapper.insertProfile(booker));
+        }
         booking.setUserId(currentUserId);
-        booking.setReservationSource("DIRECT");
+        booking.setBookerGuestProfileId(booker.getId());
+        booking.setCreatedByUserId(currentUserId);
+        booking.setReservationSource(com.johnny.hotel.enums.ReservationSource.CUSTOMER_PORTAL.name());
         booking.setRoomTypeId(request.getRoomTypeId());
         booking.setReservedRoomId(null);
         booking.setGuestCount(request.getGuestCount());
@@ -237,6 +253,42 @@ public class BookingServiceImpl implements BookingService {
         return getBookingByIdInternal(
                 booking.getId()
         );
+    }
+
+    @Override
+    @Transactional
+    public BookingVO createWalkInContract(com.johnny.hotel.walkin.WalkInContractCommand command,Long operatorId) {
+        guestAccess.employee(operatorId);
+        require(command!=null && command.requestKey()!=null && command.requestKey().matches("[A-Za-z0-9_-]{8,64}"),"Invalid walk-in request key");
+        require(bookingMapper.ensureWalkInRequest(command.requestKey())>=1,"Walk-in request lock failed");
+        require(command.requestKey().equals(bookingMapper.lockWalkInRequest(command.requestKey())),"Walk-in request lock failed");
+        var existing=bookingMapper.selectByWalkInRequestKeyForUpdate(command.requestKey());
+        if(existing!=null){
+            require(existing.getBookerGuestProfileId().equals(command.bookerGuestId())
+                    && existing.getRoomTypeId().equals(command.roomTypeId())
+                    && existing.getReservedRoomId().equals(command.reservedRoomId())
+                    && existing.getGuestCount().equals(command.guestCount())
+                    && existing.getCheckInDate().equals(command.checkInDate())
+                    && existing.getCheckOutDate().equals(command.checkOutDate()),"Walk-in request key already represents another reservation");
+            return toVO(existing);
+        }
+        dates(command.checkInDate(),command.checkOutDate());
+        require(command.checkInDate().equals(LocalDate.now(clock)),"Walk-in arrival must be the current hotel date");
+        require(command.guestCount()!=null&&command.guestCount()>0,"Guest count must be positive");
+        var booker=guestMapper.profile(command.bookerGuestId());require(booker!=null&&Integer.valueOf(1).equals(booker.getStatus()),"Active booker GuestProfile is required");
+        var type=roomTypeMapper.selectById(command.roomTypeId());require(type!=null&&type.getStatus()==RoomTypeStatus.ENABLED.getCode(),"Room type does not exist or is disabled");
+        require(command.guestCount()<=type.getCapacity(),"Guest count exceeds room type capacity");
+        var booking=Booking.builder().userId(null).bookerGuestProfileId(command.bookerGuestId()).createdByUserId(operatorId)
+                .roomTypeId(command.roomTypeId()).reservedRoomId(null).reservationSource(com.johnny.hotel.enums.ReservationSource.WALK_IN.name()).walkInRequestKey(command.requestKey())
+                .guestCount(command.guestCount()).checkInDate(command.checkInDate()).checkOutDate(command.checkOutDate())
+                .status(BookingStatus.PENDING.getCode()).totalPrice(BigDecimal.ZERO).build();
+        one(bookingMapper.insert(booking));require(booking.getId()!=null,"Failed to create walk-in reservation");
+        bookingPricingService.createFullRepriceVersion(booking.getId(),booking.getRoomTypeId(),"ORIGINAL_BOOKING","Walk-in contract",operatorId);
+        var approval=new ApproveBookingRequest();approval.setAssignedRoomId(command.reservedRoomId());
+        approveBooking(booking.getId(),approval,operatorId);
+        one(sysAuditLogMapper.insert(SysAuditLog.builder().operatorId(operatorId).targetUserId(null).action("CREATE_WALK_IN_BOOKING")
+                .detail("Booking "+booking.getId()+", booker guest "+command.bookerGuestId()+", request "+command.requestKey()).build()));
+        return getBookingByIdInternal(booking.getId());
     }
 
     @Override
@@ -349,7 +401,7 @@ public class BookingServiceImpl implements BookingService {
     @Transactional
     public BookingVO cancelBooking(Long bookingId, Long currentUserId) {
         Booking booking = lockBooking(bookingId);
-        require(booking.getUserId().equals(currentUserId), "You can only cancel your own booking");
+        require(currentUserId.equals(booking.getUserId()), "You can only cancel your own booking");
         return cancelLocked(booking, currentUserId);
     }
     @Override
@@ -431,7 +483,7 @@ public class BookingServiceImpl implements BookingService {
             throw new BusinessException("Booking does not exist");
         }
 
-        if (!booking.getUserId().equals(currentUserId)) {
+        if (!currentUserId.equals(booking.getUserId())) {
             throw new BusinessException("You can only view your own booking");
         }
 
@@ -468,7 +520,7 @@ public class BookingServiceImpl implements BookingService {
         }
         validateSnapshot(booking);
 
-        if (!booking.getUserId().equals(currentUserId)) {
+        if (!currentUserId.equals(booking.getUserId())) {
             throw new BusinessException(
                     "You can only update your own booking"
             );

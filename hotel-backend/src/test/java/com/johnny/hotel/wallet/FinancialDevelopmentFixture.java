@@ -57,11 +57,15 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
     }
     @AfterEach void cleanupOnlyFinancialFixture(){
         gate.clear();
+        // Include an idempotent request that committed even when the caller's
+        // response path failed, so the fixture never leaks reservation rows.
+        bookingIds.addAll(jdbc.queryForList("SELECT id FROM booking WHERE walk_in_request_key LIKE ?",Long.class,run+"%"));
         jdbc.update("DELETE FROM damage_assessment WHERE room_id IN (?,?,?,?)",room1,room2,room3,room4);
         jdbc.update("DELETE FROM room_work_order WHERE room_id IN (?,?,?,?)",room1,room2,room3,room4);
         for(long user:created)jdbc.update("DELETE FROM wallet_transaction WHERE wallet_id IN (SELECT id FROM wallet WHERE user_id=?)",user);
         for(long booking:bookingIds){
             var guestIds=jdbc.queryForList("SELECT guest_id FROM booking_guest WHERE booking_id=?",Long.class,booking);
+            var bookerIds=jdbc.queryForList("SELECT booker_guest_profile_id FROM booking WHERE id=? AND booker_guest_profile_id IS NOT NULL",Long.class,booking);
             var stayIds=jdbc.queryForList("SELECT id FROM stay WHERE booking_id=?",Long.class,booking);
             jdbc.update("DELETE FROM deposit_transfer WHERE account_id IN (SELECT id FROM reservation_deposit_account WHERE booking_id=?)",booking);
             jdbc.update("DELETE FROM deposit_refund WHERE account_id IN (SELECT id FROM reservation_deposit_account WHERE booking_id=?)",booking);
@@ -108,7 +112,9 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
             jdbc.update("DELETE FROM booking_price_version WHERE booking_id=?",booking);
             jdbc.update("DELETE FROM booking WHERE id=?",booking);
             for(long guest:guestIds)jdbc.update("DELETE FROM guest_profile WHERE id=? AND linked_user_id IS NULL",guest);
+            for(long guest:bookerIds)jdbc.update("DELETE FROM guest_profile WHERE id=? AND linked_user_id IS NULL",guest);
         }
+        jdbc.update("DELETE FROM walk_in_request_lock WHERE request_key LIKE ?",run+"%");
         jdbc.update("DELETE FROM room WHERE id IN (?,?,?,?)",room1,room2,room3,room4);
         jdbc.update("DELETE FROM room_rate WHERE room_type_id IN (?,?)",type1,type2);
         jdbc.update("DELETE FROM room_type WHERE id IN (?,?)",type1,type2);

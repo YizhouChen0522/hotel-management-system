@@ -34,6 +34,7 @@ public class DepositService {
         var booking=bookings.selectByIdForUpdate(bookingId);
         boolean customer=access.isCustomer(actor);
         if(booking==null || customer && !actor.equals(booking.getUserId())) throw new BusinessException(404,"Deposit account not found");
+        require(!"WALK_IN".equals(booking.getReservationSource()),"Walk-in reservations do not use the Reservation Deposit Ledger");
         access.read(actor,booking.getUserId());
         var account=deposits.byBooking(bookingId);
         require(account!=null,"Reservation deposit account is missing");
