@@ -13,6 +13,16 @@ public interface DepositMapper {
     @Select("SELECT * FROM deposit_payment WHERE account_id=#{id} ORDER BY id FOR UPDATE") List<DepositPayment> payments(Long id);
     @Select("SELECT * FROM deposit_refund WHERE account_id=#{id} ORDER BY id FOR UPDATE") List<DepositRefund> refunds(Long id);
     @Select("SELECT * FROM deposit_transfer WHERE account_id=#{id} ORDER BY id FOR UPDATE") List<DepositTransfer> transfers(Long id);
+    @Select("SELECT * FROM deposit_settlement WHERE account_id=#{id} ORDER BY id FOR UPDATE") List<DepositSettlement> settlements(Long id);
+    @Select("SELECT * FROM deposit_settlement WHERE account_id=#{id} ORDER BY create_time DESC,id DESC LIMIT #{offset},#{size}")
+    List<DepositSettlement> settlementPage(@Param("id")Long id,@Param("offset")int offset,@Param("size")int size);
+    @Select("SELECT COUNT(*) FROM deposit_settlement WHERE account_id=#{id}") long settlementCount(Long id);
+    @Select("SELECT * FROM deposit_settlement WHERE id=#{id}") DepositSettlement settlement(Long id);
+    @Select("SELECT * FROM deposit_settlement WHERE id=#{id} FOR UPDATE") DepositSettlement lockSettlement(Long id);
+    @Insert("INSERT INTO deposit_settlement(account_id,booking_id,kind,amount,status,event_key,created_by) VALUES(#{accountId},#{bookingId},#{kind},#{amount},#{status},#{eventKey},#{createdBy})")
+    @Options(useGeneratedKeys=true,keyProperty="id") int insertSettlement(DepositSettlement value);
+    @Update("UPDATE deposit_settlement SET status=1,processed_by=#{actor},external_reference=#{reference},processed_time=NOW(6) WHERE id=#{id} AND kind='REFUND' AND status=0")
+    int completeExternalRefund(@Param("id")Long id,@Param("actor")Long actor,@Param("reference")String reference);
     @Select("SELECT * FROM deposit_payment WHERE account_id=#{id} ORDER BY received_time DESC,id DESC LIMIT #{offset},#{size}")
     List<DepositPayment> paymentPage(@Param("id") Long id,@Param("offset") int offset,@Param("size") int size);
     @Select("SELECT COUNT(*) FROM deposit_payment WHERE account_id=#{id}") long paymentCount(Long id);

@@ -22,6 +22,8 @@ public class BookingVO {
 
     private Long reservedRoomId;
     private String reservationSource;
+    private Long reservationPolicyId;
+    private com.johnny.hotel.reservation.ReservationPolicyService.View cancellationPolicy;
 
     private String reservedRoomNumber;
 

@@ -61,7 +61,7 @@ public class DepositTransferService {
                     && old.getEventKey().equals(payment.getRequestKey()),"Deposit transfer integrity violation");
             return old;
         }
-        var amount=DepositLedgerRules.balance(receipts,refunds,transfers).available();
+        var amount=DepositLedgerRules.balance(receipts,refunds,transfers,deposits.settlements(account.getId())).available();
         if(amount.signum()==0)return null;
         String event="deposit-transfer:"+account.getId();
         var credit=Payment.builder().folioId(folio.getId()).amount(amount).paymentMethod("DEPOSIT_TRANSFER").status("SUCCESS")

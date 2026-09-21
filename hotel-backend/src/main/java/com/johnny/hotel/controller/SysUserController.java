@@ -1,6 +1,6 @@
 package com.johnny.hotel.controller;
 import com.johnny.hotel.common.Result;
-import com.johnny.hotel.entity.SysUser;
+import com.johnny.hotel.vo.UserVO;
 import com.johnny.hotel.service.SysUserService;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,13 +15,7 @@ public class SysUserController {
     }
 
     @GetMapping("/{id}")
-    public Result<SysUser> getUserById(@PathVariable Long id) {
-        SysUser user = sysUserService.getUserById(id);
-
-        if (user == null) {
-            return Result.error(404, "User not found");
-        }
-
-        return Result.success(user);
+    public Result<UserVO> getUserById(@PathVariable Long id, org.springframework.security.core.Authentication authentication) {
+        return Result.success(sysUserService.visibleUserById(id, (Long) authentication.getDetails()));
     }
 }

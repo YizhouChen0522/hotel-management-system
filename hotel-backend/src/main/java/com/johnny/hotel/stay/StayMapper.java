@@ -14,7 +14,7 @@ public interface StayMapper {
     @Select("SELECT * FROM stay WHERE id=#{id}") Stay find(Long id);
     @Select("SELECT * FROM stay WHERE booking_id=#{bookingId}") Stay byBooking(Long bookingId);
     @Select("SELECT * FROM stay WHERE id=#{id} FOR UPDATE") Stay lock(Long id);
-    @Select("SELECT * FROM stay WHERE id=(SELECT s.id FROM stay s WHERE s.booking_id=#{bookingId}) FOR UPDATE") Stay lockByBooking(Long bookingId);
+    @Select("SELECT * FROM stay WHERE booking_id=#{bookingId} FOR UPDATE") Stay lockByBooking(Long bookingId);
     @Insert("""
         INSERT INTO stay(booking_id,primary_guest_id,registration_id,status,actual_check_in_time,checked_in_by)
         VALUES(#{bookingId},#{primaryGuestId},#{registrationId},1,#{actualCheckInTime},#{checkedInBy})

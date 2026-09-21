@@ -34,6 +34,7 @@ public class SysUserServiceImpl implements SysUserService {
     private final SysAuditLogMapper sysAuditLogMapper;
     private final com.johnny.hotel.wallet.WalletOpeningService walletOpening;
     private final com.johnny.hotel.organization.OrganizationMapper organization;
+    private final com.johnny.hotel.pricing.DynamicPricingBootstrapService pricingBootstrap;
 
     public SysUserServiceImpl(SysUserMapper sysUserMapper,
                               SysRoleMapper sysRoleMapper,
@@ -42,7 +43,8 @@ public class SysUserServiceImpl implements SysUserService {
                               JwtUtil JwtUtil,
                               SysAuditLogMapper sysAuditLogMapper,
                               com.johnny.hotel.wallet.WalletOpeningService walletOpening,
-                              com.johnny.hotel.organization.OrganizationMapper organization) {
+                              com.johnny.hotel.organization.OrganizationMapper organization,
+                              com.johnny.hotel.pricing.DynamicPricingBootstrapService pricingBootstrap) {
         this.sysUserMapper = sysUserMapper;
         this.sysRoleMapper = sysRoleMapper;
         this.sysUserRoleMapper = sysUserRoleMapper;
@@ -51,11 +53,31 @@ public class SysUserServiceImpl implements SysUserService {
         this.sysAuditLogMapper = sysAuditLogMapper;
         this.walletOpening = walletOpening;
         this.organization = organization;
+        this.pricingBootstrap = pricingBootstrap;
     }
 
     @Override
     public SysUser getUserById(Long id) {
         return sysUserMapper.selectById(id);
+    }
+    @Override
+    public UserVO visibleUserById(Long id, Long actorId) {
+        var actor = sysUserMapper.selectById(actorId);
+        if (actor == null || !Integer.valueOf(1).equals(actor.getStatus())) {
+            throw new org.springframework.security.access.AccessDeniedException("User access denied");
+        }
+        var roles = actorId.equals(id) ? java.util.Set.<String>of() : sysRoleMapper.selectRolesByUserId(actorId).stream()
+                .map(SysRole::getRoleCode).collect(java.util.stream.Collectors.toSet());
+        if (!actorId.equals(id) && roles.stream().noneMatch(java.util.Set.of("STAFF", "MANAGER", "OWNER", "SUPER_ADMIN")::contains))
+            throw new BusinessException(404, "User not found");
+        var user = sysUserMapper.selectById(id);
+        if (user == null) throw new BusinessException(404, "User not found");
+        if (!actorId.equals(id) && !roles.contains("SUPER_ADMIN")
+                && sysRoleMapper.selectRolesByUserId(id).stream().noneMatch(role -> "CUSTOMER".equals(role.getRoleCode())))
+            throw new BusinessException(404, "User not found");
+        return UserVO.builder().id(user.getId()).username(user.getUsername())
+                .realName(user.getRealName()).phone(user.getPhone()).email(user.getEmail())
+                .status(user.getStatus()).build();
     }
     @Override
     public UserVO getUserByEmail(String email) {
@@ -283,6 +305,8 @@ public class SysUserServiceImpl implements SysUserService {
                 .action("APPROVE_USER")
                 .detail("Approved user application for role: " + applyRoleCode)
                 .build());
+        if ("OWNER".equals(applyRoleCode) || "SUPER_ADMIN".equals(applyRoleCode))
+            pricingBootstrap.ensureDefaultTemplate(userId);
     }
 
     @Override
@@ -342,6 +366,7 @@ public class SysUserServiceImpl implements SysUserService {
             throw new BusinessException("You do not have permission to manage this user");
         }
     }
+    @Transactional
     public void enableUser(Long userId, Long currentUserId) {
         SysUser user = sysUserMapper.selectById(userId);
 
@@ -358,6 +383,9 @@ public class SysUserServiceImpl implements SysUserService {
                 .action("ENABLE_USER")
                 .detail("Enabled user account")
                 .build());
+        if (sysRoleMapper.selectRolesByUserId(userId).stream().map(SysRole::getRoleCode)
+                .anyMatch(java.util.Set.of("OWNER", "SUPER_ADMIN")::contains))
+            pricingBootstrap.ensureDefaultTemplate(userId);
     }
     @Transactional
     public void disableUser(Long userId, Long currentUserId) {

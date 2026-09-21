@@ -6,6 +6,9 @@ import org.apache.ibatis.annotations.*;import java.time.LocalDate;import java.ut
  @Select("SELECT * FROM dynamic_pricing_policy WHERE id=#{id}") DynamicPolicy policy(Long id);
  @Select("SELECT * FROM dynamic_pricing_policy ORDER BY version_no DESC LIMIT #{offset},#{size}") List<DynamicPolicy> policies(@Param("offset")int offset,@Param("size")int size);
  @Select("SELECT COUNT(*) FROM dynamic_pricing_policy") long policyCount();
+ @Select("SELECT id FROM dynamic_pricing_policy ORDER BY id LIMIT 1 FOR UPDATE") Long firstPolicyForUpdate();
+ @Select("SELECT u.id FROM sys_user u JOIN sys_user_role ur ON ur.user_id=u.id JOIN sys_role r ON r.id=ur.role_id WHERE u.id=#{id} AND u.status=1 AND r.role_code IN ('OWNER','SUPER_ADMIN') LIMIT 1 FOR UPDATE") Long activePrivilegedCreatorForUpdate(Long id);
+ @Select("SELECT u.id FROM sys_user u JOIN sys_user_role ur ON ur.user_id=u.id JOIN sys_role r ON r.id=ur.role_id WHERE u.status=1 AND r.role_code IN ('OWNER','SUPER_ADMIN') ORDER BY u.id LIMIT 1") Long firstActivePrivilegedCreator();
  @Select("SELECT COALESCE(MAX(version_no),0)+1 FROM dynamic_pricing_policy FOR UPDATE") int nextVersion();
  @Insert("INSERT INTO dynamic_pricing_policy(version_no,name,status,active_slot,minimum_multiplier,maximum_multiplier,created_by) VALUES(#{versionNo},#{name},#{status},#{activeSlot},#{minimumMultiplier},#{maximumMultiplier},#{createdBy})") @Options(useGeneratedKeys=true,keyProperty="id") int insertPolicy(DynamicPolicy p);
  @Update("UPDATE dynamic_pricing_policy SET name=#{name},minimum_multiplier=#{minimumMultiplier},maximum_multiplier=#{maximumMultiplier} WHERE id=#{id} AND status=0") int updateDraft(DynamicPolicy p);

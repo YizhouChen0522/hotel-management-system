@@ -44,7 +44,7 @@ class EnumStatusTest {
         assertEquals(1, BookingStatus.APPROVED.getCode());
         assertThrows(IllegalArgumentException.class, () -> BookingStatus.fromCode(2));
         assertThrows(IllegalArgumentException.class, () -> BookingStatus.fromCode(3));
-        assertEquals(4, BookingStatus.CANCELLED_BY_USER.getCode());
+        assertEquals(4, BookingStatus.CANCELLED.getCode());
         assertEquals(5, BookingStatus.REJECTED_BY_STAFF.getCode());
         // V1 room: 0 Disabled, 1 Available, 2 Booked, 3 Maintenance, 4 Occupied
         assertEquals(0, RoomStatus.DISABLED.getCode());

@@ -35,7 +35,7 @@ class MysqlConcurrencyTest extends FinancialDevelopmentFixture {
     }
     private void businessFailure(Throwable failure) {
         assertNotNull(failure);Throwable cause=failure;while(cause.getCause()!=null)cause=cause.getCause();
-        assertInstanceOf(BusinessException.class,cause);
+        assertInstanceOf(BusinessException.class,cause,()->"Concurrent outcome: "+failure);
     }
     private void databaseWaitObserved() {
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);

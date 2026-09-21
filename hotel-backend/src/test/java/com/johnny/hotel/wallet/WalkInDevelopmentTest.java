@@ -61,6 +61,16 @@ class WalkInDevelopmentTest extends FinancialDevelopmentFixture {
     @Test void roomConflictAndRequestRetryAreSafe(){var first=create("walkin04");as("STAFF");var same=walkIns.create(request("walkin04"),uid("STAFF"));assertEquals(first.bookingId(),same.bookingId());
         var other=request("walkin05");assertThrows(BusinessException.class,()->walkIns.create(other,uid("STAFF")));assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM booking WHERE walk_in_request_key=?",Integer.class,run+"walkin04"));}
 
+    @Test void nullableRoomIsRejectedWithoutNullPointerOrPartialReservation(){as("STAFF");var r=request("room-null");r.setReservedRoomId(null);
+        assertThrows(BusinessException.class,()->walkIns.create(r,uid("STAFF")));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM booking WHERE walk_in_request_key=?",Integer.class,r.getRequestKey()));}
+
+    @Test void replayWithDifferentReservedRoomIsRejected(){var first=create("room-replay");as("STAFF");
+        assertEquals(first.bookingId(),walkIns.create(request("room-replay"),uid("STAFF")).bookingId());
+        var changed=request("room-replay");changed.setReservedRoomId(room2);
+        assertThrows(BusinessException.class,()->walkIns.create(changed,uid("STAFF")));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM booking WHERE walk_in_request_key=?",Integer.class,changed.getRequestKey()));}
+
     @Test void concurrentRetryCreatesOneReservationAndProfiles()throws Exception{var r=request("parallel01");var pool=Executors.newFixedThreadPool(2);try{var a=pool.submit(()->{as("STAFF");return walkIns.create(r,uid("STAFF"));});var b=pool.submit(()->{as("MANAGER");return walkIns.create(r,uid("MANAGER"));});var x=a.get(20,TimeUnit.SECONDS);var y=b.get(20,TimeUnit.SECONDS);bookingIds.add(x.bookingId());assertEquals(x.bookingId(),y.bookingId());assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM booking WHERE walk_in_request_key=?",Integer.class,run+"parallel01"));assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM booking_guest WHERE booking_id=?",Integer.class,x.bookingId()));}finally{pool.shutdownNow();}}
 
     @Test void depositWalletRefundAndCustomerIdorAreExplicitlyBlocked()throws Exception{var x=create("walkin06");as("STAFF");assertThrows(BusinessException.class,()->deposits.summary(x.bookingId()));var stay=stays.checkIn(x.bookingId(),uid("STAFF"));

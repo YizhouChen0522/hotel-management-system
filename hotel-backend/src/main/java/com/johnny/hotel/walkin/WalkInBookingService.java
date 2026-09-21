@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Isolation;
 import java.util.List;
+import java.util.Objects;
 import static com.johnny.hotel.service.support.BillingRules.*;
 
 @Service @RequiredArgsConstructor
@@ -28,7 +29,7 @@ public class WalkInBookingService {
         // can retain a snapshot taken before a concurrent creator commits.
         var existing=bookings.selectByWalkInRequestKeyForUpdate(request.getRequestKey());
         if(existing!=null){
-            require(existing.getRoomTypeId().equals(request.getRoomTypeId())&&existing.getReservedRoomId().equals(request.getReservedRoomId())
+            require(existing.getRoomTypeId().equals(request.getRoomTypeId())&&Objects.equals(existing.getReservedRoomId(),request.getReservedRoomId())
                     && existing.getGuestCount().equals(request.getGuestCount())&&existing.getCheckInDate().equals(request.getCheckInDate())
                     && existing.getCheckOutDate().equals(request.getCheckOutDate()),"Walk-in request key already represents another reservation");
             return view(existing.getId(),operator);

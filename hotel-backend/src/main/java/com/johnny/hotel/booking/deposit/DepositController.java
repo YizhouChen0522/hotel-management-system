@@ -18,6 +18,7 @@ public class DepositController {
     @PostMapping("/payments") @PreAuthorize("hasAnyRole('STAFF','FINANCE','MANAGER','OWNER','SUPER_ADMIN')")
     public Result<DepositPayment> receive(@PathVariable Long bookingId,@Valid @RequestBody DepositRequests.Receive request) {return Result.success(service.receive(bookingId,request));}
     @GetMapping("/refunds") public Result<PageResult<DepositRefund>> refunds(@PathVariable Long bookingId,@RequestParam(required=false) Integer page,@RequestParam(required=false) Integer pageSize) {return Result.success(service.refunds(bookingId,page,pageSize));}
+    @GetMapping("/settlements") public Result<PageResult<DepositSettlement>> settlements(@PathVariable Long bookingId,@RequestParam(required=false) Integer page,@RequestParam(required=false) Integer pageSize) {return Result.success(service.settlements(bookingId,page,pageSize));}
     @PostMapping("/refunds") @PreAuthorize("hasRole('CUSTOMER')")
     public Result<DepositRefund> request(@PathVariable Long bookingId,@Valid @RequestBody RefundRequests.Create request) {return Result.success(service.requestRefund(bookingId,request));}
     @PostMapping("/refunds/{id}/confirm") @PreAuthorize("hasAnyRole('FINANCE','MANAGER','OWNER','SUPER_ADMIN')")

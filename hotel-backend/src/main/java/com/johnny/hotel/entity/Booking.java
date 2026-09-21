@@ -20,10 +20,12 @@ public class Booking {
     private Long reservedRoomId;
     private String reservationSource;
     private String walkInRequestKey;
+    private String staffDirectRequestKey;
+    private Long reservationPolicyId;
     private Integer guestCount;
     private LocalDate checkInDate;
     private LocalDate checkOutDate;
-    private Integer status; // 0: pending, 1: approved, 4: cancelled,5: rejected
+    private Integer status; // 0 pending, 1 approved, 4 cancelled, 5 rejected, 6 no-show
     private BigDecimal totalPrice;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

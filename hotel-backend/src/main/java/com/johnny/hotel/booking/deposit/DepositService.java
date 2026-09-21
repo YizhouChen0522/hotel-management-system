@@ -35,13 +35,13 @@ public class DepositService {
         boolean customer=access.isCustomer(actor);
         if(booking==null || customer && !actor.equals(booking.getUserId())) throw new BusinessException(404,"Deposit account not found");
         require(!"WALK_IN".equals(booking.getReservationSource()),"Walk-in reservations do not use the Reservation Deposit Ledger");
-        access.read(actor,booking.getUserId());
+        if(booking.getUserId()==null)billing.operational(actor);else access.read(actor,booking.getUserId());
         var account=deposits.byBooking(bookingId);
         require(account!=null,"Reservation deposit account is missing");
         return new Account(booking,deposits.lock(account.getId()));
     }
     private DepositLedgerRules.Balance balance(DepositAccount account) {
-        return DepositLedgerRules.balance(deposits.payments(account.getId()),deposits.refunds(account.getId()),deposits.transfers(account.getId()));
+        return DepositLedgerRules.balance(deposits.payments(account.getId()),deposits.refunds(account.getId()),deposits.transfers(account.getId()),deposits.settlements(account.getId()));
     }
     private String reason(String value) {
         require(value!=null && !value.isBlank() && value.length()<=255,"Reason is required (255 characters maximum)");return value.trim();
@@ -72,6 +72,11 @@ public class DepositService {
     public com.johnny.hotel.pagination.PageResult<DepositRefund> refunds(Long bookingId,Integer page,Integer size) {
         var a=lock(bookingId,access.actor());var w=pagination.window(page,size,true);
         return pagination.result(w,deposits.refundPage(a.deposit().getId(),w.offset(),pagination.limit(w)),deposits.refundCount(a.deposit().getId()));
+    }
+    @Transactional
+    public com.johnny.hotel.pagination.PageResult<DepositSettlement> settlements(Long bookingId,Integer page,Integer size) {
+        var a=lock(bookingId,access.actor());var w=pagination.window(page,size,true);
+        return pagination.result(w,deposits.settlementPage(a.deposit().getId(),w.offset(),pagination.limit(w)),deposits.settlementCount(a.deposit().getId()));
     }
     @Transactional
     public DepositPayment receive(Long bookingId,DepositRequests.Receive request) {

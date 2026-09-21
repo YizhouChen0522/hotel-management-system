@@ -43,6 +43,8 @@ public class BookingServiceImpl implements BookingService {
     private final com.johnny.hotel.guest.GuestMapper guestMapper;
     private final SysUserMapper sysUserMapper;
     private final com.johnny.hotel.guest.GuestAccess guestAccess;
+    private final com.johnny.hotel.reservation.ReservationPolicyService reservationPolicies;
+    private final com.johnny.hotel.reservation.ReservationLifecycleService reservationLifecycle;
 
     private BookingVO toVO(com.johnny.hotel.entity.Booking booking) {
         RoomType roomType = roomTypeMapper.selectById(booking.getRoomTypeId());
@@ -54,6 +56,8 @@ public class BookingServiceImpl implements BookingService {
 
         return BookingVO.builder()
                 .reservationSource(booking.getReservationSource())
+                .reservationPolicyId(booking.getReservationPolicyId())
+                .cancellationPolicy(booking.getReservationPolicyId()==null?null:reservationPolicies.bound(booking.getReservationPolicyId()))
                 .id(booking.getId())
                 .userId(booking.getUserId())
                 .bookerGuestProfileId(booking.getBookerGuestProfileId())
@@ -215,6 +219,8 @@ public class BookingServiceImpl implements BookingService {
         booking.setBookerGuestProfileId(booker.getId());
         booking.setCreatedByUserId(currentUserId);
         booking.setReservationSource(com.johnny.hotel.enums.ReservationSource.CUSTOMER_PORTAL.name());
+        var activePolicy=reservationPolicies.activeForBooking(false);
+        booking.setReservationPolicyId(activePolicy==null?null:activePolicy.getId());
         booking.setRoomTypeId(request.getRoomTypeId());
         booking.setReservedRoomId(null);
         booking.setGuestCount(request.getGuestCount());
@@ -266,7 +272,7 @@ public class BookingServiceImpl implements BookingService {
         if(existing!=null){
             require(existing.getBookerGuestProfileId().equals(command.bookerGuestId())
                     && existing.getRoomTypeId().equals(command.roomTypeId())
-                    && existing.getReservedRoomId().equals(command.reservedRoomId())
+                    && java.util.Objects.equals(existing.getReservedRoomId(),command.reservedRoomId())
                     && existing.getGuestCount().equals(command.guestCount())
                     && existing.getCheckInDate().equals(command.checkInDate())
                     && existing.getCheckOutDate().equals(command.checkOutDate()),"Walk-in request key already represents another reservation");
@@ -278,8 +284,10 @@ public class BookingServiceImpl implements BookingService {
         var booker=guestMapper.profile(command.bookerGuestId());require(booker!=null&&Integer.valueOf(1).equals(booker.getStatus()),"Active booker GuestProfile is required");
         var type=roomTypeMapper.selectById(command.roomTypeId());require(type!=null&&type.getStatus()==RoomTypeStatus.ENABLED.getCode(),"Room type does not exist or is disabled");
         require(command.guestCount()<=type.getCapacity(),"Guest count exceeds room type capacity");
+        var walkInPolicy=reservationPolicies.activeForBooking(false);
         var booking=Booking.builder().userId(null).bookerGuestProfileId(command.bookerGuestId()).createdByUserId(operatorId)
                 .roomTypeId(command.roomTypeId()).reservedRoomId(null).reservationSource(com.johnny.hotel.enums.ReservationSource.WALK_IN.name()).walkInRequestKey(command.requestKey())
+                .reservationPolicyId(walkInPolicy==null?null:walkInPolicy.getId())
                 .guestCount(command.guestCount()).checkInDate(command.checkInDate()).checkOutDate(command.checkOutDate())
                 .status(BookingStatus.PENDING.getCode()).totalPrice(BigDecimal.ZERO).build();
         one(bookingMapper.insert(booking));require(booking.getId()!=null,"Failed to create walk-in reservation");
@@ -400,9 +408,8 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public BookingVO cancelBooking(Long bookingId, Long currentUserId) {
-        Booking booking = lockBooking(bookingId);
-        require(currentUserId.equals(booking.getUserId()), "You can only cancel your own booking");
-        return cancelLocked(booking, currentUserId);
+        reservationLifecycle.cancel(bookingId,currentUserId,"CUSTOMER","Customer requested cancellation");
+        return getBookingByIdInternal(bookingId);
     }
     @Override
     public List<BookingVO> getBookingsByStatus(Integer status, Integer page, Integer size) {
@@ -662,7 +669,8 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public BookingVO cancelBookingByAdmin(Long bookingId, Long currentUserId) {
-        return cancelLocked(lockBooking(bookingId), currentUserId);
+        reservationLifecycle.cancel(bookingId,currentUserId,"HOTEL","Hotel initiated cancellation");
+        return getBookingByIdInternal(bookingId);
     }
 
     @Override
@@ -1012,18 +1020,5 @@ public class BookingServiceImpl implements BookingService {
     private void audit(Booking b, Long operator, String action) {
         one(sysAuditLogMapper.insert(SysAuditLog.builder().operatorId(operator).targetUserId(b.getUserId())
                 .action(action).detail("Booking id: " + b.getId()).build()));
-    }
-    private BookingVO cancelLocked(Booking b, Long operator) {
-        require(b.getStatus() == BookingStatus.PENDING.getCode() || b.getStatus() == BookingStatus.APPROVED.getCode(), "Only pending or approved bookings can be cancelled");
-        require(stays.byBooking(b.getId()) == null, "Reservation already converted to a Stay");
-        if (b.getStatus() == BookingStatus.APPROVED.getCode()) {
-            require(b.getReservedRoomId() != null, "Approved booking has no room");
-            Room room = roomMapper.selectByIdForUpdate(b.getReservedRoomId());
-            require(room != null, "Reserved room is missing");
-            if(room.getStatus()==RoomStatus.BOOKED.getCode())one(roomMapper.transitionStatus(room.getId(), RoomStatus.BOOKED.getCode(), RoomStatus.AVAILABLE.getCode()));
-        } else require(b.getReservedRoomId() == null, "Pending booking unexpectedly reserves a room");
-        one(bookingMapper.transitionStatus(b.getId(), b.getStatus(), BookingStatus.CANCELLED_BY_USER.getCode()));
-        audit(b, operator, "CANCEL_BOOKING");
-        return getBookingByIdInternal(b.getId());
     }
 }

@@ -48,9 +48,9 @@ class DepositDevelopmentTest extends FinancialDevelopmentFixture {
         assertEquals(new BigDecimal("100.00"),deposits.summary(b).available());
         assertEquals(0,wallets.find(wid("CUSTOMER")).getBalance().signum());
     }
-    @Test void cancelledReservationRefundsToBlockedWalletOnce() {
+    @Test void depositRefundToBlockedWalletRemainsIdempotent() {
         long b=reservation();as("STAFF");deposits.receive(b,receipt("receipt_01"));
-        bookings.cancelBooking(b,uid("CUSTOMER"));jdbc.update("UPDATE wallet SET status=0 WHERE id=?",wid("CUSTOMER"));
+        jdbc.update("UPDATE wallet SET status=0 WHERE id=?",wid("CUSTOMER"));
         as("CUSTOMER");var r=deposits.requestRefund(b,request("refund_001","100"));as("MANAGER");
         deposits.processRefund(b,r.getId(),decision(),true);deposits.processRefund(b,r.getId(),decision(),true);
         assertEquals(new BigDecimal("100.00"),wallets.find(wid("CUSTOMER")).getBalance());

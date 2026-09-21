@@ -64,22 +64,3 @@ ALTER TABLE booking_nightly_rate
  ADD KEY idx_booking_nightly_override(manual_override_id),
  ADD CONSTRAINT fk_booking_nightly_policy FOREIGN KEY(dynamic_policy_id) REFERENCES dynamic_pricing_policy(id),
  ADD CONSTRAINT fk_booking_nightly_override FOREIGN KEY(manual_override_id) REFERENCES manual_rate_override(id);
-
-INSERT INTO dynamic_pricing_policy(version_no,name,status,active_slot,minimum_multiplier,maximum_multiplier,created_by)
-SELECT 1,'Default Dynamic Pricing Template',0,NULL,0.8000,2.0000,u.id FROM sys_user u
-JOIN sys_user_role ur ON ur.user_id=u.id JOIN sys_role r ON r.id=ur.role_id
-WHERE r.role_code IN ('SUPER_ADMIN','OWNER') ORDER BY FIELD(r.role_code,'SUPER_ADMIN','OWNER'),u.id LIMIT 1;
-SET @policy_id=LAST_INSERT_ID();
-INSERT INTO dynamic_occupancy_band(policy_id,label,lower_inclusive,upper_exclusive,sort_order) VALUES
-(@policy_id,'0-39%',0,40,1),(@policy_id,'40-69%',40,70,2),(@policy_id,'70-84%',70,85,3),(@policy_id,'85-94%',85,95,4),(@policy_id,'95-100%',95,101,5);
-INSERT INTO dynamic_booking_window_band(policy_id,label,min_days,max_days,sort_order) VALUES
-(@policy_id,'0-7 days',0,7,1),(@policy_id,'8-14 days',8,14,2),(@policy_id,'15-30 days',15,30,3),(@policy_id,'31+ days',31,NULL,4);
-INSERT INTO dynamic_pricing_cell(policy_id,occupancy_band_id,booking_window_band_id,adjustment_percent)
-SELECT @policy_id,o.id,w.id,
- CASE o.sort_order
-  WHEN 1 THEN CASE w.sort_order WHEN 1 THEN -15 WHEN 2 THEN -10 WHEN 3 THEN -5 ELSE 0 END
-  WHEN 2 THEN CASE w.sort_order WHEN 1 THEN -5 ELSE 0 END
-  WHEN 3 THEN CASE w.sort_order WHEN 1 THEN 20 WHEN 2 THEN 15 WHEN 3 THEN 15 ELSE 10 END
-  WHEN 4 THEN CASE w.sort_order WHEN 1 THEN 30 WHEN 2 THEN 25 WHEN 3 THEN 25 ELSE 20 END
-  ELSE CASE w.sort_order WHEN 1 THEN 40 WHEN 2 THEN 35 WHEN 3 THEN 35 ELSE 30 END END
-FROM dynamic_occupancy_band o CROSS JOIN dynamic_booking_window_band w WHERE o.policy_id=@policy_id AND w.policy_id=@policy_id;

@@ -99,8 +99,7 @@ class LifecycleIntegrationTest extends FinancialDevelopmentFixture {
     @Test void roomMaintenanceCannotBypassLiveStayAndMetadataCannotChange() {
         long b=checkIn();
         assertThrows(BusinessException.class,()->rooms.setRoomMaintenance(room1));assertThrows(BusinessException.class,()->rooms.setRoomAvailable(room1));
-        assertThrows(BusinessException.class,()->rooms.disableRoom(room1));assertThrows(BusinessException.class,()->rooms.setRoomOccupied(room2));
-        assertThrows(BusinessException.class,()->rooms.setRoomBooked(room2));
+        assertThrows(BusinessException.class,()->rooms.disableRoom(room1));
         var r=new RoomRequest();r.setRoomNumber("T101");r.setRoomTypeId(type2);r.setFloor(1);
         assertThrows(BusinessException.class,()->rooms.updateRoom(room1,r));
         rooms.setRoomMaintenance(room2);rooms.setRoomAvailable(room2);rooms.disableRoom(room2);rooms.enableRoom(room2);invariants(b);

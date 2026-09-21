@@ -173,17 +173,6 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
-    public void setRoomBooked(Long id) {
-        throw new BusinessException("Use booking approval to reserve a room");
-    }
-    @Override
-    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
-    public void setRoomOccupied(Long id) {
-        throw new BusinessException("Use booking creation, approval and check-in; bare walk-in occupancy is not supported");
-    }
-
-    @Override
-    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void setRoomAvailable(Long id) {
         if (!Integer.valueOf(java.sql.Connection.TRANSACTION_READ_COMMITTED).equals(org.springframework.transaction.support.TransactionSynchronizationManager.getCurrentTransactionIsolationLevel()))
             throw new BusinessException("Room maintenance requires a READ_COMMITTED transaction");

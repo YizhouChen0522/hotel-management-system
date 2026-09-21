@@ -12,6 +12,7 @@ import java.util.List;
 
 public interface SysUserService {
     SysUser getUserById(Long id);
+    UserVO visibleUserById(Long id, Long actorId);
     UserVO getUserByEmail(String email);
     UserVO registerCustomer(RegisterCustomerRequest request);
     LoginVO login(LoginRequest request);

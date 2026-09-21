@@ -11,8 +11,9 @@ public enum BookingStatus {
 
     PENDING(0),
     APPROVED(1),
-    CANCELLED_BY_USER(4),
-    REJECTED_BY_STAFF(5);
+    CANCELLED(4),
+    REJECTED_BY_STAFF(5),
+    NO_SHOW(6);
 
     private final int code;
 

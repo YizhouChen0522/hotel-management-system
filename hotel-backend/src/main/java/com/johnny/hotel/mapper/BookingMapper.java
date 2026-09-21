@@ -17,6 +17,8 @@ public interface BookingMapper {
                 reserved_room_id,
                 reservation_source,
                 walk_in_request_key,
+                staff_direct_request_key,
+                reservation_policy_id,
                 guest_count,
                 check_in_date,
                 check_out_date,
@@ -33,6 +35,8 @@ public interface BookingMapper {
                 #{reservedRoomId},
                 #{reservationSource},
                 #{walkInRequestKey},
+                #{staffDirectRequestKey},
+                #{reservationPolicyId},
                 #{guestCount},
                 #{checkInDate},
                 #{checkOutDate},
@@ -53,6 +57,18 @@ public interface BookingMapper {
 
     @Select("SELECT * FROM booking WHERE walk_in_request_key=#{key} FOR UPDATE")
     Booking selectByWalkInRequestKeyForUpdate(String key);
+
+    @Select("SELECT * FROM booking WHERE staff_direct_request_key=#{key} FOR UPDATE")
+    Booking selectByStaffDirectRequestKeyForUpdate(String key);
+
+    @Insert("INSERT INTO staff_direct_request_lock(request_key) VALUES(#{key}) ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)")
+    int ensureStaffDirectRequest(String key);
+
+    @Select("SELECT request_key FROM staff_direct_request_lock WHERE request_key=#{key} FOR UPDATE")
+    String lockStaffDirectRequest(String key);
+
+    @Select("SELECT EXISTS(SELECT 1 FROM booking b WHERE b.reserved_room_id=#{roomId} AND b.id<>#{excluded} AND b.status=1 AND NOT EXISTS(SELECT 1 FROM stay s WHERE s.booking_id=b.id))")
+    boolean hasOtherApprovedReservation(@Param("roomId")Long roomId,@Param("excluded")Long excluded);
 
     @Insert("INSERT INTO walk_in_request_lock(request_key) VALUES(#{key}) ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)")
     int ensureWalkInRequest(String key);

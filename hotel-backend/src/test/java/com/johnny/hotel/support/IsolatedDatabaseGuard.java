@@ -7,6 +7,19 @@ import java.sql.DriverManager;
 /** Runs before the context creates DataSource/Flyway. Fail closed, including accidental contextLoads. */
 public class IsolatedDatabaseGuard implements ApplicationContextInitializer<ConfigurableApplicationContext> {
     @Override public void initialize(ConfigurableApplicationContext context) {
+        if (Boolean.getBoolean("hotel.dynamic.bootstrap.fresh")) {
+            var env=context.getEnvironment();
+            String url=env.getProperty("spring.datasource.url","");
+            if (!url.matches("jdbc:mysql://localhost:3306/hotel_dynamic_bootstrap_[0-9a-f]{12}\\?.*")
+                    || env.getProperty("spring.flyway.url")!=null)
+                throw new IllegalStateException("Refusing unexpected dynamic bootstrap temporary database");
+            try(var connection=DriverManager.getConnection(url,env.getProperty("spring.datasource.username"),env.getProperty("spring.datasource.password"));
+                var statement=connection.createStatement();var result=statement.executeQuery("SELECT @@port,DATABASE()")) {
+                result.next();if(result.getInt(1)!=3306||!url.contains("/"+result.getString(2)+"?"))
+                    throw new IllegalStateException("Temporary database identity mismatch");
+            }catch(java.sql.SQLException e){throw new IllegalStateException("Temporary bootstrap database unavailable",e);}
+            return;
+        }
         if (context.getEnvironment().getProperty("hotel.wallet.dev.fixture",Boolean.class,false)) {
             WalletDevelopmentGuard.verify(context);
             return;
