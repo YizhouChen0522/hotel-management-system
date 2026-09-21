@@ -119,6 +119,7 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
         }
         jdbc.update("DELETE FROM walk_in_request_lock WHERE request_key LIKE ?",run+"%");
         jdbc.update("DELETE FROM staff_direct_request_lock WHERE request_key LIKE ?",run+"%");
+        jdbc.update("DELETE FROM portal_reservation_request_lock WHERE request_key LIKE ?",run+"%");
         for(long actor:created){
             jdbc.update("DELETE FROM reservation_policy_band WHERE policy_id IN (SELECT id FROM reservation_policy WHERE created_by=?)",actor);
             jdbc.update("DELETE FROM reservation_policy WHERE created_by=?",actor);
@@ -130,7 +131,8 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
         jdbc.update("DELETE FROM guest_profile WHERE linked_user_id IS NULL AND document_number LIKE ? AND NOT EXISTS (SELECT 1 FROM booking_guest bg WHERE bg.guest_id=guest_profile.id)","P"+run+"%");
         jdbc.update("DELETE FROM charge_catalog WHERE code LIKE ?",("EX"+run+"%").toUpperCase(java.util.Locale.ROOT));
     }
-    long createBooking(String role){var r=new CreateBookingRequest();r.setRoomTypeId(type1);r.setGuestCount(2);r.setCheckInDate(arrival);r.setCheckOutDate(arrival.plusDays(3));long id=bookings.createBooking(r,uid(role)).getId();bookingIds.add(id);return id;}
+    void fundReservation(String role){as(role);var t=service.createTopUp(wid(role),amount("1000",run+"fund"+UUID.randomUUID().toString().replace("-","").substring(0,8)));as("STAFF");service.confirm(t.walletId(),t.id(),decision(run+"ok"+UUID.randomUUID().toString().replace("-","").substring(0,8)));}
+    long createBooking(String role){fundReservation(role);var r=new CreateBookingRequest();r.setRequestKey(run+"portal"+UUID.randomUUID().toString().replace("-","").substring(0,8));r.setRoomTypeId(type1);r.setGuestCount(2);r.setCheckInDate(arrival);r.setCheckOutDate(arrival.plusDays(3));long id=bookings.createBooking(r,uid(role)).getId();bookingIds.add(id);return id;}
     void register(long id){var p=com.johnny.hotel.guest.GuestRequests.Profile.builder().firstName("Test").lastName("Guest").nationality("CA").documentType("PASSPORT").documentNumber(run+"-"+id).build();guests.addToBooking(id,com.johnny.hotel.guest.GuestRequests.Add.builder().role(com.johnny.hotel.guest.GuestRole.PRIMARY).profile(p).build(),uid("MANAGER"));guests.confirm(id,uid("MANAGER"));}
     long stay(){return stay("CUSTOMER");}
     long stay(String role){long id=createBooking(role);var r=new ApproveBookingRequest();r.setAssignedRoomId(role.equals("CUSTOMER")?room1:room2);bookings.approveBooking(id,r,uid("MANAGER"));register(id);bookings.checkIn(id,uid("MANAGER"));return id;}

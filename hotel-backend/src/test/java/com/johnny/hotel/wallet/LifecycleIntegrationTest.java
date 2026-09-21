@@ -17,13 +17,13 @@ class LifecycleIntegrationTest extends FinancialDevelopmentFixture {
     int state(long b){return bookingState(b);}
     void change(long b,long room){var r=new ChangeRoomDuringStayRequest();r.setNewRoomId(room);r.setReason("test move");bookings.changeRoomDuringStay(b,r,uid("MANAGER"));}
     FolioItemCommand fee(String key,String amount){return FolioItemCommand.builder().itemType("SERVICE_CHARGE").description("test service").businessDate(arrival).quantity(BigDecimal.ONE).unitPrice(new BigDecimal(amount)).amount(new BigDecimal(amount)).eventKey(key).build();}
-    @Override void pay(long b,String amount){if(jdbc.queryForObject("SELECT COUNT(*) FROM stay WHERE booking_id=?",Integer.class,b)==0){as("STAFF");deposits.receive(b,com.johnny.hotel.booking.deposit.DepositRequests.Receive.builder().amount(new BigDecimal(amount)).paymentMethod("CASH").requestKey(java.util.UUID.randomUUID().toString()).build());}else super.pay(b,amount);}
+    @Override void pay(long b,String amount){super.pay(b,amount);}
     void invariants(long b){if(jdbc.queryForObject("SELECT COUNT(*) FROM stay WHERE booking_id=?",Integer.class,b)==0){assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM folio f JOIN stay s ON s.id=f.stay_id WHERE s.booking_id=?",Integer.class,b));return;} if(!jdbc.queryForObject("SELECT user_id FROM booking WHERE id=?",Long.class,b).equals(uid("CUSTOMER")))return;invariantBooking(b);}
 
-    @Test void createHasOneContractSnapshotAndEmptyAccount() {
+    @Test void createHasOneContractSnapshotAndFullDeposit() {
         long b=create();
         assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM stay WHERE booking_id=?",Integer.class,b));
-        as("STAFF");assertEquals(0,deposits.summary(b).balance().signum());
+        as("STAFF");assertEquals(300,deposits.summary(b).balance().intValueExact());
         assertEquals(3,jdbc.queryForObject("SELECT COUNT(*) FROM booking_nightly_rate WHERE booking_id=?",Integer.class,b));
         assertEquals(300,jdbc.queryForObject("SELECT total_price FROM booking WHERE id=?",BigDecimal.class,b).intValueExact());
         invariants(b);
@@ -34,32 +34,33 @@ class LifecycleIntegrationTest extends FinancialDevelopmentFixture {
         assertThrows(Exception.class,this::create);gate.clear();
         assertEquals(before,jdbc.queryForObject("SELECT COUNT(*) FROM booking",Integer.class));
     }
-    @Test void dateEditPreservesOverlapAndPricesOnlyNewNights() {
+    @Test void fundedPortalReservationCannotBeRepricedByDateEdit() {
         long b=create();jdbc.update("UPDATE room_type SET base_price=120 WHERE id="+type1);
         var r=new UpdateBookingRequest();r.setRoomTypeId(type1);r.setGuestCount(2);r.setCheckInDate(arrival.plusDays(1));r.setCheckOutDate(arrival.plusDays(4));
-        assertEquals(320,bookings.updateBooking(b,r,uid("CUSTOMER")).getTotalPrice().intValueExact());
-        assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM booking_price_version WHERE booking_id=?",Integer.class,b));
+        assertThrows(BusinessException.class,()->bookings.updateBooking(b,r,uid("CUSTOMER")));
+        assertEquals(300,jdbc.queryForObject("SELECT total_price FROM booking WHERE id=?",BigDecimal.class,b).intValueExact());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM booking_price_version WHERE booking_id=?",Integer.class,b));
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM booking_price_version WHERE booking_id=? AND is_active=1",Integer.class,b));
         invariants(b);
     }
-    @Test void approvedTypeChangeRepricesContractButPreservesCurrencyAndPrepayment() {
-        long b=create();approve(b);pay(b,"50");
+    @Test void approvedFundedReservationCannotChangeRoomTypeWithoutDepositAdjustment() {
+        long b=create();approve(b);
         var r=new ChangeBookingRoomTypeRequest();r.setNewRoomTypeId(type2);r.setNewRoomId(room3);
-        assertEquals(450,bookings.changeRoomType(b,r,uid("MANAGER")).getTotalPrice().intValueExact());
-        assertEquals(1,jdbc.queryForObject("SELECT status FROM room WHERE id="+room1,Integer.class));
-        assertEquals(50,deposits.summary(b).balance().intValueExact());invariants(b);
+        assertThrows(BusinessException.class,()->bookings.changeRoomType(b,r,uid("MANAGER")));
+        assertEquals(300,jdbc.queryForObject("SELECT total_price FROM booking WHERE id=?",BigDecimal.class,b).intValueExact());
+        assertEquals(room1,jdbc.queryForObject("SELECT reserved_room_id FROM booking WHERE id=?",Long.class,b));
     }
-    @Test void cancelAndRejectKeepPrepaidMoneyAndForbidRepeat() {
-        long b=create();approve(b);pay(b,"20");bookings.cancelBooking(b,uid("CUSTOMER"));
-        assertEquals(4,state(b));assertEquals(1,jdbc.queryForObject("SELECT status FROM room WHERE id="+room1,Integer.class));
-        assertThrows(BusinessException.class,()->bookings.cancelBookingByAdmin(b,uid("MANAGER")));invariants(b);
-        long other=create();pay(other,"15");bookings.rejectBooking(other,uid("MANAGER"));
-        assertThrows(BusinessException.class,()->approve(other));assertEquals(15,deposits.summary(other).balance().intValueExact());invariants(other);
+    @Test void legacyFundedCancellationRequiresExplicitPolicyAndRejectKeepsDeposit() {
+        long b=create();approve(b);
+        assertThrows(BusinessException.class,()->bookings.cancelBooking(b,uid("CUSTOMER")));
+        assertEquals(1,state(b));
+        long other=create();bookings.rejectBooking(other,uid("MANAGER"));
+        assertThrows(BusinessException.class,()->approve(other));assertEquals(300,deposits.summary(other).balance().intValueExact());invariants(other);
     }
     @Test void checkInPostsExactSnapshotAndCannotRepeatOrCancel() {
-        long b=create();approve(b);pay(b,"100");bookings.checkIn(b,uid("MANAGER"));
+        long b=create();approve(b);bookings.checkIn(b,uid("MANAGER"));
         assertEquals(3,queries.byBooking(b,uid("CUSTOMER")).items().size());
-        assertEquals(200,queries.byBooking(b,uid("CUSTOMER")).balanceAmount().intValueExact());
+        assertEquals(0,queries.byBooking(b,uid("CUSTOMER")).balanceAmount().intValueExact());
         assertThrows(BusinessException.class,()->bookings.checkIn(b,uid("MANAGER")));
         assertThrows(BusinessException.class,()->bookings.cancelBooking(b,uid("CUSTOMER")));
         assertThrows(BusinessException.class,()->bookings.cancelBookingByAdmin(b,uid("MANAGER")));invariants(b);
@@ -85,7 +86,7 @@ class LifecycleIntegrationTest extends FinancialDevelopmentFixture {
         assertEquals(300,jdbc.queryForObject("SELECT total_price FROM booking WHERE id=?",BigDecimal.class,b).intValueExact());
         assertEquals(type1,jdbc.queryForObject("SELECT room_type_id FROM booking WHERE id=?",Long.class,b));
         assertEquals(3,jdbc.queryForObject("SELECT COUNT(*) FROM stay_room_assignment WHERE stay_id=(SELECT id FROM stay WHERE booking_id=?)",Integer.class,b));
-        pay(b,"400");clock.day(3);bookings.checkOut(b,uid("MANAGER"));invariants(b);
+        pay(b,"100");clock.day(3);bookings.checkOut(b,uid("MANAGER"));invariants(b);
     }
     @Test void roomBillingRetryIsIdempotentAndRejectsForgedAttribution() {
         long b=checkIn();clock.day(1);change(b,room3);
@@ -104,41 +105,43 @@ class LifecycleIntegrationTest extends FinancialDevelopmentFixture {
         assertThrows(BusinessException.class,()->rooms.updateRoom(room1,r));
         rooms.setRoomMaintenance(room2);rooms.setRoomAvailable(room2);rooms.disableRoom(room2);rooms.enableRoom(room2);invariants(b);
     }
-    @ParameterizedTest @ValueSource(strings={"0","299","301"}) void checkoutBlocksDebtOrCredit(String amount) {
-        long b=checkIn();if(!amount.equals("0"))pay(b,amount);clock.day(3);
+    @ParameterizedTest @ValueSource(strings={"debt","credit"}) void checkoutBlocksDebtOrCredit(String kind) {
+        long b=checkIn();
+        if(kind.equals("debt")){as("MANAGER");var e=expenses.register(folio(b),expense("800"));expenses.confirm(folio(b),e.id());}
+        else pay(b,"1");
+        clock.day(3);
         assertThrows(BusinessException.class,()->bookings.checkOut(b,uid("MANAGER")));assertEquals(1,stayState(b));assertNull(queries.byBooking(b,uid("CUSTOMER")).closedTime());invariants(b);
     }
     @Test void checkoutClosesLastAssignmentAndBlocksNewFinancialWritesButAllowsPaymentRetry() {
-        long b=checkIn();var r=payRequest("300");var p=payments.recordPayment(folio(b),r,uid("MANAGER"));clock.day(3);bookings.checkOut(b,uid("MANAGER"));
-        assertEquals(p.getId(),payments.recordPayment(folio(b),r,uid("MANAGER")).getId());
+        long b=checkIn();clock.day(3);bookings.checkOut(b,uid("MANAGER"));
         assertThrows(BusinessException.class,()->pay(b,"1"));assertThrows(BusinessException.class,()->folios.addItem(sid(b),fee("late","1"),uid("MANAGER")));
         assertThrows(BusinessException.class,()->bookings.checkOut(b,uid("MANAGER")));invariants(b);
     }
     @ParameterizedTest @ValueSource(ints={0,2,4}) void checkoutRejectsUnspecifiedEarlyOrLatePolicy(int day) {
-        long b=checkIn();pay(b,"300");clock.day(day);assertThrows(BusinessException.class,()->bookings.checkOut(b,uid("MANAGER")));invariants(b);
+        long b=checkIn();clock.day(day);assertThrows(BusinessException.class,()->bookings.checkOut(b,uid("MANAGER")));invariants(b);
     }
     @Test void zeroBalanceCannotHideMissingRoomCharge() {
-        long b=checkIn();jdbc.update("DELETE FROM folio_item WHERE folio_id=? ORDER BY id LIMIT 1",folio(b));financial.recalculateSummary(folio(b));pay(b,"200");clock.day(3);
+        long b=checkIn();jdbc.update("DELETE FROM folio_item WHERE folio_id=? ORDER BY id LIMIT 1",folio(b));financial.recalculateSummary(folio(b));clock.day(3);
         assertThrows(BusinessException.class,()->bookings.checkOut(b,uid("MANAGER")));invariants(b);
     }
     @Test void extraConsumptionIsNotPretendedConfirmed() {
-        long b=checkIn();folios.addItem(sid(b),fee("service:1","10"),uid("MANAGER"));pay(b,"310");clock.day(3);
+        long b=checkIn();folios.addItem(sid(b),fee("service:1","10"),uid("MANAGER"));pay(b,"10");clock.day(3);
         assertThrows(BusinessException.class,()->bookings.checkOut(b,uid("MANAGER")));invariants(b);
     }
     @ParameterizedTest @ValueSource(strings={"room","assignment","event","reversal"}) void checkoutDetectsCorruptHistory(String kind) {
-        long b=checkIn();clock.day(1);change(b,room3);pay(b,"400");clock.day(3);
+        long b=checkIn();clock.day(1);change(b,room3);pay(b,"100");clock.day(3);
         switch(kind) {
             case "room" -> jdbc.update("UPDATE room SET status=1 WHERE id="+room3);
             case "assignment" -> jdbc.update("UPDATE stay_room_assignment SET room_type_id=? WHERE stay_id=? AND end_time IS NULL",type1,sid(b));
             case "event" -> jdbc.update("DELETE FROM room_billing_event WHERE stay_id=(SELECT id FROM stay WHERE booking_id=?)",b);
-            case "reversal" -> {jdbc.update("DELETE FROM folio_item WHERE folio_id=? AND item_type='ROOM_RATE_ADJUSTMENT' ORDER BY id LIMIT 1",folio(b));financial.recalculateSummary(folio(b));pay(b,"100");}
+            case "reversal" -> {jdbc.update("DELETE FROM folio_item WHERE folio_id=? AND item_type='ROOM_RATE_ADJUSTMENT' ORDER BY id LIMIT 1",folio(b));financial.recalculateSummary(folio(b));}
         }
         assertThrows(BusinessException.class,()->bookings.checkOut(b,uid("MANAGER")));assertEquals(1,stayState(b));assertNull(queries.byBooking(b,uid("CUSTOMER")).closedTime());
     }
     @ParameterizedTest @ValueSource(strings={"checkin","change","checkout","payment"}) void auditFailureRollsBackEntireOperation(String operation) {
         long b=create();approve(b);
         if(!operation.equals("checkin"))bookings.checkIn(b,uid("MANAGER"));
-        if(operation.equals("checkout")){pay(b,"300");clock.day(3);}
+        if(operation.equals("checkout")){clock.day(3);}
         var before=operation.equals("checkin")?null:queries.byBooking(b,uid("CUSTOMER"));int prior=state(b);int audits=jdbc.queryForObject("SELECT COUNT(*) FROM sys_audit_log",Integer.class);
         gate.arm(Thread.currentThread().getName(),"SysAuditLogMapper.insert",true);
         assertThrows(Exception.class,()->{switch(operation){case "checkin"->bookings.checkIn(b,uid("MANAGER"));case "change"->change(b,room3);case "checkout"->bookings.checkOut(b,uid("MANAGER"));default->pay(b,"10");}});
@@ -165,10 +168,10 @@ class LifecycleIntegrationTest extends FinancialDevelopmentFixture {
         assertThrows(BusinessException.class,()->tx.executeWithoutResult(s->rooms.setRoomMaintenance(room1)));
         assertEquals(1,jdbc.queryForObject("SELECT status FROM room WHERE id="+room1,Integer.class));
     }
-    @Test void fullRepriceKeepsExistingContractCurrencyWhenHotelDefaultDiffers() {
+    @Test void fundedContractCurrencyCannotBeChangedByReprice() {
         long b=create();approve(b);jdbc.update("UPDATE booking_price_version SET currency='USD' WHERE booking_id=?",b);jdbc.update("UPDATE reservation_deposit_account SET currency='USD' WHERE booking_id=?",b);
-        var r=new ChangeBookingRoomTypeRequest();r.setNewRoomTypeId(type2);r.setNewRoomId(room3);bookings.changeRoomType(b,r,uid("MANAGER"));
-        assertEquals("USD",jdbc.queryForObject("SELECT currency FROM booking_price_version WHERE booking_id=? AND is_active=1",String.class,b));
+        var r=new ChangeBookingRoomTypeRequest();r.setNewRoomTypeId(type2);r.setNewRoomId(room3);assertThrows(BusinessException.class,()->bookings.changeRoomType(b,r,uid("MANAGER")));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM booking_price_version WHERE booking_id=?",Integer.class,b));
         assertEquals("USD",jdbc.queryForObject("SELECT currency FROM reservation_deposit_account WHERE booking_id=?",String.class,b));invariants(b);
     }
 }

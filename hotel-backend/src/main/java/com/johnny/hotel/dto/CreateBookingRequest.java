@@ -2,12 +2,17 @@ package com.johnny.hotel.dto;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 import java.time.LocalDate;
 
 @Data
 public class CreateBookingRequest {
+    @NotBlank
+    @Pattern(regexp = "[A-Za-z0-9_-]{8,64}")
+    private String requestKey;
     @NotNull(message = "Room type ID cannot be null")
     private Long roomTypeId;
 

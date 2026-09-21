@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.*;
 import java.time.*;
+import java.math.BigDecimal;
 import java.util.*;
 import static com.johnny.hotel.service.support.BillingRules.*;
 
@@ -22,6 +23,7 @@ public class DepositService {
     private final BookingPriceVersionMapper prices;
     private final StayMapper stays;
     private final WalletMapper wallets;
+    private final WalletPostingService walletPosting;
     private final DepositRefundPosting posting;
     private final RefundAccess access;
     private final BillingAccess billing;
@@ -92,10 +94,67 @@ public class DepositService {
                     && Objects.equals(existing.getReferenceNo(),reference),"Deposit request key already used for another receipt");return existing;
         }
         require(stays.byBooking(bookingId)==null && Set.of(0,1).contains(a.booking().getStatus()),"New deposits require a pending or approved reservation before check-in");
+        if(Set.of("CUSTOMER_PORTAL","STAFF_DIRECT").contains(a.booking().getReservationSource()))
+            require(balance(a.deposit()).received().compareTo(a.booking().getTotalPrice())<0,
+                    "Reservation already has its full accepted-quote deposit");
         money(balance(a.deposit()).received().add(amount),12);
         var receipt=DepositPayment.builder().accountId(a.deposit().getId()).amount(amount).paymentMethod(request.getPaymentMethod())
                 .referenceNo(reference).requestKey(key).receivedBy(actor).receivedTime(LocalDateTime.now(clock)).build();
         one(deposits.receive(receipt));audit(a,actor,"DEPOSIT_RECEIVED",receipt.getId());return receipt;
+    }
+    @Transactional(propagation=Propagation.MANDATORY)
+    public DepositPayment receivePortalWallet(Long bookingId,BigDecimal requiredAmount,String requestKey,Long customerId) {
+        var amount=DepositLedgerRules.positive(requiredAmount);var key=DepositLedgerRules.key(requestKey);
+        var booking=bookings.selectByIdForUpdate(bookingId);
+        require(booking!=null && customerId.equals(booking.getUserId()) && "CUSTOMER_PORTAL".equals(booking.getReservationSource()),
+                "Portal reservation does not belong to the current customer");
+        var price=prices.selectActiveByBookingId(bookingId);
+        require(price!=null && amount.compareTo(price.getTotalPrice())==0 && amount.compareTo(booking.getTotalPrice())==0,
+                "Full accepted quote deposit is required");
+        var account=deposits.byBooking(bookingId);require(account!=null,"Reservation deposit account is missing");
+        var old=deposits.payments(account.getId()).stream().filter(p->key.equals(p.getRequestKey())).findFirst().orElse(null);
+        if(old!=null){require(old.getAmount().compareTo(amount)==0&&"WALLET".equals(old.getPaymentMethod()),"Deposit request key already used");return old;}
+        var walletIdentity=wallets.byUser(customerId);require(walletIdentity!=null&&account.getCurrency().equals(walletIdentity.getCurrency()),"Customer wallet or currency mismatch");
+        var wallet=wallets.lock(walletIdentity.getId());
+        require(wallet.getBalance().compareTo(amount)>=0,"Insufficient wallet balance for full reservation deposit");
+        var receipt=DepositPayment.builder().accountId(account.getId()).amount(amount).paymentMethod("WALLET")
+                .requestKey(key).receivedBy(customerId).receivedTime(LocalDateTime.now(clock)).build();
+        one(deposits.receive(receipt));walletPosting.debitReservationDeposit(wallet,receipt,customerId);
+        audit(new Account(booking,account),customerId,"PORTAL_FULL_DEPOSIT_RECEIVED",receipt.getId());
+        return receipt;
+    }
+    @Transactional(propagation=Propagation.MANDATORY)
+    public void validatePortalFullDeposit(Long bookingId) {
+        var booking=bookings.selectByIdForUpdate(bookingId);require(booking!=null,"Reservation does not exist");
+        var account=deposits.byBooking(bookingId);require(account!=null,"Reservation deposit account is missing");
+        var receipts=deposits.payments(account.getId());
+        require(receipts.size()==1 && "WALLET".equals(receipts.get(0).getPaymentMethod())
+                && receipts.get(0).getAmount().compareTo(booking.getTotalPrice())==0
+                && booking.getPortalRequestKey().equals(receipts.get(0).getRequestKey()),
+                "Portal reservation full-deposit integrity violation");
+        var wallet=wallets.byUser(booking.getUserId());
+        var ledger=wallet==null?null:wallets.bySource("DEPOSIT_PAYMENT",receipts.get(0).getId());
+        require(ledger!=null && ledger.getWalletId().equals(wallet.getId())
+                && ledger.getAmount().compareTo(booking.getTotalPrice().negate())==0,
+                "Portal reservation wallet ledger integrity violation");
+    }
+    @Transactional(propagation=Propagation.MANDATORY)
+    public void requireFullGuarantee(Long bookingId) {
+        var booking=bookings.selectByIdForUpdate(bookingId);require(booking!=null,"Reservation does not exist");
+        if("WALK_IN".equals(booking.getReservationSource())) return;
+        var account=deposits.byBooking(bookingId);require(account!=null,"Reservation deposit account is missing");
+        require(balance(deposits.lock(account.getId())).available().compareTo(booking.getTotalPrice())==0,
+                "Reservation approval requires the full accepted-quote deposit");
+    }
+    @Transactional(propagation=Propagation.MANDATORY)
+    public void requireUnfundedForContractReprice(Long bookingId) {
+        var account=deposits.byBooking(bookingId);
+        require(account!=null,"Reservation deposit account is missing");
+        var locked=deposits.lock(account.getId());
+        var current=balance(locked);
+        require(current.received().signum()==0 && current.refunded().signum()==0
+                        && current.transferred().signum()==0 && current.forfeited().signum()==0,
+                "A funded reservation cannot be repriced; cancel and create a new reservation");
     }
     @Transactional
     public DepositRefund requestRefund(Long bookingId,RefundRequests.Create request) {

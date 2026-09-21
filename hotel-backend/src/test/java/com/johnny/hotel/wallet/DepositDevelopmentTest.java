@@ -32,30 +32,30 @@ class DepositDevelopmentTest extends FinancialDevelopmentFixture {
             jdbc.update("DELETE FROM reservation_deposit_account WHERE booking_id=?",b);
         }
     }
-    @Test void receiptRemainsInReservationAndRetryCannotDuplicate() {
-        long b=reservation();as("STAFF");var first=deposits.receive(b,receipt("receipt_01"));
-        assertEquals(first.getId(),deposits.receive(b,receipt("receipt_01")).getId());
-        assertEquals(new BigDecimal("100.00"),deposits.summary(b).balance());
+    @Test void portalFullReceiptRemainsInReservationAndCannotBeOverpaid() {
+        long b=reservation();var first=depositMapper.payments(depositMapper.byBooking(b).getId()).get(0);as("STAFF");
+        assertThrows(BusinessException.class,()->deposits.receive(b,receipt("receipt_01")));
+        assertEquals(new BigDecimal("300.00"),deposits.summary(b).balance());
         assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM stay WHERE booking_id=?",Integer.class,b));
         assertThrows(Exception.class,()->jdbc.update("UPDATE deposit_payment SET amount=99 WHERE id=?",first.getId()));
     }
     @Test void pendingRefundReservesCreditAndFailureReleasesIt() {
-        long b=reservation();as("STAFF");deposits.receive(b,receipt("receipt_01"));as("CUSTOMER");
+        long b=reservation();as("CUSTOMER");
         var r=deposits.requestRefund(b,request("refund_001","70"));
-        assertEquals(new BigDecimal("30.00"),deposits.summary(b).available());
-        assertThrows(BusinessException.class,()->deposits.requestRefund(b,request("refund_002","40")));
+        assertEquals(new BigDecimal("230.00"),deposits.summary(b).available());
+        assertThrows(BusinessException.class,()->deposits.requestRefund(b,request("refund_002","240")));
         as("MANAGER");deposits.processRefund(b,r.getId(),decision(),false);
-        assertEquals(new BigDecimal("100.00"),deposits.summary(b).available());
-        assertEquals(0,wallets.find(wid("CUSTOMER")).getBalance().signum());
+        assertEquals(new BigDecimal("300.00"),deposits.summary(b).available());
+        assertEquals(new BigDecimal("700.00"),wallets.find(wid("CUSTOMER")).getBalance());
     }
     @Test void depositRefundToBlockedWalletRemainsIdempotent() {
-        long b=reservation();as("STAFF");deposits.receive(b,receipt("receipt_01"));
+        long b=reservation();
         jdbc.update("UPDATE wallet SET status=0 WHERE id=?",wid("CUSTOMER"));
         as("CUSTOMER");var r=deposits.requestRefund(b,request("refund_001","100"));as("MANAGER");
         deposits.processRefund(b,r.getId(),decision(),true);deposits.processRefund(b,r.getId(),decision(),true);
-        assertEquals(new BigDecimal("100.00"),wallets.find(wid("CUSTOMER")).getBalance());
+        assertEquals(new BigDecimal("800.00"),wallets.find(wid("CUSTOMER")).getBalance());
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transaction WHERE source_type='DEPOSIT_REFUND' AND source_id=?",Integer.class,r.getId()));
-        assertEquals(new BigDecimal("0.00"),deposits.summary(b).balance());
+        assertEquals(new BigDecimal("200.00"),deposits.summary(b).balance());
     }
     @Test void customerOwnershipAndHrBoundary() throws Exception {
         long b=reservation();as("OTHER_CUSTOMER");assertThrows(BusinessException.class,()->deposits.summary(b));
@@ -63,19 +63,17 @@ class DepositDevelopmentTest extends FinancialDevelopmentFixture {
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
         mvc.perform(get("/api/bookings/{id}/deposit",b).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous())).andExpect(status().isUnauthorized());
     }
-    @Test void concurrentReceiptsWithSameKeyInsertOnce() throws Exception {
-        long b=reservation();var executor=Executors.newFixedThreadPool(2);
-        try {
-            Callable<Long> work=()->{as("STAFF");return deposits.receive(b,receipt("receipt_01")).getId();};
-            var a=executor.submit(work);var c=executor.submit(work);assertEquals(a.get(20,TimeUnit.SECONDS),c.get(20,TimeUnit.SECONDS));
-        } finally {executor.shutdownNow();}
-        as("MANAGER");assertEquals(new BigDecimal("100.00"),deposits.summary(b).balance());
+    @Test void fullPortalDepositHasExactlyOneReceiptAndWalletDebit() {
+        long b=reservation();var account=depositMapper.byBooking(b);
+        assertEquals(1,depositMapper.payments(account.getId()).size());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transaction WHERE source_type='DEPOSIT_PAYMENT' AND source_id=?",Integer.class,depositMapper.payments(account.getId()).get(0).getId()));
+        as("MANAGER");assertEquals(new BigDecimal("300.00"),deposits.summary(b).balance());
     }
     @Test void refundFailureRollsBackWalletAndDecision() {
-        long b=reservation();as("STAFF");deposits.receive(b,receipt("receipt_01"));as("CUSTOMER");var r=deposits.requestRefund(b,request("refund_001","100"));
+        long b=reservation();as("CUSTOMER");var r=deposits.requestRefund(b,request("refund_001","100"));
         as("MANAGER");gate.arm(Thread.currentThread().getName(),"DepositMapper.processRefund",true);
         assertThrows(Exception.class,()->deposits.processRefund(b,r.getId(),decision(),true));gate.clear();
-        assertEquals(0,wallets.find(wid("CUSTOMER")).getBalance().signum());
+        assertEquals(new BigDecimal("700.00"),wallets.find(wid("CUSTOMER")).getBalance());
         assertEquals(0,jdbc.queryForObject("SELECT status FROM deposit_refund WHERE id=?",Integer.class,r.getId()));
         assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transaction WHERE source_type='DEPOSIT_REFUND' AND source_id=?",Integer.class,r.getId()));
     }

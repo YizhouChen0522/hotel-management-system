@@ -28,7 +28,7 @@ class StayCoreDevelopmentTest extends FinancialDevelopmentFixture {
         assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='folio' AND column_name='booking_id'",Integer.class));
     }
     @Test void checkinCreatesActualGuestsAndTransfersImmutableDepositOnce(){
-        long b=approved();receive(b,"300");var s=actualStays.checkIn(b,uid("MANAGER"));
+        long b=approved();var s=actualStays.checkIn(b,uid("MANAGER"));
         assertEquals(1,bookingState(b));assertEquals(1,s.getStatus());
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM stay_guest WHERE stay_id=?",Integer.class,s.getId()));
         assertEquals(new BigDecimal("0.00"),queries.byBooking(b,uid("CUSTOMER")).balanceAmount());
@@ -38,12 +38,12 @@ class StayCoreDevelopmentTest extends FinancialDevelopmentFixture {
         clock.day(3);actualStays.checkOut(s.getId(),uid("MANAGER"));invariantBooking(b);
     }
     @Test void failedCheckinRollsBackStayTransferAssignmentRoom(){
-        long b=approved();receive(b,"100");
+        long b=approved();
         gate.arm(Thread.currentThread().getName(),"DepositMapper.transfer",true);
         assertThrows(Exception.class,()->actualStays.checkIn(b,uid("MANAGER")));gate.clear();
         assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM stay WHERE booking_id=?",Integer.class,b));
         assertEquals(2,jdbc.queryForObject("SELECT status FROM room WHERE id=?",Integer.class,room1));
-        as("STAFF");assertEquals(new BigDecimal("100.00"),deposits.summary(b).available());
+        as("STAFF");assertEquals(new BigDecimal("300.00"),deposits.summary(b).available());
     }
     @Test void concurrentCheckinCreatesExactlyOneStay(){
         long b=approved();var pool=Executors.newFixedThreadPool(2);
@@ -57,23 +57,23 @@ class StayCoreDevelopmentTest extends FinancialDevelopmentFixture {
         actualStays.changeRoomDuringStay(sid(b),r,uid("MANAGER"));
         assertEquals(room1,jdbc.queryForObject("SELECT reserved_room_id FROM booking WHERE id=?",Long.class,b));
         assertEquals(room2,jdbc.queryForObject("SELECT room_id FROM stay_room_assignment WHERE stay_id=? AND end_time IS NULL",Long.class,sid(b)));
-        pay(b,"300");clock.day(3);checkout(b);
+        clock.day(3);checkout(b);
         assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM room_turnover_task WHERE stay_id=?",Integer.class,sid(b)));invariantBooking(b);
     }
 
-    @Test void pendingDepositRefundStaysReservedAtArrival(){
-        long b=approved();receive(b,"300");as("CUSTOMER");
+    @Test void pendingDepositRefundPreventsArrivalUntilResolved(){
+        long b=approved();as("CUSTOMER");
         var r=deposits.requestRefund(b,refundRequest("100","deposit_refund_1"));
-        actualStays.checkIn(b,uid("MANAGER"));as("MANAGER");
-        assertEquals(new BigDecimal("200.00"),queries.byBooking(b,uid("CUSTOMER")).paidAmount());
-        deposits.processRefund(b,r.getId(),process("deposit_process_1"),true);
-        assertEquals(new BigDecimal("100.00"),wallets.find(wid("CUSTOMER")).getBalance());
-        assertEquals(new BigDecimal("0.00"),deposits.summary(b).balance());
+        assertThrows(com.johnny.hotel.exception.BusinessException.class,()->actualStays.checkIn(b,uid("MANAGER")));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM stay WHERE booking_id=?",Integer.class,b));
+        as("MANAGER");deposits.processRefund(b,r.getId(),process("deposit_process_1"),false);
+        actualStays.checkIn(b,uid("MANAGER"));
+        assertEquals(new BigDecimal("300.00"),queries.byBooking(b,uid("CUSTOMER")).paidAmount());
         clock.day(3);checkout(b);invariantBooking(b);
     }
-    @Test void concurrentReceiptAndArrivalTransfersExactlyOnce(){
-        long b=approved();assertNull(serialized("DepositMapper.receive",()->receive(b,"100"),()->actualStays.checkIn(b,uid("MANAGER"))));
-        assertEquals(new BigDecimal("100.00"),queries.byBooking(b,uid("CUSTOMER")).paidAmount());
+    @Test void fullPortalDepositRejectsAdditionalReceiptAndArrivalTransfersExactlyOnce(){
+        long b=approved();as("STAFF");assertThrows(com.johnny.hotel.exception.BusinessException.class,()->deposits.receive(b,DepositRequests.Receive.builder().amount(BigDecimal.ONE).paymentMethod("CASH").requestKey("new_receipt_1").build()));actualStays.checkIn(b,uid("MANAGER"));
+        assertEquals(new BigDecimal("300.00"),queries.byBooking(b,uid("CUSTOMER")).paidAmount());
         as("STAFF");assertThrows(com.johnny.hotel.exception.BusinessException.class,()->deposits.receive(b,DepositRequests.Receive.builder().amount(BigDecimal.ONE).paymentMethod("CASH").requestKey("new_receipt_2").build()));
     }
     @Test void reservationAndActualGuestHaveSeparateOwnership()throws Exception{
@@ -96,7 +96,7 @@ class StayCoreDevelopmentTest extends FinancialDevelopmentFixture {
         assertEquals(1,bookingState(b));
     }
     @Test void concurrentRoomChangeThenCheckoutUsesCurrentAssignment(){
-        long b=stay();pay(b,"300");clock.day(3);var move=new ChangeRoomDuringStayRequest();move.setNewRoomId(room2);move.setReason("Departure room move");
+        long b=stay();clock.day(3);var move=new ChangeRoomDuringStayRequest();move.setNewRoomId(room2);move.setReason("Departure room move");
         assertNull(serialized("StayRoomAssignmentMapper.insert",()->actualStays.changeRoomDuringStay(sid(b),move,uid("MANAGER")),()->checkout(b)));
         assertEquals(2,stayState(b));assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM room_turnover_task WHERE stay_id=?",Integer.class,sid(b)));
     }
@@ -119,10 +119,10 @@ class StayCoreDevelopmentTest extends FinancialDevelopmentFixture {
         mvc.perform(get("/api/stays/{id}/folio",stay.getId()).with(authentication(auth("CUSTOMER")))).andExpect(status().isOk());
     }
     @Test void reservationCancellationAndRejectionKeepDepositsOutsideStay(){
-        long b=createBooking("CUSTOMER");receive(b,"100");bookings.rejectBooking(b,uid("MANAGER"));
-        as("CUSTOMER");var refund=deposits.requestRefund(b,refundRequest("100","reject_refund_1"));as("MANAGER");deposits.processRefund(b,refund.getId(),process("reject_process_1"),true);
+        long b=createBooking("CUSTOMER");bookings.rejectBooking(b,uid("MANAGER"));
+        as("CUSTOMER");var refund=deposits.requestRefund(b,refundRequest("300","reject_refund_1"));as("MANAGER");deposits.processRefund(b,refund.getId(),process("reject_process_1"),true);
         assertEquals(5,bookingState(b));assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM stay WHERE booking_id=?",Integer.class,b));
-        assertEquals(new BigDecimal("100.00"),wallets.find(wid("CUSTOMER")).getBalance());
+        assertEquals(new BigDecimal("1000.00"),wallets.find(wid("CUSTOMER")).getBalance());
     }
     private com.johnny.hotel.guest.GuestRequests.Add accompanying(String name){
         return com.johnny.hotel.guest.GuestRequests.Add.builder().role(com.johnny.hotel.guest.GuestRole.ACCOMPANYING)
@@ -137,7 +137,7 @@ class StayCoreDevelopmentTest extends FinancialDevelopmentFixture {
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM booking_guest WHERE booking_id=?",Integer.class,b));
     }
     @Test void checkoutPreventsWaitingActualGuestMutation(){
-        long b=stay();pay(b,"300");clock.day(3);
+        long b=stay();clock.day(3);
         assertInstanceOf(com.johnny.hotel.exception.BusinessException.class,
                 serialized("StayMapper.close",()->checkout(b),()->actualGuests.addAccompanying(sid(b),accompanying("Late"))));
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM stay_guest WHERE stay_id=?",Integer.class,sid(b)));

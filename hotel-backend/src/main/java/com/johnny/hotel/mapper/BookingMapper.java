@@ -18,6 +18,7 @@ public interface BookingMapper {
                 reservation_source,
                 walk_in_request_key,
                 staff_direct_request_key,
+                portal_request_key,
                 reservation_policy_id,
                 guest_count,
                 check_in_date,
@@ -36,6 +37,7 @@ public interface BookingMapper {
                 #{reservationSource},
                 #{walkInRequestKey},
                 #{staffDirectRequestKey},
+                #{portalRequestKey},
                 #{reservationPolicyId},
                 #{guestCount},
                 #{checkInDate},
@@ -60,6 +62,15 @@ public interface BookingMapper {
 
     @Select("SELECT * FROM booking WHERE staff_direct_request_key=#{key} FOR UPDATE")
     Booking selectByStaffDirectRequestKeyForUpdate(String key);
+
+    @Select("SELECT * FROM booking WHERE portal_request_key=#{key} FOR UPDATE")
+    Booking selectByPortalRequestKeyForUpdate(String key);
+
+    @Insert("INSERT INTO portal_reservation_request_lock(request_key) VALUES(#{key}) ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)")
+    int ensurePortalRequest(String key);
+
+    @Select("SELECT request_key FROM portal_reservation_request_lock WHERE request_key=#{key} FOR UPDATE")
+    String lockPortalRequest(String key);
 
     @Insert("INSERT INTO staff_direct_request_lock(request_key) VALUES(#{key}) ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)")
     int ensureStaffDirectRequest(String key);

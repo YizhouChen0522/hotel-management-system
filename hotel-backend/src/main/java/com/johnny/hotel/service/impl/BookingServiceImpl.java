@@ -172,6 +172,21 @@ public class BookingServiceImpl implements BookingService {
     public BookingVO createBooking(CreateBookingRequest request,
                                    Long currentUserId) {
 
+        require(request.getRequestKey()!=null&&request.getRequestKey().matches("[A-Za-z0-9_-]{8,64}"),"Invalid portal reservation request key");
+        require(bookingMapper.ensurePortalRequest(request.getRequestKey())>=1,"Portal request lock failed");
+        require(request.getRequestKey().equals(bookingMapper.lockPortalRequest(request.getRequestKey())),"Portal request lock failed");
+        var existingPortal=bookingMapper.selectByPortalRequestKeyForUpdate(request.getRequestKey());
+        if(existingPortal!=null){
+            require(currentUserId.equals(existingPortal.getUserId())
+                    && request.getRoomTypeId().equals(existingPortal.getRoomTypeId())
+                    && request.getGuestCount().equals(existingPortal.getGuestCount())
+                    && request.getCheckInDate().equals(existingPortal.getCheckInDate())
+                    && request.getCheckOutDate().equals(existingPortal.getCheckOutDate()),
+                    "Portal request key already represents another reservation");
+            validateSnapshot(existingPortal);
+            deposits.validatePortalFullDeposit(existingPortal.getId());
+            return toVO(existingPortal);
+        }
         dates(request.getCheckInDate(), request.getCheckOutDate());
         require(!request.getCheckInDate().isBefore(LocalDate.now(clock)), "Historical bookings are not supported");
         require(request.getGuestCount() != null && request.getGuestCount() > 0, "Guest count must be positive");
@@ -219,6 +234,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setBookerGuestProfileId(booker.getId());
         booking.setCreatedByUserId(currentUserId);
         booking.setReservationSource(com.johnny.hotel.enums.ReservationSource.CUSTOMER_PORTAL.name());
+        booking.setPortalRequestKey(request.getRequestKey());
         var activePolicy=reservationPolicies.activeForBooking(false);
         booking.setReservationPolicyId(activePolicy==null?null:activePolicy.getId());
         booking.setRoomTypeId(request.getRoomTypeId());
@@ -255,6 +271,10 @@ public class BookingServiceImpl implements BookingService {
         );
 
         deposits.openForReservation(booking.getId());
+        var accepted=bookingMapper.selectByIdForUpdate(booking.getId());
+        var receipt=deposits.receivePortalWallet(booking.getId(),accepted.getTotalPrice(),request.getRequestKey(),currentUserId);
+        require(receipt.getAmount().compareTo(accepted.getTotalPrice())==0,"Full reservation deposit is required");
+        deposits.validatePortalFullDeposit(booking.getId());
 
         return getBookingByIdInternal(
                 booking.getId()
@@ -319,6 +339,8 @@ public class BookingServiceImpl implements BookingService {
                     "Only pending bookings can be approved"
             );
         }
+
+        deposits.requireFullGuarantee(bookingId);
 
         Room room =
                 roomMapper.selectByIdForUpdate(
@@ -616,6 +638,9 @@ public class BookingServiceImpl implements BookingService {
                 !booking.getGuestCount()
                         .equals(request.getGuestCount());
 
+        require(!roomTypeChanged && !dateChanged,
+                "Paid reservation dates and room type cannot be repriced; cancel and create a new reservation");
+
         if (!roomTypeChanged
                 && !dateChanged
                 && !guestCountChanged) {
@@ -638,27 +663,6 @@ public class BookingServiceImpl implements BookingService {
             throw new BusinessException(
                     "Failed to update booking"
             );
-        }
-
-        if (roomTypeChanged) {
-
-            bookingPricingService
-                    .createFullRepriceVersion(
-                            bookingId,
-                            request.getRoomTypeId(),
-                            "PRE_CHECKIN_ROOM_TYPE_CHANGE",
-                            "Customer changed room type before check-in",
-                            currentUserId
-                    );
-
-        } else if (dateChanged) {
-
-            bookingPricingService
-                    .createDateChangeVersion(
-                            bookingId,
-                            "Customer changed booking dates",
-                            currentUserId
-                    );
         }
 
         return getBookingByIdInternal(
@@ -693,7 +697,6 @@ public class BookingServiceImpl implements BookingService {
                     "Only approved bookings can have their room reassigned"
             );
         }
-
         Long oldRoomId = booking.getReservedRoomId();
         Long newRoomId = request.getNewRoomId();
 
@@ -822,6 +825,7 @@ public class BookingServiceImpl implements BookingService {
                     "Only approved bookings can change room type"
             );
         }
+        deposits.requireUnfundedForContractReprice(bookingId);
 
         if (booking.getReservedRoomId() == null) {
             throw new BusinessException(

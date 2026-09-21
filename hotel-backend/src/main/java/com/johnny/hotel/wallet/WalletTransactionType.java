@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum WalletTransactionType {
-    TOP_UP(1), REFUND_CREDIT(2), FOLIO_PAYMENT(3), EMPLOYEE_BENEFIT(4), DEPOSIT_REFUND_CREDIT(5);
+    TOP_UP(1), REFUND_CREDIT(2), FOLIO_PAYMENT(3), EMPLOYEE_BENEFIT(4), DEPOSIT_REFUND_CREDIT(5), RESERVATION_DEPOSIT(6);
     private final int code;
     public static WalletTransactionType fromCode(int code) {
         for (var value : values()) if (value.code == code) return value;

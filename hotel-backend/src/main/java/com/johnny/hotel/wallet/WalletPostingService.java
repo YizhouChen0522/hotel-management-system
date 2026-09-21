@@ -10,7 +10,7 @@ import static com.johnny.hotel.service.support.BillingRules.*;
  * Operation eligibility (including BLOCKED top-up restrictions) belongs to the initiating operation, not all credits/debits. */
 @Service
 @RequiredArgsConstructor
-class WalletPostingService {
+public class WalletPostingService {
     private final WalletPostingMapper mapper;
 
     @Transactional(propagation=Propagation.MANDATORY)
@@ -37,6 +37,15 @@ class WalletPostingService {
         var amount=money(source.getAmount(),12);require(amount.signum()>0 && locked.getBalance().compareTo(amount)>=0,"Insufficient wallet balance");
         require("WALLET".equals(source.getPaymentMethod()) && "SUCCESS".equals(source.getStatus()),"Invalid wallet payment source");
         append(locked,amount.negate(),WalletTransactionType.FOLIO_PAYMENT,"PAYMENT",source.getId(),actor,"checkout-wallet:"+source.getFolioId());
+        one(mapper.debit(locked.getId(),amount));
+    }
+    @Transactional(propagation=Propagation.MANDATORY)
+    public void debitReservationDeposit(Wallet locked,com.johnny.hotel.booking.deposit.DepositPayment source,Long actor) {
+        var amount=money(source.getAmount(),12);
+        require(amount.signum()>0 && locked.getUserId().equals(actor) && locked.getBalance().compareTo(amount)>=0,
+                "Insufficient wallet balance for full reservation deposit");
+        require("WALLET".equals(source.getPaymentMethod()) && actor.equals(source.getReceivedBy()),"Invalid reservation deposit source");
+        append(locked,amount.negate(),WalletTransactionType.RESERVATION_DEPOSIT,"DEPOSIT_PAYMENT",source.getId(),actor,source.getRequestKey());
         one(mapper.debit(locked.getId(),amount));
     }
     private void append(Wallet wallet,java.math.BigDecimal amount,WalletTransactionType type,String source,Long id,Long actor,String key) {

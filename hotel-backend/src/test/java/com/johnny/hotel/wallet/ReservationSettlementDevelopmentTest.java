@@ -44,6 +44,8 @@ class ReservationSettlementDevelopmentTest {
     @Autowired StaffDirectService direct;
     @Autowired GuestService guests;
     @Autowired ReservationLifecycleService lifecycle;
+    @Autowired WalletService walletService;
+    @Autowired WalletMapper walletMapper;
     @Autowired MutableHotelClock clock;
     final String run="v38_"+UUID.randomUUID().toString().replace("-","").substring(0,16);
     final Map<String,Long> actors=new HashMap<>();
@@ -66,7 +68,8 @@ class ReservationSettlementDevelopmentTest {
             ReservationPolicyRequests.Band.builder().minLeadDays(0).maxLeadDays(4).refundPercent(new BigDecimal(near)).build(),
             ReservationPolicyRequests.Band.builder().minLeadDays(5).refundPercent(new BigDecimal(far)).build())).build();
         policies.activate(policies.create(save).policy().getId());}
-    long portal(int arrivalDay){var r=new CreateBookingRequest();r.setRoomTypeId(type);r.setGuestCount(1);r.setCheckInDate(LocalDate.of(2026,10,1).plusDays(arrivalDay));r.setCheckOutDate(r.getCheckInDate().plusDays(3));return bookings.createBooking(r,id("CUSTOMER")).getId();}
+    void fundPortal(){as("CUSTOMER");long wallet=walletMapper.byUser(id("CUSTOMER")).getId();var top=walletService.createTopUp(wallet,WalletRequests.TopUp.builder().amount(new BigDecimal("1000.00")).requestKey(run+"fund"+UUID.randomUUID().toString().replace("-","").substring(0,8)).build());as("STAFF");walletService.confirm(wallet,top.id(),WalletRequests.Decision.builder().requestKey(run+"fundok"+UUID.randomUUID().toString().replace("-","").substring(0,8)).reason("Portal test funding").build());}
+    long portal(int arrivalDay){fundPortal();var r=new CreateBookingRequest();r.setRequestKey(run+"portal"+UUID.randomUUID().toString().replace("-","").substring(0,8));r.setRoomTypeId(type);r.setGuestCount(1);r.setCheckInDate(LocalDate.of(2026,10,1).plusDays(arrivalDay));r.setCheckOutDate(r.getCheckInDate().plusDays(3));return bookings.createBooking(r,id("CUSTOMER")).getId();}
     StaffDirectRequests.Create request(String suffix,int arrivalDay){return StaffDirectRequests.Create.builder().requestKey(run+suffix)
             .bookerProfile(GuestRequests.Profile.builder().firstName("Detached").lastName("Booker").documentNumber(run+suffix).build())
             .roomTypeId(type).reservedRoomId(room).guestCount(1).checkInDate(LocalDate.of(2026,10,1).plusDays(arrivalDay))
@@ -74,7 +77,7 @@ class ReservationSettlementDevelopmentTest {
     void receive(long booking,String amount){as("STAFF");deposits.receive(booking,DepositRequests.Receive.builder().amount(new BigDecimal(amount))
             .paymentMethod("CASH").referenceNo(run+"receipt").requestKey(run+"receipt").build());}
 
-    @Test @Transactional void customerCancellationUsesBoundPolicyAndReservesOnlyRemainingCredit(){policy("0","80");long b=portal(10);receive(b,"300");
+    @Test @Transactional void customerCancellationUsesBoundPolicyAndReservesOnlyRemainingCredit(){policy("0","80");long b=portal(10);
         as("CUSTOMER");deposits.requestRefund(b,RefundRequests.Create.builder().amount(new BigDecimal("50"))
                 .requestKey(run+"oldrefund").reason("Earlier partial refund").build());
         var fact=lifecycle.cancel(b,id("CUSTOMER"),"CUSTOMER","Guest changed plans");
@@ -89,10 +92,10 @@ class ReservationSettlementDevelopmentTest {
     @Test @Transactional void customerCannotCancelAnotherReservation(){policy("0","100");long b=portal(6);as("OTHER_CUSTOMER");
         assertThrows(BusinessException.class,()->lifecycle.cancel(b,id("OTHER_CUSTOMER"),"CUSTOMER","Not mine"));}
 
-    @Test @Transactional void partialPortalDepositIsPolicyBaseInsteadOfFullQuote(){policy("0","80");long b=portal(10);receive(b,"100");
+    @Test @Transactional void fullPortalDepositIsPolicyBase(){policy("0","80");long b=portal(10);
         as("CUSTOMER");var fact=lifecycle.cancel(b,id("CUSTOMER"),"CUSTOMER","Changed travel plans");
-        assertEquals(0,new BigDecimal("80.00").compareTo(fact.getRefundObligation()));
-        assertEquals(0,new BigDecimal("20.00").compareTo(fact.getForfeitedAmount()));
+        assertEquals(0,new BigDecimal("240.00").compareTo(fact.getRefundObligation()));
+        assertEquals(0,new BigDecimal("60.00").compareTo(fact.getForfeitedAmount()));
         assertEquals(0,deposits.summary(b).available().signum());
     }
 
@@ -116,7 +119,7 @@ class ReservationSettlementDevelopmentTest {
 
     @Test @Transactional void laterPolicyNeverRepricesExistingReservationCancellation(){
         policy("0","80");long original=portal(10);long oldPolicy=jdbc.queryForObject("SELECT reservation_policy_id FROM booking WHERE id=?",Long.class,original);
-        policy("0","20");long later=portal(10);receive(original,"300");
+        policy("0","20");long later=portal(10);
         as("CUSTOMER");var fact=lifecycle.cancel(original,id("CUSTOMER"),"CUSTOMER","Changed travel plans");
         assertEquals(oldPolicy,fact.getPolicyId());
         assertEquals(0,new BigDecimal("240.00").compareTo(fact.getRefundObligation()));

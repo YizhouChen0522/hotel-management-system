@@ -62,6 +62,8 @@ public class DepositTransferService {
             return old;
         }
         var amount=DepositLedgerRules.balance(receipts,refunds,transfers,deposits.settlements(account.getId())).available();
+        require(amount.compareTo(booking.getTotalPrice())==0,
+                "Check-in requires the full accepted-quote reservation deposit");
         if(amount.signum()==0)return null;
         String event="deposit-transfer:"+account.getId();
         var credit=Payment.builder().folioId(folio.getId()).amount(amount).paymentMethod("DEPOSIT_TRANSFER").status("SUCCESS")

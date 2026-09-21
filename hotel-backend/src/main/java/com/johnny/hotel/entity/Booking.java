@@ -18,6 +18,7 @@ public class Booking {
     private Long createdByUserId;
     private Long roomTypeId;
     private Long reservedRoomId;
+    private String portalRequestKey;
     private String reservationSource;
     private String walkInRequestKey;
     private String staffDirectRequestKey;

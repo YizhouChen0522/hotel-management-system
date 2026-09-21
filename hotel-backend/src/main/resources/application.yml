@@ -6,7 +6,7 @@ spring:
     name: hotel-backend
 
   datasource:
-    url: ${DB_URL}?useUnicode=true&characterEncoding=utf-8&serverTimezone=America/Toronto
+    url: ${DB_URL}?useUnicode=true&characterEncoding=utf-8&connectionTimeZone=LOCAL
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
