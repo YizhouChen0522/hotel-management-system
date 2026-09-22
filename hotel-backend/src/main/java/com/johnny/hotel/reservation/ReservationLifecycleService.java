@@ -27,16 +27,17 @@ public class ReservationLifecycleService {
     private final GuestAccess access;
     private final SysAuditLogMapper audits;
     private final Clock clock;
+    private final com.johnny.hotel.businessdate.BusinessDateService businessDates;
 
     private String reason(String value){require(value!=null&&!value.isBlank()&&value.length()<=500,"Reason is required (500 characters maximum)");return value.trim();}
     private void hotel(Long actor){access.employee(actor);}
     private DepositLedgerRules.Balance balance(DepositAccount a){return DepositLedgerRules.balance(
             deposits.payments(a.getId()),deposits.refunds(a.getId()),deposits.transfers(a.getId()),deposits.settlements(a.getId()));}
     private DepositAccount account(Booking b){var value=deposits.byBooking(b.getId());return value==null?null:deposits.lock(value.getId());}
-    private void settle(DepositAccount a,Booking b,String kind,BigDecimal amount,Long actor,String key){
+    private void settle(DepositAccount a,Booking b,String kind,BigDecimal amount,Long actor,String key,LocalDate businessDate){
         if(amount.signum()==0)return;
         one(deposits.insertSettlement(DepositSettlement.builder().accountId(a.getId()).bookingId(b.getId()).kind(kind)
-                .amount(amount).status("FORFEIT".equals(kind)?1:0).eventKey(key).createdBy(actor).build()));
+                .amount(amount).status("FORFEIT".equals(kind)?1:0).eventKey(key).createdBy(actor).businessDate("FORFEIT".equals(kind)?businessDate:null).build()));
     }
     private void release(Booking b){
         if(b.getStatus()!=BookingStatus.APPROVED.getCode())return;
@@ -74,7 +75,8 @@ public class ReservationLifecycleService {
             refund=target.subtract(already).max(BigDecimal.ZERO).min(available).setScale(2);
         }else require(available.signum()==0,"Legacy reservation with deposit requires an explicit cancellation policy decision");
         var forfeit=available.subtract(refund).setScale(2);
-        if(a!=null){settle(a,b,"REFUND",refund,actor,"cancel-refund:"+bookingId);settle(a,b,"FORFEIT",forfeit,actor,"cancel-forfeit:"+bookingId);}
+        var businessDate=businessDates.postingDate();
+        if(a!=null){settle(a,b,"REFUND",refund,actor,"cancel-refund:"+bookingId,businessDate);settle(a,b,"FORFEIT",forfeit,actor,"cancel-forfeit:"+bookingId,businessDate);}
         one(bookings.transitionStatus(bookingId,b.getStatus(),BookingStatus.CANCELLED.getCode()));
         var fact=ReservationCancellation.builder().bookingId(bookingId).initiator(initiator).operatorUserId(actor).reason(why)
                 .policyId(b.getReservationPolicyId()).leadDays(lead).refundPercent(percent).depositBefore(before)
@@ -95,7 +97,8 @@ public class ReservationLifecycleService {
         require(money==null||money.pendingRefund().signum()==0,"Resolve pending deposit refunds before no-show");
         var before=money==null?BigDecimal.ZERO.setScale(2):money.balance();
         var forfeit=money==null?BigDecimal.ZERO.setScale(2):money.available();
-        if(a!=null)settle(a,b,"FORFEIT",forfeit,operator,"no-show-forfeit:"+bookingId);
+        var businessDate=businessDates.postingDate();
+        if(a!=null)settle(a,b,"FORFEIT",forfeit,operator,"no-show-forfeit:"+bookingId,businessDate);
         one(bookings.transitionStatus(bookingId,b.getStatus(),BookingStatus.NO_SHOW.getCode()));
         var fact=ReservationNoShow.builder().bookingId(bookingId).operatorUserId(operator).policyId(b.getReservationPolicyId())
                 .reason(why).depositBefore(before).forfeitedAmount(forfeit).build();
@@ -113,6 +116,7 @@ public class ReservationLifecycleService {
         if(s.getStatus()==1){require(ref.equals(s.getExternalReference()),"External refund was already confirmed differently");return s;}
         require(!actor.equals(s.getCreatedBy()),"Cannot confirm your own refund obligation");
         balance(a);
-        one(deposits.completeExternalRefund(s.getId(),actor,ref));audit(b,actor,"DEPOSIT_EXTERNAL_REFUND_SUCCESS");return deposits.settlement(s.getId());
+        var businessDate=businessDates.postingDate();
+        one(deposits.completeExternalRefund(s.getId(),actor,ref,businessDate));audit(b,actor,"DEPOSIT_EXTERNAL_REFUND_SUCCESS");return deposits.settlement(s.getId());
     }
 }

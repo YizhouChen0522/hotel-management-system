@@ -3,6 +3,7 @@ package com.johnny.hotel.booking.deposit;
 import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class DepositRefund {
@@ -21,4 +22,5 @@ public class DepositRefund {
     private String processReason;
     private LocalDateTime createTime;
     private LocalDateTime processedTime;
+    private LocalDate businessDate;
 }

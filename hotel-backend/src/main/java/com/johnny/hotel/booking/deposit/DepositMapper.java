@@ -19,10 +19,10 @@ public interface DepositMapper {
     @Select("SELECT COUNT(*) FROM deposit_settlement WHERE account_id=#{id}") long settlementCount(Long id);
     @Select("SELECT * FROM deposit_settlement WHERE id=#{id}") DepositSettlement settlement(Long id);
     @Select("SELECT * FROM deposit_settlement WHERE id=#{id} FOR UPDATE") DepositSettlement lockSettlement(Long id);
-    @Insert("INSERT INTO deposit_settlement(account_id,booking_id,kind,amount,status,event_key,created_by) VALUES(#{accountId},#{bookingId},#{kind},#{amount},#{status},#{eventKey},#{createdBy})")
+    @Insert("INSERT INTO deposit_settlement(account_id,booking_id,kind,amount,status,event_key,created_by,business_date) VALUES(#{accountId},#{bookingId},#{kind},#{amount},#{status},#{eventKey},#{createdBy},#{businessDate})")
     @Options(useGeneratedKeys=true,keyProperty="id") int insertSettlement(DepositSettlement value);
-    @Update("UPDATE deposit_settlement SET status=1,processed_by=#{actor},external_reference=#{reference},processed_time=NOW(6) WHERE id=#{id} AND kind='REFUND' AND status=0")
-    int completeExternalRefund(@Param("id")Long id,@Param("actor")Long actor,@Param("reference")String reference);
+    @Update("UPDATE deposit_settlement SET status=1,processed_by=#{actor},external_reference=#{reference},processed_time=NOW(6),business_date=#{businessDate} WHERE id=#{id} AND kind='REFUND' AND status=0")
+    int completeExternalRefund(@Param("id")Long id,@Param("actor")Long actor,@Param("reference")String reference,@Param("businessDate")java.time.LocalDate businessDate);
     @Select("SELECT * FROM deposit_payment WHERE account_id=#{id} ORDER BY received_time DESC,id DESC LIMIT #{offset},#{size}")
     List<DepositPayment> paymentPage(@Param("id") Long id,@Param("offset") int offset,@Param("size") int size);
     @Select("SELECT COUNT(*) FROM deposit_payment WHERE account_id=#{id}") long paymentCount(Long id);
@@ -30,20 +30,20 @@ public interface DepositMapper {
     List<DepositRefund> refundPage(@Param("id") Long id,@Param("offset") int offset,@Param("size") int size);
     @Select("SELECT COUNT(*) FROM deposit_refund WHERE account_id=#{id}") long refundCount(Long id);
     @Insert("""
-        INSERT INTO deposit_payment(account_id,amount,payment_method,reference_no,request_key,received_by,received_time)
-        VALUES(#{accountId},#{amount},#{paymentMethod},#{referenceNo},#{requestKey},#{receivedBy},#{receivedTime})
+        INSERT INTO deposit_payment(account_id,amount,payment_method,reference_no,request_key,received_by,received_time,business_date)
+        VALUES(#{accountId},#{amount},#{paymentMethod},#{referenceNo},#{requestKey},#{receivedBy},#{receivedTime},#{businessDate})
         """) @Options(useGeneratedKeys=true,keyProperty="id") int receive(DepositPayment receipt);
     @Insert("""
         INSERT INTO deposit_refund(account_id,user_id,wallet_id,currency,amount,status,request_key,reason,requested_by)
         VALUES(#{accountId},#{userId},#{walletId},#{currency},#{amount},0,#{requestKey},#{reason},#{requestedBy})
         """) @Options(useGeneratedKeys=true,keyProperty="id") int requestRefund(DepositRefund refund);
     @Update("""
-        UPDATE deposit_refund SET status=#{status},processed_by=#{actor},process_key=#{key},process_reason=#{reason},processed_time=NOW(6)
+        UPDATE deposit_refund SET status=#{status},processed_by=#{actor},process_key=#{key},process_reason=#{reason},processed_time=NOW(6),business_date=CASE WHEN #{status}=1 THEN #{businessDate} ELSE business_date END
         WHERE id=#{id} AND status=0
         """) int processRefund(@Param("id") Long id,@Param("status") int status,@Param("actor") Long actor,
-                                  @Param("key") String key,@Param("reason") String reason);
+                                  @Param("key") String key,@Param("reason") String reason,@Param("businessDate")java.time.LocalDate businessDate);
     @Insert("""
-        INSERT INTO deposit_transfer(account_id,stay_id,folio_id,payment_id,amount,event_key,transferred_by)
-        VALUES(#{accountId},#{stayId},#{folioId},#{paymentId},#{amount},#{eventKey},#{transferredBy})
+        INSERT INTO deposit_transfer(account_id,stay_id,folio_id,payment_id,amount,event_key,transferred_by,business_date)
+        VALUES(#{accountId},#{stayId},#{folioId},#{paymentId},#{amount},#{eventKey},#{transferredBy},#{businessDate})
         """) @Options(useGeneratedKeys=true,keyProperty="id") int transfer(DepositTransfer transfer);
 }

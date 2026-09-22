@@ -20,6 +20,7 @@ public class RefundService {
     private final RefundAccess access;
     private final FolioFinancialService financial;
     private final SysAuditLogMapper audits;
+    private final com.johnny.hotel.businessdate.BusinessDateService businessDates;
     private record Account(Folio folio,Booking booking) {}
     private Account lock(Long id) { return lock(id, false, null); }
     private Account lock(Long id, boolean hideExistence, Long owner) {
@@ -82,13 +83,14 @@ public class RefundService {
             require(r.getStatus()==target && key.equals(r.getProcessKey()) && reason.equals(r.getProcessReason()),"Refund already processed with another decision");return RefundVO.from(r);
         }
         open(a);require(r.getUserId().equals(a.booking().getUserId()) && r.getCurrency().equals(a.folio().getCurrency()) && "HOTEL_WALLET".equals(r.getDestination()),"Refund identity mismatch");
+        var postingDate=success?businessDates.postingDate():null;
         if(success) {
             require(summary.getBalanceAmount().negate().compareTo(pending(rows))>=0,"Current Folio credit no longer covers refund reservations");
             var w=wallet(a);require(w.getId().equals(r.getWalletId()),"Refund beneficiary mismatch");
             // Source remains PENDING until the append and balance delta are complete; everything commits atomically.
             posting.creditRefund(w,r,actor);
         }
-        one(refunds.process(id,target,actor,key,reason));audit(actor,a,success?"REFUND_SUCCESS":"REFUND_FAILED",id,reason);
+        one(refunds.process(id,target,actor,key,reason,postingDate));audit(actor,a,success?"REFUND_SUCCESS":"REFUND_FAILED",id,reason);
         financial.recalculateSummary(a.folio().getId());
         return RefundVO.from(refunds.forFolio(folioId).stream().filter(row->row.getId().equals(id)).findFirst().orElseThrow());
     }

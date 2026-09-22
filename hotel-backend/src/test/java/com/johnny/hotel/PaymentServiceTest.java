@@ -6,6 +6,7 @@ import com.johnny.hotel.service.*;
 import com.johnny.hotel.service.impl.PaymentServiceImpl;
 import com.johnny.hotel.exception.BusinessException;
 import com.johnny.hotel.vo.PaymentVO;
+import com.johnny.hotel.businessdate.BusinessDateService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -19,10 +20,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
-    @Mock BookingMapper bookings;@Mock FolioMapper folios;@Mock PaymentMapper payments;@Mock FolioFinancialService financial;@Mock SysAuditLogMapper audits;@Mock com.johnny.hotel.service.support.BillingAccess access;
+    @Mock BookingMapper bookings;@Mock FolioMapper folios;@Mock PaymentMapper payments;@Mock FolioFinancialService financial;@Mock SysAuditLogMapper audits;@Mock com.johnny.hotel.service.support.BillingAccess access;@Mock BusinessDateService businessDates;
     PaymentServiceImpl service;
     final String key="123e4567-e89b-12d3-a456-426614174000";
-    @BeforeEach void setup(){service=new PaymentServiceImpl(Clock.fixed(Instant.EPOCH,ZoneOffset.UTC),bookings,folios,payments,financial,audits,access);}
+    @BeforeEach void setup(){service=new PaymentServiceImpl(Clock.fixed(Instant.EPOCH,ZoneOffset.UTC),bookings,folios,payments,financial,audits,access,businessDates);}
     RecordPaymentRequest request(){return RecordPaymentRequest.builder().amount(new BigDecimal("10")).paymentMethod("cash").idempotencyKey(key).build();}
     @ParameterizedTest @ValueSource(strings={"0","-1","0.001","10000000000.00"}) void invalidAmountNeverTouchesDatabase(String amount){var r=request();r.setAmount(new BigDecimal(amount));assertThrows(BusinessException.class,()->service.recordPayment(8L,r,2L));verifyNoInteractions(folios,payments);}
     @ParameterizedTest @ValueSource(strings={"","1-1-1-1-1","not-uuid","123e4567-e89b-12d3-a456-4266141740000"}) void rejectsNoncanonicalUuid(String value){var r=request();r.setIdempotencyKey(value);assertThrows(BusinessException.class,()->service.recordPayment(8L,r,2L));verifyNoInteractions(payments);}

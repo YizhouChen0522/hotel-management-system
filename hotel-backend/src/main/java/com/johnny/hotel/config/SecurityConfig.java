@@ -41,7 +41,8 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/register/customer",
                                 "/api/health",
-                                "/api/auth/register/employee"
+                                "/api/auth/register/employee",
+                                "/api/payments/webhooks/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

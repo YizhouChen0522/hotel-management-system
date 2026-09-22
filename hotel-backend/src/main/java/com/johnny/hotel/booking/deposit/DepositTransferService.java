@@ -22,6 +22,7 @@ public class DepositTransferService {
     private final GuestAccess access;
     private final SysAuditLogMapper audits;
     private final Clock clock;
+    private final com.johnny.hotel.businessdate.BusinessDateService businessDates;
 
     /** Verify the internal credit without reacquiring an account lock after the Folio lock. */
     @Transactional(propagation=Propagation.MANDATORY)
@@ -43,6 +44,7 @@ public class DepositTransferService {
 
     @Transactional(propagation=Propagation.MANDATORY)
     public DepositTransfer transferForCheckIn(Long stayId,Long actor) {
+        var businessDate=businessDates.postingDate();
         access.employee(actor);
         var stay=stays.find(stayId);require(stay!=null && stay.getStatus()==1,"Deposit transfer requires an actual in-house Stay");
         var booking=bookings.selectByIdForUpdate(stay.getBookingId());require(booking!=null,"Reservation is missing");
@@ -69,9 +71,10 @@ public class DepositTransferService {
         var credit=Payment.builder().folioId(folio.getId()).amount(amount).paymentMethod("DEPOSIT_TRANSFER").status("SUCCESS")
                 .requestKey(event).referenceNo("Reservation deposit account "+account.getId()).note("Prepayment credit; original receipt remains in Deposit Ledger")
                 .createdBy(actor).paidTime(LocalDateTime.now(clock)).build();
+        credit.setBusinessDate(businessDate);
         one(payments.insert(credit));
         var transfer=DepositTransfer.builder().accountId(account.getId()).stayId(stayId).folioId(folio.getId()).paymentId(credit.getId())
-                .amount(amount).eventKey(event).transferredBy(actor).build();
+                .amount(amount).eventKey(event).transferredBy(actor).businessDate(businessDate).build();
         one(deposits.transfer(transfer));
         one(audits.insert(SysAuditLog.builder().operatorId(actor).targetUserId(booking.getUserId()).action("DEPOSIT_TRANSFER")
                 .detail("Reservation "+booking.getId()+", stay "+stayId+", deposit "+account.getId()+", folio "+folio.getId()+", transfer "+transfer.getId()).build()));

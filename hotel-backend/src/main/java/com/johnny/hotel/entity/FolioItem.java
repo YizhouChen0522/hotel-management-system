@@ -26,6 +26,7 @@ public class FolioItem {
     private String description;
 
     private LocalDate businessDate;
+    private LocalDate postingBusinessDate;
 
     private BigDecimal quantity;
 

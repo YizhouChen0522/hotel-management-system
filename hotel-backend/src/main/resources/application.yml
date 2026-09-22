@@ -43,6 +43,19 @@ jwt:
 
 hotel:
   currency: CNY
+  payments:
+    checkout-ttl-minutes: ${PAYMENT_CHECKOUT_TTL_MINUTES:15}
+    mock:
+      webhook-secret: ${MOCK_PAYMENT_WEBHOOK_SECRET:}
+  payment:
+    recovery:
+      enabled: ${PAYMENT_RECOVERY_ENABLED:true}
+      fixed-delay: ${PAYMENT_RECOVERY_FIXED_DELAY:30s}
+      pending-query-after: ${PAYMENT_RECOVERY_PENDING_QUERY_AFTER:2m}
+      batch-size: ${PAYMENT_RECOVERY_BATCH_SIZE:20}
+      lease-duration: ${PAYMENT_RECOVERY_LEASE_DURATION:1m}
+      initial-backoff: ${PAYMENT_RECOVERY_INITIAL_BACKOFF:30s}
+      max-backoff: ${PAYMENT_RECOVERY_MAX_BACKOFF:30m}
   pagination:
     max-page-size: 100
     browse-limit: 100

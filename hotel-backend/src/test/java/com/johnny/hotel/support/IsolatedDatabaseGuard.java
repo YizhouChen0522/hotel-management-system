@@ -7,6 +7,16 @@ import java.sql.DriverManager;
 /** Runs before the context creates DataSource/Flyway. Fail closed, including accidental contextLoads. */
 public class IsolatedDatabaseGuard implements ApplicationContextInitializer<ConfigurableApplicationContext> {
     @Override public void initialize(ConfigurableApplicationContext context) {
+        if (Boolean.getBoolean("hotel.payment.fresh.tests")) {
+            var env=context.getEnvironment();String url=env.getProperty("spring.datasource.url","");
+            if(!url.matches("jdbc:mysql://localhost:3306/hotel_payment_core_verify_v44\\?.*")||env.getProperty("spring.flyway.url")!=null)
+                throw new IllegalStateException("Refusing unexpected payment-core temporary database");
+            try(var connection=DriverManager.getConnection(url,env.getProperty("spring.datasource.username"),env.getProperty("spring.datasource.password"));
+                var statement=connection.createStatement();var result=statement.executeQuery("SELECT @@port,DATABASE()")){
+                result.next();if(result.getInt(1)!=3306||!"hotel_payment_core_verify_v44".equals(result.getString(2)))throw new IllegalStateException("Payment-core temporary database identity mismatch");
+            }catch(java.sql.SQLException e){throw new IllegalStateException("Payment-core temporary database unavailable",e);}
+            return;
+        }
         if (Boolean.getBoolean("hotel.dynamic.bootstrap.fresh")) {
             var env=context.getEnvironment();
             String url=env.getProperty("spring.datasource.url","");

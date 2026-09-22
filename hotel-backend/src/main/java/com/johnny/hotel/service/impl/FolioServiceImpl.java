@@ -46,6 +46,7 @@ public class FolioServiceImpl implements FolioService {
     private final PricingService pricingService;
 
     private final FolioFinancialService folioFinancialService;
+    private final com.johnny.hotel.businessdate.BusinessDateService businessDates;
 
     @Value("${hotel.currency}")
     private String hotelCurrency;
@@ -117,6 +118,7 @@ public class FolioServiceImpl implements FolioService {
     @Transactional
     public List<FolioItem> addItems(Long stayId, List<FolioItemCommand> commands, Long operatorId) {
         require(commands != null && !commands.isEmpty(), "Folio items cannot be empty");
+        var postingDate=businessDates.postingDate();
         var identity=stays.find(stayId);require(identity!=null,"Stay does not exist");
         Long bookingId=identity.getBookingId();
         Booking booking = bookingMapper.selectByIdForUpdate(bookingId);
@@ -154,6 +156,7 @@ public class FolioServiceImpl implements FolioService {
             require(key != null && !key.isBlank(), "A stable billing event key is required");
             FolioItem candidate = FolioItem.builder().folioId(folio.getId()).eventKey(key)
                     .itemType(command.getItemType()).description(command.getDescription().trim()).businessDate(command.getBusinessDate())
+                    .postingBusinessDate(postingDate)
                     .quantity(command.getQuantity()).unitPrice(command.getUnitPrice()).amount(command.getAmount())
                     .roomId(command.getRoomId()).roomTypeId(command.getRoomTypeId()).roomAssignmentId(command.getRoomAssignmentId())
                     .sourceItemId(command.getSourceItemId()).stayAdjustmentId(command.getStayAdjustmentId()).refundable(Boolean.TRUE.equals(command.getRefundable()) ? 1 : 0).createdBy(operatorId).build();

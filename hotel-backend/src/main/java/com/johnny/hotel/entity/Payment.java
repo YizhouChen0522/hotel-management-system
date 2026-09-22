@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Data
 @Builder
@@ -37,4 +38,5 @@ public class Payment {
     private LocalDateTime updateTime;
 
     private String requestKey;
+    private LocalDate businessDate;
 }

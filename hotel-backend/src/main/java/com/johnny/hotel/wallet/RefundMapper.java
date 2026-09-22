@@ -12,9 +12,9 @@ public interface RefundMapper {
     @Options(useGeneratedKeys=true,keyProperty="id")
     int insert(Refund refund);
     @Update("""
-        UPDATE refund SET status=#{status},processed_by=#{actor},process_key=#{key},process_reason=#{reason},processed_time=NOW(6)
+        UPDATE refund SET status=#{status},processed_by=#{actor},process_key=#{key},process_reason=#{reason},processed_time=NOW(6),business_date=CASE WHEN #{status}=1 THEN #{businessDate} ELSE business_date END
         WHERE id=#{id} AND status=0
         """)
     int process(@Param("id") Long id,@Param("status") int status,@Param("actor") Long actor,
-                @Param("key") String key,@Param("reason") String reason);
+                @Param("key") String key,@Param("reason") String reason,@Param("businessDate")java.time.LocalDate businessDate);
 }

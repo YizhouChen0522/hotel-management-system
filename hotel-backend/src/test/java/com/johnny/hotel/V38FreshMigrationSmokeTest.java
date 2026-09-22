@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @EnabledIfSystemProperty(named = "hotel.v38.fresh.smoke", matches = "true")
 class V38FreshMigrationSmokeTest {
-    @Test void zeroUserFreshV1ThroughV39() throws Exception {
+    @Test void zeroUserFreshV1ThroughLatest() throws Exception {
         var settings = WalletDevelopmentGuard.settings();
         String database = "hotel_v38_smoke_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         String original = WalletDevelopmentGuard.url();
@@ -27,9 +27,16 @@ class V38FreshMigrationSmokeTest {
                 flyway.validate();
                 try (var temporaryConnection = DriverManager.getConnection(temporary, settings.get("DB_USERNAME"), settings.get("DB_PASSWORD"));
                      var check = temporaryConnection.createStatement();
-                     var result = check.executeQuery("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1 AND version IN ('38','39')")) {
+                     var result = check.executeQuery("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1 AND version='45'")) {
                     result.next();
-                    assertEquals(2, result.getInt(1));
+                    assertEquals(1, result.getInt(1));
+                }
+                try (var temporaryConnection = DriverManager.getConnection(temporary, settings.get("DB_USERNAME"), settings.get("DB_PASSWORD"));
+                     var check = temporaryConnection.createStatement();
+                     var result = check.executeQuery("SELECT business_date,(SELECT COUNT(*) FROM hotel_business_date_history) FROM hotel_business_date_control WHERE id=1")) {
+                    result.next();
+                    assertEquals(null, result.getDate(1));
+                    assertEquals(0, result.getInt(2));
                 }
                 try (var temporaryConnection = DriverManager.getConnection(temporary, settings.get("DB_USERNAME"), settings.get("DB_PASSWORD"));
                      var check = temporaryConnection.createStatement();

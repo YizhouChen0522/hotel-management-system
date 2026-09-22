@@ -20,7 +20,8 @@ public interface PaymentMapper {
             request_key,
             note,
             created_by,
-            paid_time
+            paid_time,
+            business_date
         )
         VALUES
         (
@@ -32,7 +33,8 @@ public interface PaymentMapper {
             #{requestKey},
             #{note},
             #{createdBy},
-            #{paidTime}
+            #{paidTime},
+            #{businessDate}
         )
         """)
     @Options(useGeneratedKeys = true, keyProperty = "id")

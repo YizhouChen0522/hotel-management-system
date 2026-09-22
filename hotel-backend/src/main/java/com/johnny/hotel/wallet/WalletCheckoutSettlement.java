@@ -17,6 +17,7 @@ public class WalletCheckoutSettlement {
     private final SysAuditLogMapper audits;
     private final RefundAccess access;
     private final Clock clock;
+    private final com.johnny.hotel.businessdate.BusinessDateService businessDates;
 
     /** Caller holds Booking -> Room -> Folio -> ledger/Payment/Refund. No inverse acquisition from Wallet. */
     @Transactional(propagation=Propagation.MANDATORY)
@@ -33,8 +34,9 @@ public class WalletCheckoutSettlement {
         }
         var amount=wallet.getBalance().min(summary.getBalanceAmount());
         if(amount.signum()<=0)return false;
+        var businessDate=businessDates.postingDate();
         var payment=Payment.builder().folioId(summary.getId()).amount(amount).paymentMethod("WALLET").status("SUCCESS")
-                .requestKey(key).createdBy(actor).paidTime(LocalDateTime.now(clock)).note("Checkout wallet contribution").build();
+                .requestKey(key).createdBy(actor).paidTime(LocalDateTime.now(clock)).businessDate(businessDate).note("Checkout wallet contribution").build();
         one(payments.insert(payment));require(payment.getId()!=null,"Payment id is missing");
         posting.debitPayment(wallet,payment,actor);
         one(audits.insert(SysAuditLog.builder().operatorId(actor).targetUserId(booking.getUserId()).action("CHECKOUT_WALLET_PAYMENT")

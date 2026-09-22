@@ -30,6 +30,7 @@ public class DepositService {
     private final SysAuditLogMapper audits;
     private final Clock clock;
     private final com.johnny.hotel.pagination.PaginationSupport pagination;
+    private final com.johnny.hotel.businessdate.BusinessDateService businessDates;
 
     private record Account(Booking booking,DepositAccount deposit) {}
     private Account lock(Long bookingId,Long actor) {
@@ -98,8 +99,9 @@ public class DepositService {
             require(balance(a.deposit()).received().compareTo(a.booking().getTotalPrice())<0,
                     "Reservation already has its full accepted-quote deposit");
         money(balance(a.deposit()).received().add(amount),12);
+        var postingDate=businessDates.postingDate();
         var receipt=DepositPayment.builder().accountId(a.deposit().getId()).amount(amount).paymentMethod(request.getPaymentMethod())
-                .referenceNo(reference).requestKey(key).receivedBy(actor).receivedTime(LocalDateTime.now(clock)).build();
+                .referenceNo(reference).requestKey(key).receivedBy(actor).receivedTime(LocalDateTime.now(clock)).businessDate(postingDate).build();
         one(deposits.receive(receipt));audit(a,actor,"DEPOSIT_RECEIVED",receipt.getId());return receipt;
     }
     @Transactional(propagation=Propagation.MANDATORY)
@@ -117,8 +119,9 @@ public class DepositService {
         var walletIdentity=wallets.byUser(customerId);require(walletIdentity!=null&&account.getCurrency().equals(walletIdentity.getCurrency()),"Customer wallet or currency mismatch");
         var wallet=wallets.lock(walletIdentity.getId());
         require(wallet.getBalance().compareTo(amount)>=0,"Insufficient wallet balance for full reservation deposit");
+        var postingDate=businessDates.postingDate();
         var receipt=DepositPayment.builder().accountId(account.getId()).amount(amount).paymentMethod("WALLET")
-                .requestKey(key).receivedBy(customerId).receivedTime(LocalDateTime.now(clock)).build();
+                .requestKey(key).receivedBy(customerId).receivedTime(LocalDateTime.now(clock)).businessDate(postingDate).build();
         one(deposits.receive(receipt));walletPosting.debitReservationDeposit(wallet,receipt,customerId);
         audit(new Account(booking,account),customerId,"PORTAL_FULL_DEPOSIT_RECEIVED",receipt.getId());
         return receipt;
@@ -183,8 +186,9 @@ public class DepositService {
             require(refund.getStatus()==status && key.equals(refund.getProcessKey()) && reason.equals(refund.getProcessReason()),"Deposit refund already resolved with another decision");return refund;
         }
         balance(a.deposit());
+        var postingDate=success?businessDates.postingDate():null;
         if(success) posting.credit(refund,actor);
-        one(deposits.processRefund(refundId,status,actor,key,reason));
+        one(deposits.processRefund(refundId,status,actor,key,reason,postingDate));
         audit(a,actor,success?"DEPOSIT_REFUND_SUCCESS":"DEPOSIT_REFUND_FAILED",refundId);
         return deposits.refunds(a.deposit().getId()).stream().filter(r->r.getId().equals(refundId)).findFirst().orElseThrow();
     }

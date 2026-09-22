@@ -48,6 +48,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final SysAuditLogMapper sysAuditLogMapper;
     private final com.johnny.hotel.service.support.BillingAccess billingAccess;
+    private final com.johnny.hotel.businessdate.BusinessDateService businessDates;
 
     @Override
     @Transactional
@@ -88,6 +89,7 @@ public class PaymentServiceImpl implements PaymentService {
                 normalizeRequestKey(
                         request.getIdempotencyKey()
                 );
+        var businessDate=businessDates.postingDate();
 
         /*
          * 1. Payment 现在真正以 Folio 为入口。
@@ -180,6 +182,7 @@ public class PaymentServiceImpl implements PaymentService {
                         .note(note)
                         .createdBy(operatorId)
                         .paidTime(LocalDateTime.now(clock))
+                        .businessDate(businessDate)
                         .build();
 
         int inserted =
