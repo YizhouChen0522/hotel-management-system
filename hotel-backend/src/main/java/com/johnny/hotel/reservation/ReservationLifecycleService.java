@@ -84,7 +84,9 @@ public class ReservationLifecycleService {
         one(facts.insertCancellation(fact));audit(b,actor,"CANCEL_RESERVATION");return facts.cancellation(bookingId);
     }
 
-    @Transactional public ReservationNoShow noShow(Long bookingId,Long operator,String note){
+    @Transactional public ReservationNoShow noShow(Long bookingId,Long operator,String note){return noShowInternal(bookingId,operator,note,null);}
+    @Transactional public ReservationNoShow noShowForNightAudit(Long bookingId,Long operator,String note,LocalDate closingDate){return noShowInternal(bookingId,operator,note,closingDate);}
+    private ReservationNoShow noShowInternal(Long bookingId,Long operator,String note,LocalDate closingDate){
         hotel(operator);
         var b=bookings.selectByIdForUpdate(bookingId);if(b==null)throw new BusinessException(404,"Reservation not found");
         var prior=facts.noShow(bookingId);if(prior!=null)return prior;
@@ -97,7 +99,7 @@ public class ReservationLifecycleService {
         require(money==null||money.pendingRefund().signum()==0,"Resolve pending deposit refunds before no-show");
         var before=money==null?BigDecimal.ZERO.setScale(2):money.balance();
         var forfeit=money==null?BigDecimal.ZERO.setScale(2):money.available();
-        var businessDate=businessDates.postingDate();
+        var businessDate=closingDate==null?businessDates.postingDate():businessDates.closingPostingDate(closingDate);
         if(a!=null)settle(a,b,"FORFEIT",forfeit,operator,"no-show-forfeit:"+bookingId,businessDate);
         one(bookings.transitionStatus(bookingId,b.getStatus(),BookingStatus.NO_SHOW.getCode()));
         var fact=ReservationNoShow.builder().bookingId(bookingId).operatorUserId(operator).policyId(b.getReservationPolicyId())

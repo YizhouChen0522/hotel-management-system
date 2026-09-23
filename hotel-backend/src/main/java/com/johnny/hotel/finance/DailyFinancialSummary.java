@@ -1,0 +1,2 @@
+package com.johnny.hotel.finance;import lombok.*;import java.math.*;import java.time.*;
+@Data @Builder @NoArgsConstructor @AllArgsConstructor public class DailyFinancialSummary {private Long id;private LocalDate businessDate;private BigDecimal roomRevenue;private BigDecimal otherRevenue;private BigDecimal adjustments;private BigDecimal totalRecognizedRevenue;private BigDecimal externalCashInflow;private BigDecimal externalCashOutflow;private Long nightAuditRunId;private LocalDateTime createdAt;}

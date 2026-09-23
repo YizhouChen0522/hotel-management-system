@@ -131,11 +131,13 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
         jdbc.update("DELETE FROM guest_profile WHERE linked_user_id IS NULL AND document_number LIKE ? AND NOT EXISTS (SELECT 1 FROM booking_guest bg WHERE bg.guest_id=guest_profile.id)","P"+run+"%");
         jdbc.update("DELETE FROM charge_catalog WHERE code LIKE ?",("EX"+run+"%").toUpperCase(java.util.Locale.ROOT));
     }
-    void fundReservation(String role){as(role);var t=service.createTopUp(wid(role),amount("1000",run+"fund"+UUID.randomUUID().toString().replace("-","").substring(0,8)));as("STAFF");service.confirm(t.walletId(),t.id(),decision(run+"ok"+UUID.randomUUID().toString().replace("-","").substring(0,8)));}
+    BigDecimal reservationFundingAmount(){return new BigDecimal("1000.00");}
+    void fundReservation(String role){as(role);var t=service.createTopUp(wid(role),amount(reservationFundingAmount().toPlainString(),run+"fund"+UUID.randomUUID().toString().replace("-","").substring(0,8)));as("STAFF");service.confirm(t.walletId(),t.id(),decision(run+"ok"+UUID.randomUUID().toString().replace("-","").substring(0,8)));}
     long createBooking(String role){fundReservation(role);var r=new CreateBookingRequest();r.setRequestKey(run+"portal"+UUID.randomUUID().toString().replace("-","").substring(0,8));r.setRoomTypeId(type1);r.setGuestCount(2);r.setCheckInDate(arrival);r.setCheckOutDate(arrival.plusDays(3));long id=bookings.createBooking(r,uid(role)).getId();bookingIds.add(id);return id;}
     void register(long id){var p=com.johnny.hotel.guest.GuestRequests.Profile.builder().firstName("Test").lastName("Guest").nationality("CA").documentType("PASSPORT").documentNumber(run+"-"+id).build();guests.addToBooking(id,com.johnny.hotel.guest.GuestRequests.Add.builder().role(com.johnny.hotel.guest.GuestRole.PRIMARY).profile(p).build(),uid("MANAGER"));guests.confirm(id,uid("MANAGER"));}
     long stay(){return stay("CUSTOMER");}
-    long stay(String role){long id=createBooking(role);var r=new ApproveBookingRequest();r.setAssignedRoomId(role.equals("CUSTOMER")?room1:room2);bookings.approveBooking(id,r,uid("MANAGER"));register(id);bookings.checkIn(id,uid("MANAGER"));return id;}
+    long stay(String role){long id=createBooking(role);var r=new ApproveBookingRequest();r.setAssignedRoomId(role.equals("CUSTOMER")?room1:room2);bookings.approveBooking(id,r,uid("MANAGER"));register(id);bookings.checkIn(id,uid("MANAGER"));afterCheckIn(id);return id;}
+    void afterCheckIn(long booking){}
     long sid(long booking){return jdbc.queryForObject("SELECT id FROM stay WHERE booking_id=?",Long.class,booking);}
     long folio(long b){return jdbc.queryForObject("SELECT f.id FROM folio f JOIN stay s ON s.id=f.stay_id WHERE s.booking_id=?",Long.class,b);}
     RecordPaymentRequest payRequest(String amount){return RecordPaymentRequest.builder().amount(new BigDecimal(amount)).paymentMethod("CASH").idempotencyKey(UUID.randomUUID().toString()).build();}

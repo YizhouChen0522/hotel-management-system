@@ -38,7 +38,7 @@ class BusinessDateDevelopmentTest {
         dates.initializeOnce();
         var after=dates.current();assertEquals(before.getBusinessDate(),after.getBusinessDate());assertEquals(version,after.getVersion());assertEquals(1,history);
         assertEquals(history,jdbc.queryForObject("SELECT COUNT(*) FROM hotel_business_date_history WHERE event_type='INITIALIZED'",Integer.class));
-        assertEquals("45",jdbc.queryForObject("SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1",String.class));
+        assertEquals("49",jdbc.queryForObject("SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1",String.class));
     }
 
     @Test void readApiEnforcesOperationalRolesAndSeparatesWallClock() throws Exception {

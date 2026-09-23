@@ -1,0 +1,8 @@
+package com.johnny.hotel;
+import com.johnny.hotel.support.WalletDevelopmentGuard;import org.flywaydb.core.Flyway;import org.junit.jupiter.api.Test;import org.junit.jupiter.api.condition.EnabledIfSystemProperty;import java.sql.DriverManager;import java.util.UUID;import static org.junit.jupiter.api.Assertions.*;
+@EnabledIfSystemProperty(named="hotel.v46.fresh.smoke",matches="true")
+class V46FreshMigrationSmokeTest {
+ @Test void zeroUserFreshV1ThroughV46()throws Exception{var settings=WalletDevelopmentGuard.settings();String database="hotel_v46_smoke_"+UUID.randomUUID().toString().replace("-","").substring(0,12);String original=WalletDevelopmentGuard.url();String temporary=original.replace("/hotel_management?","/"+database+"?");
+  try(var admin=DriverManager.getConnection(original,settings.get("DB_USERNAME"),settings.get("DB_PASSWORD"));var statement=admin.createStatement()){statement.execute("CREATE DATABASE `"+database+"` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");try{var flyway=Flyway.configure().dataSource(temporary,settings.get("DB_USERNAME"),settings.get("DB_PASSWORD")).locations("classpath:db/migration").load();flyway.migrate();flyway.validate();try(var c=DriverManager.getConnection(temporary,settings.get("DB_USERNAME"),settings.get("DB_PASSWORD"));var s=c.createStatement();var r=s.executeQuery("SELECT (SELECT COUNT(*) FROM flyway_schema_history WHERE success=1 AND version='49'),(SELECT COUNT(*) FROM night_audit_run),(SELECT COUNT(*) FROM hotel_expense_reversal)")){assertTrue(r.next());assertEquals(1,r.getInt(1));assertEquals(0,r.getInt(2));assertEquals(0,r.getInt(3));}}finally{statement.execute("DROP DATABASE `"+database+"`");}}
+ }
+}

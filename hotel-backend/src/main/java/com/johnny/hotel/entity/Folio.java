@@ -30,6 +30,7 @@ public class Folio {
 
     private BigDecimal paidAmount;
     private BigDecimal refundedAmount;
+    private BigDecimal arTransferredAmount;
 
     private BigDecimal balanceAmount;
 

@@ -24,6 +24,7 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
 
     private final PaymentMapper paymentMapper;
     private final com.johnny.hotel.wallet.RefundMapper refundMapper;
+    private final com.johnny.hotel.ar.ArMapper arMapper;
 
     @Override
     @Transactional
@@ -60,7 +61,8 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
         BigDecimal refundedAmount = refundMapper.forFolio(folio.getId()).stream()
                 .filter(r -> r.getStatus() == com.johnny.hotel.enums.RefundStatus.SUCCESS.getCode())
                 .map(com.johnny.hotel.wallet.Refund::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal balanceAmount = totalAmount.subtract(paidAmount).add(refundedAmount);
+        BigDecimal arTransferredAmount = arMapper.folioTransfers(folio.getId());
+        BigDecimal balanceAmount = totalAmount.subtract(paidAmount).add(refundedAmount).subtract(arTransferredAmount);
 
         int newStatus = com.johnny.hotel.enums.FolioStatus.forBalance(balanceAmount).getCode();
         LocalDateTime settledTime = newStatus == 1
@@ -69,6 +71,7 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
         com.johnny.hotel.service.support.BillingRules.money(totalAmount, 12);
         com.johnny.hotel.service.support.BillingRules.money(paidAmount, 12);
         com.johnny.hotel.service.support.BillingRules.money(refundedAmount, 12);
+        com.johnny.hotel.service.support.BillingRules.money(arTransferredAmount, 12);
         com.johnny.hotel.service.support.BillingRules.money(balanceAmount, 12);
         if (folio.getClosedTime() != null && (newStatus != 1 || balanceAmount.signum() != 0))
             throw new BusinessException("Closed folio financial integrity violation");
@@ -78,6 +81,7 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
                         totalAmount,
                         paidAmount,
                         refundedAmount,
+                        arTransferredAmount,
                         balanceAmount,
                         newStatus,
                         settledTime

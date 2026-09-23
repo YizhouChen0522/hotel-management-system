@@ -1,0 +1,2 @@
+package com.johnny.hotel.finance;import lombok.*;import java.math.*;import java.time.*;
+@Data @Builder @NoArgsConstructor @AllArgsConstructor public class RevenueRecognition {private Long id;private LocalDate revenueDate;private LocalDate recognitionBusinessDate;private String category;private BigDecimal amount;private String sourceType;private Long sourceId;private Long stayId;private Long folioId;private LocalDateTime createdAt;}

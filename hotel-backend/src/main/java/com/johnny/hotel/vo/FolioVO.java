@@ -8,7 +8,7 @@ import java.util.List;
 
 @Builder
 public record FolioVO(Long id, Long stayId, Long bookingId, String currency, Integer status, BigDecimal totalAmount,
-        BigDecimal paidAmount, BigDecimal refundedAmount, BigDecimal balanceAmount, LocalDateTime closedTime,
+        BigDecimal paidAmount, BigDecimal refundedAmount, BigDecimal arTransferredAmount, BigDecimal balanceAmount, LocalDateTime closedTime,
         List<Item> items, List<PaymentVO> payments, List<ExpenseVO> expenses) {
     @Builder
     public record Item(Long id, String itemType, String description, LocalDate businessDate,

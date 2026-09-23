@@ -1,0 +1,1 @@
+package com.johnny.hotel.financeexpense;public enum ExpenseStatus{DRAFT(0),PENDING_APPROVAL(1),APPROVED(2),PAID(3),REJECTED(4),CANCELLED(5);private final int code;ExpenseStatus(int c){code=c;}public int getCode(){return code;}public static ExpenseStatus fromCode(int c){for(var v:values())if(v.code==c)return v;throw new IllegalArgumentException("Invalid expense status");}}

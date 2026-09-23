@@ -30,4 +30,5 @@ class BusinessDateServiceTest {
         var service=new BusinessDateService(db,Clock.fixed(Instant.parse("2026-09-23T17:30:00Z"),ZoneId.of("Asia/Shanghai")));
         assertEquals(LocalDate.of(2026,9,22),service.postingDate());
     }
+    @Test void closingRejectsOrdinaryPostingButAllowsOnlyMatchingAuditDate(){var db=mock(BusinessDateMapper.class);var date=LocalDate.of(2026,9,22);when(db.lockForPosting()).thenReturn(BusinessDateControl.builder().businessDate(date).state("CLOSING").build());var service=new BusinessDateService(db,Clock.systemUTC());assertThrows(com.johnny.hotel.exception.BusinessException.class,service::postingDate);assertEquals(date,service.closingPostingDate(date));assertThrows(com.johnny.hotel.exception.BusinessException.class,()->service.closingPostingDate(date.minusDays(1)));}
 }

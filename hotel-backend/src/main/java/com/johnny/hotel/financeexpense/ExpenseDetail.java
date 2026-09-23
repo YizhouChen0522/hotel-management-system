@@ -1,0 +1,1 @@
+package com.johnny.hotel.financeexpense;import lombok.*;import java.math.*;import java.util.*;@Data@Builder@NoArgsConstructor@AllArgsConstructor public class ExpenseDetail{private HotelExpense expense;private BigDecimal originalPaidAmount,reversedAmount,netCashExpense;private boolean fullyReversed;private List<ExpenseReversal> reversals;}
