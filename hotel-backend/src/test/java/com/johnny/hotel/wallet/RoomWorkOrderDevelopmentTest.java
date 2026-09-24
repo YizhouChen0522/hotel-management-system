@@ -18,8 +18,8 @@ class RoomWorkOrderDevelopmentTest extends FinancialDevelopmentFixture {
  int records(long id,int type){return jdbc.queryForObject("SELECT COUNT(*) FROM task_record WHERE task_id=? AND record_type=?",Integer.class,id,type);}
  TaskRequests.Assign assign(Long... ids){return TaskRequests.Assign.builder().assigneeUserIds(List.of(ids)).note("Maintenance assignment").build();}
  @Test void migrationAndSchemaConstraints(){flyway.validate();assertEquals(1,jdbc.queryForObject("SELECT success FROM flyway_schema_history WHERE version='18'",Integer.class));assertEquals(1,jdbc.queryForObject("SELECT success FROM flyway_schema_history WHERE version='19'",Integer.class));assertEquals(3,TaskType.ROOM_MAINTENANCE.getCode());assertEquals(3,WorkOrderSeverity.CRITICAL.getCode());}
- @Test void staffReportCreatesOpenPersonalTaskWithoutTouchingRoom(){
-  var w=create("STAFF",room1,true);assertEquals(0,w.getStatus());assertEquals(uid("STAFF"),w.getReportedBy());assertEquals(1,roomStatus(room1));
+ @Test void staffReportCreatesOpenPersonalTaskAndQuarantinesAvailableRoom(){
+  var w=create("STAFF",room1,true);assertEquals(0,w.getStatus());assertEquals(uid("STAFF"),w.getReportedBy());assertEquals(3,roomStatus(room1));
   var t=tasks.get(w.getTaskId()).getTask();assertEquals(3,t.getTaskType());assertEquals(0,t.getStatus());assertEquals(0,t.getExecutionType());assertEquals(1,records(t.getId(),0));
  }
  @Test void nonBlockingDamageDoesNotChangeRoom(){var w=create("STAFF",room1,false);assertEquals(1,roomStatus(room1));assertFalse(w.getBlocksRoomRelease());}
@@ -39,7 +39,7 @@ class RoomWorkOrderDevelopmentTest extends FinancialDevelopmentFixture {
   todoService.acknowledge(todo,null);todoService.block(todo,"Waiting for part");assertEquals(4,taskStatus(w.getTaskId()));todoService.resume(todo,null);assertEquals(1,taskStatus(w.getTaskId()));
   assertThrows(BusinessException.class,()->todoService.complete(todo,null));assertThrows(BusinessException.class,()->tasks.complete(w.getTaskId(),null));
   var done=workOrders.complete(w.getId(),WorkOrderRequests.Complete.builder().actualCost(new BigDecimal("99.25")).note("Repaired").build(),false);
-  assertEquals(1,done.getStatus());assertEquals(new BigDecimal("99.25"),done.getActualCost());assertEquals(2,taskStatus(w.getTaskId()));assertEquals(2,todoService.get(todo).getStatus());assertEquals(1,roomStatus(room1));
+  assertEquals(1,done.getStatus());assertEquals(new BigDecimal("99.25"),done.getActualCost());assertEquals(2,taskStatus(w.getTaskId()));assertEquals(2,todoService.get(todo).getStatus());assertEquals(3,roomStatus(room1));
  }
  @Test void managerAssignProducesTodoAndCanForceComplete(){
   var w=create("MANAGER",room1,true);tasks.assign(w.getTaskId(),assign(uid("STAFF")));as("STAFF");assertEquals(0,todoService.get(todo(w.getTaskId())).getStatus());
@@ -54,16 +54,25 @@ class RoomWorkOrderDevelopmentTest extends FinancialDevelopmentFixture {
  }
  @ParameterizedTest @ValueSource(strings={"MANAGER","OWNER","SUPER_ADMIN"})
  void managersCancelWithoutReleasingRoom(String role){
-  var w=create("STAFF",room1,true);as(role);var cancelled=workOrders.cancel(w.getId(),"Duplicate report");assertEquals(2,cancelled.getStatus());assertEquals(3,taskStatus(w.getTaskId()));assertEquals(1,roomStatus(room1));assertEquals(2,workOrders.cancel(w.getId(),null).getStatus());
+  var w=create("STAFF",room1,true);as(role);var cancelled=workOrders.cancel(w.getId(),"Duplicate report");assertEquals(2,cancelled.getStatus());assertEquals(3,taskStatus(w.getTaskId()));assertEquals(3,roomStatus(room1));assertEquals(2,workOrders.cancel(w.getId(),null).getStatus());
  }
  @Test void occupiedRoomReportPreservesBookingAssignmentAndLaterCheckoutMaintenance(){
   long b=stay();long assignment=jdbc.queryForObject("SELECT id FROM stay_room_assignment WHERE stay_id=(SELECT id FROM stay WHERE booking_id=?) AND end_time IS NULL",Long.class,b);var w=create("STAFF",room1,true);
   assertEquals(4,roomStatus(room1));assertEquals(1,stayState(b));assertNull(jdbc.queryForObject("SELECT end_time FROM stay_room_assignment WHERE id=?",java.time.LocalDateTime.class,assignment));
-  pay(b,"300");clock.day(3);checkout(b);assertEquals(3,roomStatus(room1));assertEquals(2,stayState(b));assertEquals(0,workOrders.get(w.getId()).getStatus());
+  clock.day(3);checkout(b);assertEquals(3,roomStatus(room1));assertEquals(2,stayState(b));assertEquals(0,workOrders.get(w.getId()).getStatus());
  }
  @Test void bookedRoomReportPreservesReservationLifecycle(){
   long b=createBooking("CUSTOMER");var approve=new com.johnny.hotel.dto.ApproveBookingRequest();approve.setAssignedRoomId(room1);bookings.approveBooking(b,approve,uid("MANAGER"));var w=create("STAFF",room1,true);
-  assertEquals(2,roomStatus(room1));assertEquals(1,bookingState(b));assertEquals(0,w.getStatus());
+  assertEquals(3,roomStatus(room1));assertEquals(1,bookingState(b));assertEquals(room1,jdbc.queryForObject("SELECT reserved_room_id FROM booking WHERE id=?",Long.class,b));assertEquals(0,w.getStatus());
+ }
+ @Test void quarantinedRoomCannotBeAssignedToANewReservation(){
+  create("STAFF",room1,true);long b=createBooking("CUSTOMER");var approve=new com.johnny.hotel.dto.ApproveBookingRequest();approve.setAssignedRoomId(room1);
+  assertThrows(BusinessException.class,()->bookings.approveBooking(b,approve,uid("MANAGER")));assertEquals(0,bookingState(b));assertEquals(3,roomStatus(room1));
+ }
+ @Test void concurrentReservationAndBlockingReportSerializeOnRoom(){
+  long b=createBooking("CUSTOMER");var approve=new com.johnny.hotel.dto.ApproveBookingRequest();approve.setAssignedRoomId(room1);as("STAFF");var report=report(room1,true);
+  Throwable result=serialized("RoomMapper.selectByIdForUpdate",()->workOrders.report(report),()->bookings.approveBooking(b,approve,uid("MANAGER")));
+  assertTrue(result==null||result instanceof BusinessException);assertEquals(3,roomStatus(room1));assertTrue(bookingState(b)==0||bookingState(b)==1);
  }
  @ParameterizedTest @ValueSource(strings={"HotelTaskMapper.insert","TaskRecordMapper.insert","RoomWorkOrderMapper.insert","SysAuditLogMapper.insert"})
  void reportFailureRollsBackTaskWorkOrderAndRoom(String statement){
@@ -90,12 +99,12 @@ class RoomWorkOrderDevelopmentTest extends FinancialDevelopmentFixture {
   assertEquals(before,jdbc.queryForObject("SELECT COUNT(*) FROM folio_item WHERE folio_id=?",Integer.class,folio(b)));
  }
  @Test void openBlockingOrderBlocksManualReleaseUntilResolved(){
-  var w=create("STAFF",room1,true);assertEquals(1,roomStatus(room1));rooms.setRoomMaintenance(room1);assertEquals(3,roomStatus(room1));
+  var w=create("STAFF",room1,true);assertEquals(3,roomStatus(room1));
   assertThrows(BusinessException.class,()->rooms.setRoomAvailable(room1));tasks.claim(w.getTaskId());todoService.acknowledge(todo(w.getTaskId()),null);
   workOrders.complete(w.getId(),null,false);rooms.setRoomAvailable(room1);assertEquals(1,roomStatus(room1));
  }
  @Test void cancelledBlockingOrderNoLongerBlocksRelease(){
-  var w=create("STAFF",room1,true);rooms.setRoomMaintenance(room1);assertThrows(BusinessException.class,()->rooms.setRoomAvailable(room1));
+  var w=create("STAFF",room1,true);assertThrows(BusinessException.class,()->rooms.setRoomAvailable(room1));
   as("MANAGER");workOrders.cancel(w.getId(),"Duplicate report");rooms.setRoomAvailable(room1);assertEquals(1,roomStatus(room1));
  }
  @Test void openNonBlockingOrderDoesNotBlockRelease(){
@@ -106,7 +115,7 @@ class RoomWorkOrderDevelopmentTest extends FinancialDevelopmentFixture {
   rooms.setRoomMaintenance(room1);var w=create("STAFF",room1,true);assertEquals(3,roomStatus(room1));assertEquals(0,w.getStatus());
  }
  @Test void completionAndCancellationNeverAutoReleaseRoom(){
-  var done=create("STAFF",room1,true);rooms.setRoomMaintenance(room1);tasks.claim(done.getTaskId());todoService.acknowledge(todo(done.getTaskId()),null);
+  var done=create("STAFF",room1,true);tasks.claim(done.getTaskId());todoService.acknowledge(todo(done.getTaskId()),null);
   workOrders.complete(done.getId(),null,false);assertEquals(1,workOrders.get(done.getId()).getStatus());assertEquals(3,roomStatus(room1));
   var cancelled=create("STAFF",room1,true);as("MANAGER");workOrders.cancel(cancelled.getId(),null);assertEquals(2,workOrders.get(cancelled.getId()).getStatus());assertEquals(3,roomStatus(room1));
   rooms.setRoomAvailable(room1);assertEquals(1,roomStatus(room1));

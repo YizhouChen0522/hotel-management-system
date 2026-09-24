@@ -1,5 +1,5 @@
 package com.johnny.hotel.workorder;
-import com.johnny.hotel.entity.*;import com.johnny.hotel.exception.BusinessException;import com.johnny.hotel.mapper.*;import com.johnny.hotel.task.*;
+import com.johnny.hotel.entity.*;import com.johnny.hotel.enums.RoomStatus;import com.johnny.hotel.exception.BusinessException;import com.johnny.hotel.mapper.*;import com.johnny.hotel.task.*;
 import lombok.RequiredArgsConstructor;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.*;import java.math.*;import java.util.*;
 @Service @RequiredArgsConstructor public class RoomWorkOrderServiceImpl implements RoomWorkOrderService {
  private final RoomWorkOrderMapper orders;private final RoomMapper rooms;private final HotelTaskService tasks;private final WorkOrderAccess access;private final SysAuditLogMapper audits;private final com.johnny.hotel.pagination.PaginationSupport pagination;
@@ -17,7 +17,10 @@ import lombok.RequiredArgsConstructor;import org.springframework.stereotype.Serv
   String source="ROOM_MAINTENANCE:"+a.id()+":"+key;var task=tasks.createMaintenance(room.getId(),"Repair room "+room.getRoomNumber()+": "+damage,description,source,a.id());
   var w=RoomWorkOrder.builder().taskId(task.getId()).roomId(room.getId()).reportedBy(a.id()).requestKey(key).damageType(damage).description(description).severity(r.getSeverity().getCode()).affectsSellability(r.getBlocksRoomRelease()).blocksRoomRelease(r.getBlocksRoomRelease()).estimatedCost(estimated).status(0).build();
   one(orders.insert(w));
-  // V19: reporting a WorkOrder never changes RoomStatus. Staff decide MAINTENANCE via the manual room status API.
+  if(Boolean.TRUE.equals(r.getBlocksRoomRelease())&&
+          (room.getStatus()==RoomStatus.AVAILABLE.getCode()||room.getStatus()==RoomStatus.BOOKED.getCode())){
+   one(rooms.transitionStatus(room.getId(),room.getStatus(),RoomStatus.MAINTENANCE.getCode()));
+  }
   audit(a.id(),w.getId(),"REPORT_ROOM_WORK_ORDER");return orders.find(w.getId());
  }
  private BigDecimal money(BigDecimal value){if(value==null)return null;try{var v=value.setScale(2,RoundingMode.UNNECESSARY);require(v.signum()>=0&&v.precision()<=12,"Invalid cost");return v;}catch(ArithmeticException e){throw new BusinessException("Cost supports at most two decimals");}}
