@@ -1,0 +1,1 @@
+package com.johnny.hotel.settlement;import lombok.*;import java.util.*;@Data@Builder@NoArgsConstructor@AllArgsConstructor public class SettlementView{private SettlementBatch batch;private List<SettlementItem> items;private GatewayPayout payout;}

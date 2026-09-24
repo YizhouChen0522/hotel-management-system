@@ -1,0 +1,2 @@
+package com.johnny.hotel.settlement;import lombok.*;import java.math.*;import java.time.*;
+@Data@Builder@NoArgsConstructor@AllArgsConstructor public class GatewayPayout{private Long id,batchId,confirmedBy;private String provider,providerPayoutId,currency,status,reconciliationStatus,exceptionReason,bankReference;private BigDecimal amount;private LocalDate postingBusinessDate;private LocalDateTime expectedAt,paidAt,createTime,updateTime;}

@@ -1,0 +1,2 @@
+package com.johnny.hotel.settlement;import lombok.*;import java.math.*;import java.time.*;
+@Data@Builder@NoArgsConstructor@AllArgsConstructor public class SettlementBatch{private Long id,importedBy;private String provider,providerBatchId,currency,status,reconciliationStatus,exceptionReason;private BigDecimal declaredGross,declaredFee,declaredNet,calculatedGross,calculatedFee,calculatedNet;private LocalDate postingBusinessDate;private LocalDateTime periodStart,periodEnd,providerCreatedAt,providerSettledAt,createTime,updateTime;}

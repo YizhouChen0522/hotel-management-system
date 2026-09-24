@@ -1,0 +1,24 @@
+package com.johnny.hotel.wallet;
+
+import com.johnny.hotel.exception.BusinessException;
+import com.johnny.hotel.task.*;
+import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
+import java.util.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+@org.junit.jupiter.api.condition.EnabledIfSystemProperty(named="hotel.wallet.dev.tests",matches="true")
+class TaskTargetRoleDevelopmentTest extends FinancialDevelopmentFixture {
+ @Autowired HotelTaskService service; @Autowired HotelTaskMapper taskMapper; @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
+ @BeforeEach void finance(){long id=users.registerEmployee(employeeRequest("FINANCE")).getId();created.add(id);actors.put("FINANCE",id);jdbc.update("UPDATE sys_user SET status=1 WHERE id=?",id);jdbc.update("INSERT INTO sys_user_role(user_id,role_id) SELECT ?,id FROM sys_role WHERE role_code='FINANCE'",id);}
+ void secondFinance(){long id=users.registerEmployee(employeeRequest("FINANCE")).getId();created.add(id);actors.put("OTHER_FINANCE",id);jdbc.update("UPDATE sys_user SET status=1 WHERE id=?",id);jdbc.update("INSERT INTO sys_user_role(user_id,role_id) SELECT ?,id FROM sys_role WHERE role_code='FINANCE'",id);}
+ HotelTask task(String role,String key){var t=HotelTask.builder().taskType(1).targetRole(role).status(0).assignmentMode(0).executionType(0).title("Finance cash handover").sourceKey("CASH_TRANSFER:"+key).requestKey(key).createdBy(uid("STAFF")).build();assertEquals(1,taskMapper.insert(t));return t;}
+ TaskRequests.Assign assign(long id){return TaskRequests.Assign.builder().assigneeUserIds(List.of(id)).build();}
+ @Test void financeTargetRestrictsClaimAndUsesPendingTodoThenExplicitAccept(){var t=task("FINANCE","role-claim-"+UUID.randomUUID());as("STAFF");assertThrows(AccessDeniedException.class,()->service.claim(t.getId()));as("MANAGER");assertThrows(AccessDeniedException.class,()->service.claim(t.getId()));as("FINANCE");var claimed=service.claim(t.getId());assertEquals(0,claimed.getAssignments().get(0).getStatus());assertEquals(0,jdbc.queryForObject("SELECT status FROM todo WHERE task_id=?",Integer.class,t.getId()));service.accept(t.getId());assertEquals(1,jdbc.queryForObject("SELECT status FROM todo WHERE task_id=?",Integer.class,t.getId()));assertThrows(BusinessException.class,()->service.complete(t.getId(),"bypass"));}
+ @Test void managerCanOnlyAssignEligibleFinanceAndOwnerMayOverrideClaim(){var assigned=task("FINANCE","role-assign-"+UUID.randomUUID());as("MANAGER");assertThrows(AccessDeniedException.class,()->service.assign(assigned.getId(),assign(uid("STAFF"))));service.assign(assigned.getId(),assign(uid("FINANCE")));assertEquals(uid("FINANCE"),service.get(assigned.getId()).getAssignments().get(0).getAssigneeUserId());var override=task("FINANCE","role-owner-"+UUID.randomUUID());as("OWNER");assertEquals(1,service.claim(override.getId()).getTask().getStatus());}
+ @Test void nullTargetPreservesLegacyStaffPoolAndFinanceCannotClaim(){var t=HotelTask.builder().taskType(1).status(0).assignmentMode(0).executionType(0).title("Legacy task").requestKey("legacy-"+UUID.randomUUID()).createdBy(uid("STAFF")).build();assertEquals(1,taskMapper.insert(t));as("FINANCE");assertThrows(AccessDeniedException.class,()->service.claim(t.getId()));as("STAFF");assertEquals(1,service.claim(t.getId()).getTask().getStatus());}
+ @Test void taskPoolFiltersTargetRoleAssigneeUnassignedAndClaimable(){var t=task("FINANCE","role-list-"+UUID.randomUUID());as("FINANCE");assertTrue(service.list(null,null,"FINANCE",null,true,true,1,100).stream().anyMatch(x->x.getId().equals(t.getId())));service.claim(t.getId());assertFalse(service.list(null,null,"FINANCE",null,true,true,1,100).stream().anyMatch(x->x.getId().equals(t.getId())));assertTrue(service.list(null,null,"STAFF",uid("FINANCE"),false,false,1,100).stream().anyMatch(x->x.getId().equals(t.getId())));}
+ @Test void cashDomainCompletionRequiresExplicitAcknowledgement(){var t=task("FINANCE","role-complete-"+UUID.randomUUID());as("FINANCE");service.claim(t.getId());var tx=new org.springframework.transaction.support.TransactionTemplate(transactionManager);assertThrows(BusinessException.class,()->tx.executeWithoutResult(s->service.completeCashTransfer(t.getId(),"confirmed")));service.accept(t.getId());tx.executeWithoutResult(s->service.completeCashTransfer(t.getId(),"confirmed"));assertEquals(2,service.get(t.getId()).getTask().getStatus());}
+ @Test void concurrentFinanceClaimHasExactlyOneWinner(){secondFinance();var t=task("FINANCE","role-race-"+UUID.randomUUID());assertInstanceOf(BusinessException.class,serialized("HotelTaskMapper.transition",()->{as("FINANCE");service.claim(t.getId());},()->{as("OTHER_FINANCE");service.claim(t.getId());}));as("OWNER");assertEquals(1,service.get(t.getId()).getAssignments().stream().filter(x->x.getIsCurrent()==1).count());}
+}

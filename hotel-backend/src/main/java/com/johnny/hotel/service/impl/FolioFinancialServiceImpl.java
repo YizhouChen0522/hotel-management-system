@@ -83,7 +83,6 @@ public class FolioFinancialServiceImpl implements FolioFinancialService {
                         refundedAmount,
                         arTransferredAmount,
                         balanceAmount,
-                        newStatus,
                         settledTime
                 );
 

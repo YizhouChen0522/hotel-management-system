@@ -1,0 +1,1 @@
+package com.johnny.hotel.settlement;import lombok.*;import java.math.*;@Data@Builder@NoArgsConstructor@AllArgsConstructor public class SettlementMetrics{private BigDecimal gross,processorFee,net,completedPayout;private Long matchedBatches,exceptionBatches;}

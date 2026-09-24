@@ -49,6 +49,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final SysAuditLogMapper sysAuditLogMapper;
     private final com.johnny.hotel.service.support.BillingAccess billingAccess;
     private final com.johnny.hotel.businessdate.BusinessDateService businessDates;
+    private final com.johnny.hotel.cashier.CashierPostingService cashierPosting;
 
     @Override
     @Transactional
@@ -196,6 +197,10 @@ public class PaymentServiceImpl implements PaymentService {
             throw new BusinessException(
                     "Failed to record payment"
             );
+        }
+
+        if ("CASH".equals(paymentMethod)) {
+            cashierPosting.post(operatorId,"IN","CASH_PAYMENT",amount,folio.getCurrency(),"FOLIO_PAYMENT",payment.getId(),"cash-payment-"+payment.getId(),note);
         }
 
         /*

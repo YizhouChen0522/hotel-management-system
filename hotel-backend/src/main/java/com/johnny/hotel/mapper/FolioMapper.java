@@ -76,7 +76,6 @@ public interface FolioMapper {
                 refunded_amount = #{refundedAmount},
                 ar_transferred_amount = #{arTransferredAmount},
                 balance_amount = #{balanceAmount},
-                status = #{status},
                 settled_time = #{settledTime},
                 update_time = NOW()
             WHERE id = #{folioId}
@@ -88,7 +87,6 @@ public interface FolioMapper {
             @Param("refundedAmount") BigDecimal refundedAmount,
             @Param("arTransferredAmount") BigDecimal arTransferredAmount,
             @Param("balanceAmount") BigDecimal balanceAmount,
-            @Param("status") Integer status,
             @Param("settledTime") java.time.LocalDateTime settledTime
     );
 
