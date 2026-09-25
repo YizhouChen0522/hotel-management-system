@@ -62,10 +62,17 @@ import java.time.*;import java.util.*;
   UNION ALL
   SELECT 'NIGHT_AUDIT_RUN',n.id,CONCAT('NIGHT_AUDIT_',n.status),COALESCE(n.last_error,b.reason),n.status,n.business_date,n.started_at,n.update_time
   FROM night_audit_run n LEFT JOIN night_audit_blocker b ON b.run_id=n.id AND b.active=1 WHERE n.status IN ('BLOCKED','FAILED')
+  UNION ALL
+  SELECT 'GATEWAY_SETTLEMENT_BATCH',s.id,CONCAT('SETTLEMENT_',s.reconciliation_status),
+   CONCAT(s.provider,'/',s.provider_batch_id,': ',COALESCE(s.exception_reason,'Unresolved settlement reconciliation')),
+   CONCAT(s.status,'/',s.reconciliation_status),s.posting_business_date,s.provider_settled_at,s.update_time
+  FROM gateway_settlement_batch s
+  WHERE s.status='EXCEPTION' OR s.reconciliation_status IN ('MISSING','MISMATCH')
  ) x ORDER BY updated_at DESC,source_type,source_id LIMIT #{offset},#{size}
  """) List<FinanceException> exceptionPage(@Param("offset")int offset,@Param("size")int size);
  @Select("""
  SELECT (SELECT COUNT(*) FROM payment_attempt WHERE recovery_status='MANUAL_REVIEW' OR (status='SUCCEEDED' AND fulfillment_status<>'COMPLETED'))+
         (SELECT COUNT(*) FROM night_audit_run n LEFT JOIN night_audit_blocker b ON b.run_id=n.id AND b.active=1 WHERE n.status IN ('BLOCKED','FAILED'))
+       +(SELECT COUNT(*) FROM gateway_settlement_batch WHERE status='EXCEPTION' OR reconciliation_status IN ('MISSING','MISMATCH'))
  """) long exceptionCount();
 }
