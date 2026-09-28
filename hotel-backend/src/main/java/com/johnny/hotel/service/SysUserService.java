@@ -18,6 +18,7 @@ public interface SysUserService {
     LoginVO login(LoginRequest request);
     UserVO registerEmployee(RegisterEmployeeRequest request);
     List<PendingUserVO> getPendingUsers();
+    com.johnny.hotel.pagination.PageResult<PendingUserVO> getPendingUsers(Integer page,Integer size);
     void approveUser(Long userId,Long currentUserId);
     void rejectUser(Long userId, Long currentUserId);
     void enableUser(Long userId, Long currentUserId);

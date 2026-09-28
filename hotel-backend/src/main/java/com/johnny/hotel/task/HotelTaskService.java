@@ -3,6 +3,8 @@ import java.util.List;
 public interface HotelTaskService {
  HotelTask createGeneral(TaskRequests.CreateGeneral request); HotelTask createTurnover(Long roomId,Long assignmentId,Long actorId);
  default List<HotelTask> list(Integer status,Integer type,Integer page,Integer size){return list(status,type,null,null,null,null,page,size);} List<HotelTask> list(Integer status,Integer type,String targetRole,Long assigneeId,Boolean unassigned,Boolean claimable,Integer page,Integer size); TaskView get(Long id); List<TaskAssignment> myTodo();
+ com.johnny.hotel.pagination.PageResult<HotelTask> page(Integer status,Integer type,String targetRole,Long assigneeId,Boolean unassigned,Boolean claimable,Integer page,Integer size);
+ com.johnny.hotel.pagination.PageResult<Todo> todoPage(Integer page,Integer size);
  TaskView claim(Long id); TaskView accept(Long id); TaskView complete(Long id,String note);
  TaskView assign(Long id,TaskRequests.Assign request); TaskView reassign(Long id,TaskRequests.Assign request); TaskView cancel(Long id,String note); TaskView forceComplete(Long id,String note);
  List<Todo> todos(Integer page,Integer size); Todo todo(Long id); Todo updateTodo(Long id,String action,String note);

@@ -6,6 +6,7 @@ public interface RoomTurnoverTaskService {
     RoomTurnoverTask createForClosedAssignment(Long assignmentId);
     RoomTurnoverTask createForClosedAssignment(Long assignmentId,Long actorId);
     List<RoomTurnoverTask> list(Integer status,Long roomId,Integer page,Integer size);
+    com.johnny.hotel.pagination.PageResult<RoomTurnoverTask> page(Integer status,Long roomId,Integer page,Integer size);
     RoomTurnoverTask get(Long id);
     RoomTurnoverTask accept(Long id);
     RoomTurnoverTask complete(Long id,String note);

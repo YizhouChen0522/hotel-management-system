@@ -46,8 +46,9 @@ public interface SysUserMapper {
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(SysUser user);
 
-    @Select("SELECT * FROM sys_user WHERE status = 2")
-    List<SysUser> selectPendingUsers();
+    @Select("SELECT * FROM sys_user WHERE status = 2 ORDER BY create_time DESC,id DESC LIMIT #{offset},#{size}")
+    List<SysUser> selectPendingUsers(@Param("offset")int offset,@Param("size")int size);
+    @Select("SELECT COUNT(*) FROM sys_user WHERE status=2") long countPendingUsers();
 
     @Update("""
         UPDATE sys_user

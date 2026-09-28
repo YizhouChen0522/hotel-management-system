@@ -11,6 +11,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import com.johnny.hotel.pagination.PageResult;
 
 @RestController
 @RequestMapping("/api/bookings")
@@ -29,9 +30,9 @@ public class BookingController {
 
     @GetMapping("/my")
     @PreAuthorize("hasRole('CUSTOMER')")
-    public Result<List<BookingVO>> getMyBookings(Authentication authentication) {
+    public Result<PageResult<BookingVO>> getMyBookings(Authentication authentication,@RequestParam(required=false)Integer page,@RequestParam(required=false)Integer pageSize) {
         Long currentUserId = (Long) authentication.getDetails();
-        return Result.success(bookingService.getMyBookings(currentUserId));
+        return Result.success(bookingService.pageMyBookings(currentUserId,page,pageSize));
     }
 
     @PostMapping("/{bookingId}/cancel")

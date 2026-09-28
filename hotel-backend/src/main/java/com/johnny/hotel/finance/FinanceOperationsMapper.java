@@ -68,11 +68,18 @@ import java.time.*;import java.util.*;
    CONCAT(s.status,'/',s.reconciliation_status),s.posting_business_date,s.provider_settled_at,s.update_time
   FROM gateway_settlement_batch s
   WHERE s.status='EXCEPTION' OR s.reconciliation_status IN ('MISSING','MISMATCH')
+  UNION ALL
+  SELECT 'CASH_HANDOVER',h.id,'CASH_HANDOVER_DISCREPANCY',
+   CONCAT('Cash handover ',h.difference_type,' difference ',h.difference_amount),h.status,
+   ns.opening_business_date,h.create_time,h.update_time
+  FROM cash_handover h JOIN cashier_shift ns ON ns.id=h.next_shift_id
+  WHERE h.difference_amount<>0 AND h.status IN ('OPEN','REVIEW_REQUIRED')
  ) x ORDER BY updated_at DESC,source_type,source_id LIMIT #{offset},#{size}
  """) List<FinanceException> exceptionPage(@Param("offset")int offset,@Param("size")int size);
  @Select("""
  SELECT (SELECT COUNT(*) FROM payment_attempt WHERE recovery_status='MANUAL_REVIEW' OR (status='SUCCEEDED' AND fulfillment_status<>'COMPLETED'))+
         (SELECT COUNT(*) FROM night_audit_run n LEFT JOIN night_audit_blocker b ON b.run_id=n.id AND b.active=1 WHERE n.status IN ('BLOCKED','FAILED'))
        +(SELECT COUNT(*) FROM gateway_settlement_batch WHERE status='EXCEPTION' OR reconciliation_status IN ('MISSING','MISMATCH'))
+       +(SELECT COUNT(*) FROM cash_handover WHERE difference_amount<>0 AND status IN ('OPEN','REVIEW_REQUIRED'))
  """) long exceptionCount();
 }

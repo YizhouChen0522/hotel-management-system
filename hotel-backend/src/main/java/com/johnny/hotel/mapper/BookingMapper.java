@@ -90,6 +90,21 @@ public interface BookingMapper {
     @Select("SELECT * FROM booking WHERE user_id = #{userId} ORDER BY id DESC")
     List<Booking> selectByUserId(@Param("userId") Long userId);
 
+    @Select("SELECT COUNT(*) FROM booking")
+    long countAll();
+
+    @Select("SELECT COUNT(*) FROM booking WHERE status=#{status}")
+    long countByStatus(Integer status);
+
+    @Select("SELECT COUNT(*) FROM booking WHERE user_id=#{userId}")
+    long countByUserId(Long userId);
+
+    @Select("SELECT COUNT(*) FROM booking WHERE check_in_date BETWEEN #{startDate} AND #{endDate}")
+    long countByCheckInDateRange(@Param("startDate") LocalDate startDate,@Param("endDate") LocalDate endDate);
+
+    @Select("SELECT COUNT(*) FROM booking WHERE check_out_date BETWEEN #{startDate} AND #{endDate}")
+    long countByCheckOutDateRange(@Param("startDate") LocalDate startDate,@Param("endDate") LocalDate endDate);
+
     @Select("""
         SELECT *
         FROM booking

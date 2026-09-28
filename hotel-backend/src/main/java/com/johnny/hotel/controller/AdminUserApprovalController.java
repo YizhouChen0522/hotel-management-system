@@ -18,8 +18,8 @@ public class AdminUserApprovalController {
 
     @GetMapping("/pending")
     @PreAuthorize("hasAnyRole('HR_ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
-    public Result<List<PendingUserVO>> getPendingUsers() {
-        return Result.success(sysUserService.getPendingUsers());
+    public Result<com.johnny.hotel.pagination.PageResult<PendingUserVO>> getPendingUsers(@RequestParam(required=false)Integer page,@RequestParam(required=false)Integer pageSize) {
+        return Result.success(sysUserService.getPendingUsers(page,pageSize));
     }
 
     @PostMapping("/{userId}/approve")

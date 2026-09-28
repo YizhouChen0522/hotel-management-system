@@ -15,6 +15,12 @@ import org.apache.ibatis.annotations.*;import java.util.List;
  <script>SELECT * FROM guest_profile WHERE status=1 <if test='q != null and q != ""'>AND (CONCAT(first_name,' ',last_name) LIKE CONCAT('%',#{q},'%') OR phone LIKE CONCAT('%',#{q},'%') OR email LIKE CONCAT('%',#{q},'%') OR document_number LIKE CONCAT('%',#{q},'%'))</if> ORDER BY id DESC LIMIT 100</script>
  """) List<GuestProfile> search(@Param("q") String q);
  @Select("""
+ <script>SELECT * FROM guest_profile WHERE status=1 <if test='q != null and q != ""'>AND (CONCAT(first_name,' ',last_name) LIKE CONCAT('%',#{q},'%') OR phone LIKE CONCAT('%',#{q},'%') OR email LIKE CONCAT('%',#{q},'%') OR document_number LIKE CONCAT('%',#{q},'%'))</if> ORDER BY id DESC LIMIT #{offset},#{size}</script>
+ """) List<GuestProfile> searchPage(@Param("q") String q,@Param("offset") int offset,@Param("size") int size);
+ @Select("""
+ <script>SELECT COUNT(*) FROM guest_profile WHERE status=1 <if test='q != null and q != ""'>AND (CONCAT(first_name,' ',last_name) LIKE CONCAT('%',#{q},'%') OR phone LIKE CONCAT('%',#{q},'%') OR email LIKE CONCAT('%',#{q},'%') OR document_number LIKE CONCAT('%',#{q},'%'))</if></script>
+ """) long searchCount(@Param("q") String q);
+ @Select("""
  SELECT * FROM guest_profile WHERE ((#{p.documentType} IS NOT NULL AND #{p.documentNumber} IS NOT NULL AND document_type=#{p.documentType} AND document_number=#{p.documentNumber}) OR (#{p.email} IS NOT NULL AND email=#{p.email}) OR (#{p.phone} IS NOT NULL AND phone=#{p.phone}) OR (first_name=#{p.firstName} AND last_name=#{p.lastName} AND #{p.dateOfBirth} IS NOT NULL AND date_of_birth=#{p.dateOfBirth})) ORDER BY CASE WHEN document_type=#{p.documentType} AND document_number=#{p.documentNumber} THEN 0 ELSE 1 END,id LIMIT 20
  """) List<GuestProfile> duplicates(@Param("p") GuestProfile p);
  @Insert("INSERT INTO booking_guest(booking_id,guest_id,guest_role) VALUES(#{bookingId},#{guestId},#{guestRole})") @Options(useGeneratedKeys=true,keyProperty="id") int add(BookingGuest bg);

@@ -13,7 +13,7 @@ import java.util.List;
 @PreAuthorize("hasAnyRole('STAFF','MANAGER','OWNER','SUPER_ADMIN')")
 public class RoomTurnoverTaskController {
     private final RoomTurnoverTaskService service;
-    @GetMapping public Result<List<RoomTurnoverTask>> list(@RequestParam(required=false) Integer status,@RequestParam(required=false) Long roomId,@RequestParam(required=false) Integer page,@RequestParam(required=false) Integer size){return Result.success(service.list(status,roomId,page,size));}
+    @GetMapping public Result<com.johnny.hotel.pagination.PageResult<RoomTurnoverTask>> list(@RequestParam(required=false) Integer status,@RequestParam(required=false) Long roomId,@RequestParam(required=false) Integer page,@RequestParam(required=false) Integer pageSize,@RequestParam(required=false) Integer size){return Result.success(service.page(status,roomId,page,pageSize!=null?pageSize:size));}
     @GetMapping("/{id}") public Result<RoomTurnoverTask> get(@PathVariable Long id){return Result.success(service.get(id));}
     @PostMapping("/{id}/accept") public Result<RoomTurnoverTask> accept(@PathVariable Long id){return Result.success(service.accept(id));}
     @PostMapping("/{id}/complete") public Result<RoomTurnoverTask> complete(@PathVariable Long id,@Valid @RequestBody(required=false) CompleteTurnoverTaskRequest request){return Result.success(service.complete(id,request==null?null:request.getNote()));}

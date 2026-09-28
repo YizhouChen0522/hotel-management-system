@@ -45,6 +45,9 @@ public class BookingServiceImpl implements BookingService {
     private final com.johnny.hotel.guest.GuestAccess guestAccess;
     private final com.johnny.hotel.reservation.ReservationPolicyService reservationPolicies;
     private final com.johnny.hotel.reservation.ReservationLifecycleService reservationLifecycle;
+    private final com.johnny.hotel.pagination.PaginationSupport pagination;
+
+    private com.johnny.hotel.pagination.PageResult<BookingVO> page(com.johnny.hotel.pagination.PaginationSupport.Window w,List<Booking> rows,long total){return pagination.result(w,rows.stream().map(this::toVO).toList(),total);}
 
     private BookingVO toVO(com.johnny.hotel.entity.Booking booking) {
         RoomType roomType = roomTypeMapper.selectById(booking.getRoomTypeId());
@@ -280,6 +283,13 @@ public class BookingServiceImpl implements BookingService {
                 booking.getId()
         );
     }
+    @Override public com.johnny.hotel.pagination.PageResult<BookingVO> pageMyBookings(Long user,Integer page,Integer size){guestAccess.customer(user);var w=pagination.window(page,size,true);return page(w,bookingMapper.selectPageByUserId(user,w.offset(),pagination.limit(w)),bookingMapper.countByUserId(user));}
+    @Override public com.johnny.hotel.pagination.PageResult<BookingVO> pageBookings(Integer page,Integer size){var w=pagination.window(page,size,false);return page(w,bookingMapper.selectPage(w.offset(),pagination.limit(w)),bookingMapper.countAll());}
+    @Override public com.johnny.hotel.pagination.PageResult<BookingVO> pagePendingBookings(Integer page,Integer size){var w=pagination.window(page,size,true);return page(w,bookingMapper.selectPendingPage(w.offset(),pagination.limit(w)),bookingMapper.countByStatus(0));}
+    @Override public com.johnny.hotel.pagination.PageResult<BookingVO> pageBookingsByStatus(Integer status,Integer page,Integer size){var w=pagination.window(page,size,true);return page(w,bookingMapper.selectPageByStatus(status,w.offset(),pagination.limit(w)),bookingMapper.countByStatus(status));}
+    @Override public com.johnny.hotel.pagination.PageResult<BookingVO> pageBookingsByUserId(Long user,Integer page,Integer size){var w=pagination.window(page,size,true);return page(w,bookingMapper.selectPageByUserId(user,w.offset(),pagination.limit(w)),bookingMapper.countByUserId(user));}
+    @Override public com.johnny.hotel.pagination.PageResult<BookingVO> pageBookingsByCheckInDateRange(LocalDate from,LocalDate to,Integer page,Integer size){validateDateRange(from,to);var w=pagination.window(page,size,true);return page(w,bookingMapper.selectPageByCheckInDateRange(from,to,w.offset(),pagination.limit(w)),bookingMapper.countByCheckInDateRange(from,to));}
+    @Override public com.johnny.hotel.pagination.PageResult<BookingVO> pageBookingsByCheckOutDateRange(LocalDate from,LocalDate to,Integer page,Integer size){validateDateRange(from,to);var w=pagination.window(page,size,true);return page(w,bookingMapper.selectPageByCheckOutDateRange(from,to,w.offset(),pagination.limit(w)),bookingMapper.countByCheckOutDateRange(from,to));}
 
     @Override
     @Transactional

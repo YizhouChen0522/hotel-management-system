@@ -3,6 +3,7 @@ package com.johnny.hotel.invoice;import com.johnny.hotel.entity.*;import com.joh
  public Actor actor(){var a=SecurityContextHolder.getContext().getAuthentication();if(a==null||!a.isAuthenticated()||!(a.getDetails() instanceof Long id))throw denied();var u=users.selectById(id);if(u==null||!Integer.valueOf(1).equals(u.getStatus()))throw denied();return new Actor(id,roles.selectRolesByUserId(id).stream().map(SysRole::getRoleCode).collect(Collectors.toSet()));}
  public void issue(Actor a){if(a.has("HR_ADMIN")||a.has("CUSTOMER")||a.roles().stream().noneMatch(Set.of("FINANCE","MANAGER","OWNER","SUPER_ADMIN")::contains))throw denied();}
  public void finance(Actor a){if(!a.roles().equals(Set.of("FINANCE")))throw denied();}
+ public void financeRead(Actor a){if(a.roles().stream().noneMatch(Set.of("FINANCE","OWNER","SUPER_ADMIN")::contains))throw denied();}
  public void read(Actor a,Long owner){if(a.has("CUSTOMER")){if(!a.id().equals(owner)||!a.roles().equals(Set.of("CUSTOMER")))throw denied();return;}if(a.has("HR_ADMIN")||a.roles().stream().noneMatch(Set.of("STAFF","FINANCE","MANAGER","OWNER","SUPER_ADMIN")::contains))throw denied();}
  private AccessDeniedException denied(){return new AccessDeniedException("Invoice access denied");}
 }

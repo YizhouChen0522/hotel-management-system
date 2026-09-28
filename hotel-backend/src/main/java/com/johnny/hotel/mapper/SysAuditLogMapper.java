@@ -52,4 +52,15 @@ public interface SysAuditLogMapper {
             LIMIT 10
             """)
     List<SysAuditLog> selectLogsByOperatorId(@Param("userId") Long userId);
+    @Select("""
+            <script>SELECT id,operator_id,target_user_id,action,detail,create_time FROM sys_audit_log
+            <where><if test='operatorId != null'>operator_id=#{operatorId}</if><if test='targetUserId != null'>AND target_user_id=#{targetUserId}</if><if test='action != null and action != ""'>AND action=#{action}</if><if test='from != null'>AND create_time&gt;=#{from}</if><if test='to != null'>AND create_time&lt;#{to}</if></where>
+            ORDER BY create_time DESC,id DESC LIMIT #{offset},#{size}</script>
+            """)
+    List<SysAuditLog> searchPage(@Param("operatorId") Long operatorId,@Param("targetUserId") Long targetUserId,@Param("action") String action,@Param("from") java.time.LocalDateTime from,@Param("to") java.time.LocalDateTime to,@Param("offset") int offset,@Param("size") int size);
+    @Select("""
+            <script>SELECT COUNT(*) FROM sys_audit_log
+            <where><if test='operatorId != null'>operator_id=#{operatorId}</if><if test='targetUserId != null'>AND target_user_id=#{targetUserId}</if><if test='action != null and action != ""'>AND action=#{action}</if><if test='from != null'>AND create_time&gt;=#{from}</if><if test='to != null'>AND create_time&lt;#{to}</if></where></script>
+            """)
+    long countSearch(@Param("operatorId") Long operatorId,@Param("targetUserId") Long targetUserId,@Param("action") String action,@Param("from") java.time.LocalDateTime from,@Param("to") java.time.LocalDateTime to);
 }

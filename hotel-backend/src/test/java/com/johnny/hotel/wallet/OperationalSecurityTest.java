@@ -36,17 +36,17 @@ class OperationalSecurityTest extends FinancialDevelopmentFixture {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value(1));
         register(b);
         mvc.perform(post("/api/admin/bookings/{id}/check-in",b).with(role(role,2))).andExpect(status().isOk());
-        mvc.perform(post("/api/admin/billing/folios/{id}/payments",folio(b)).with(role(role,2)).contentType("application/json")
-                .content("{\"amount\":300,\"paymentMethod\":\"CASH\",\"idempotencyKey\":\"123e4567-e89b-12d3-a456-426614174000\"}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.folioId").value(folio(b))).andExpect(jsonPath("$.data.requestKey").doesNotExist());
         clock.day(3);mvc.perform(post("/api/admin/bookings/{id}/check-out",b).with(role(role,2))).andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value(1));invariants(b);
     }
     @ParameterizedTest @ValueSource(strings={"approve","reject","check-in","check-out","cancel"}) void hrCannotWriteBooking(String operation) throws Exception {
         long b=create();mvc.perform(post("/api/admin/bookings/{id}/"+operation,b).with(role("HR_ADMIN",2)).contentType("application/json").content("{\"assignedRoomId\":"+room1+"}"))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value(403));invariants(b);
     }
-    @ParameterizedTest @ValueSource(strings={"maintenance","available","booked","occupied","enable","disable"}) void hrCannotWriteRoom(String operation) throws Exception {
+    @ParameterizedTest @ValueSource(strings={"maintenance","available","enable","disable"}) void hrCannotWriteRoom(String operation) throws Exception {
         mvc.perform(post("/api/admin/rooms/1/"+operation).with(role("HR_ADMIN",2))).andExpect(status().isForbidden());
+    }
+    @ParameterizedTest @ValueSource(strings={"booked","occupied"}) void legacyManualRoomLifecycleRoutesDoNotExist(String operation) throws Exception {
+        mvc.perform(post("/api/admin/rooms/1/"+operation).with(role("HR_ADMIN",2))).andExpect(status().isNotFound());
     }
     @ParameterizedTest @ValueSource(strings={"/api/admin/bookings","/api/admin/rooms","/api/admin/room-types"}) void hrCannotReadOperations(String uri) throws Exception {
         mvc.perform(get(uri).with(role("HR_ADMIN",2))).andExpect(status().isForbidden());

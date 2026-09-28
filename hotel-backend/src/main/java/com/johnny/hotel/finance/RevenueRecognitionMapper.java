@@ -21,5 +21,4 @@ package com.johnny.hotel.finance;import org.apache.ibatis.annotations.*;import j
  FROM revenue_recognition WHERE recognition_business_date=#{date}
  """) int insertSummary(@Param("date")LocalDate date,@Param("run")Long run,@Param("at")LocalDateTime at);
  @Select("SELECT * FROM daily_financial_summary WHERE business_date=#{date}") DailyFinancialSummary summary(LocalDate date);
- @Select("SELECT * FROM daily_financial_summary ORDER BY business_date DESC LIMIT 100") List<DailyFinancialSummary> summaries();
 }

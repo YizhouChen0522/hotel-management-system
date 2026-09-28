@@ -4,6 +4,7 @@ import com.johnny.hotel.vo.BookingVO;
 
 import java.time.LocalDate;
 import java.util.List;
+import com.johnny.hotel.pagination.PageResult;
 
 public interface BookingService {
     BookingVO createBooking(CreateBookingRequest request, Long currentUserId);
@@ -11,6 +12,13 @@ public interface BookingService {
     BookingVO createWalkInContract(com.johnny.hotel.walkin.WalkInContractCommand command, Long operatorId);
 
     List<BookingVO> getMyBookings(Long currentUserId);
+    PageResult<BookingVO> pageMyBookings(Long currentUserId,Integer page,Integer size);
+    PageResult<BookingVO> pageBookings(Integer page,Integer size);
+    PageResult<BookingVO> pagePendingBookings(Integer page,Integer size);
+    PageResult<BookingVO> pageBookingsByStatus(Integer status,Integer page,Integer size);
+    PageResult<BookingVO> pageBookingsByUserId(Long userId,Integer page,Integer size);
+    PageResult<BookingVO> pageBookingsByCheckInDateRange(LocalDate startDate,LocalDate endDate,Integer page,Integer size);
+    PageResult<BookingVO> pageBookingsByCheckOutDateRange(LocalDate startDate,LocalDate endDate,Integer page,Integer size);
 
     List<BookingVO> getBookingsPage(Integer page, Integer size);
 

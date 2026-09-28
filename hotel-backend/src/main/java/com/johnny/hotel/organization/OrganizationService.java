@@ -79,6 +79,7 @@ public class OrganizationService {
  private void read(OrganizationChangeRequest r,OrganizationAccess.Actor a){if(!access.oversight(a)&&!r.getRequestedBy().equals(a.id()))throw new BusinessException(404,"Organization request not found");}
  public OrganizationChangeRequest get(Long id){var a=access.actor();var r=found(id);read(r,a);return r;}
  public List<OrganizationChangeRequest> requests(Integer page,Integer size){var a=access.actor();int[] p=page(page,size);return db.requests(access.oversight(a)?null:a.id(),p[0],p[1]);}
+ public com.johnny.hotel.pagination.PageResult<OrganizationChangeRequest> requestPage(Integer page,Integer size){var a=access.actor();Long actor=access.oversight(a)?null:a.id();var w=pagination.window(page,size,false);int limit=pagination.limit(w);var rows=limit==0?List.<OrganizationChangeRequest>of():db.requests(actor,w.offset(),limit);return pagination.result(w,rows,db.requestCount(actor));}
  private int[] page(Integer page,Integer size){int p=page==null?1:page,s=size==null?50:size;require(p>0&&s>0&&s<=100&&(long)(p-1)*s<=Integer.MAX_VALUE,"Invalid pagination");return new int[]{(p-1)*s,s};}
  public List<Department> departments(Integer page,Integer size){access.actor();int[] p=page(page,size);return db.departments(p[0],p[1]);}
  public Department departmentDetails(Long id){access.actor();return department(id);}
@@ -86,6 +87,7 @@ public class OrganizationService {
  public com.johnny.hotel.pagination.PageResult<OrganizationChangeHistory> history(Long operator,Integer action,java.time.LocalDateTime from,java.time.LocalDateTime to,Integer page,Integer size){var a=access.actor();if(!access.oversight(a))throw access.denied();require(from==null||to==null||from.isBefore(to),"Invalid date range");boolean search=operator!=null||action!=null||from!=null||to!=null;var w=pagination.window(page,size,search);int limit=pagination.limit(w);var rows=limit==0?List.<OrganizationChangeHistory>of():db.historySearch(operator,action,from,to,w.offset(),limit);return pagination.result(w,rows,db.historyCount(operator,action,from,to));}
  public TaskView task(Long id){var a=access.actor();var r=found(id);read(r,a);return workflow.view(r.getTaskId());}
  public List<Todo> myTodos(){var a=access.actor();access.hr(a);return db.approvalTodos(a.id());}
+ public com.johnny.hotel.pagination.PageResult<Todo> myTodoPage(Integer page,Integer size){var a=access.actor();access.hr(a);var w=pagination.window(page,size,false);int limit=pagination.limit(w);var rows=limit==0?List.<Todo>of():db.approvalTodoPage(a.id(),w.offset(),limit);return pagination.result(w,rows,db.approvalTodoCount(a.id()));}
  public OrganizationChangeRequest claim(Long id){lock();var a=access.actor();var r=found(id);approver(r,a);require(r.getStatus()==0,"Request is not pending");workflow.claim(r,a.id());return r;}
  public OrganizationChangeRequest approve(Long id){
   lock();var a=access.actor();var r=found(id);approver(r,a);if(r.getStatus()==1||r.getStatus()==4)return r;require(r.getStatus()==0,"Request cannot be approved");

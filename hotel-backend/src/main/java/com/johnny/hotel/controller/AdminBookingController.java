@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import com.johnny.hotel.pagination.PageResult;
 
 @RestController
 @RequestMapping("/api/admin/bookings")
@@ -25,16 +26,16 @@ public class AdminBookingController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
-    public Result<List<BookingVO>> getBookingsPage(@RequestParam(defaultValue = "1") Integer page,
-                                                   @RequestParam(defaultValue = "50") Integer size) {
-        return Result.success(bookingService.getBookingsPage(page, size));
+    public Result<PageResult<BookingVO>> getBookingsPage(@RequestParam(required=false) Integer page,@RequestParam(required=false) Integer pageSize,
+                                                   @RequestParam(required=false) Integer size) {
+        return Result.success(bookingService.pageBookings(page, pageSize!=null?pageSize:size));
     }
 
     @GetMapping("/pending")
     @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
-    public Result<List<BookingVO>> getPendingBookingsPage(@RequestParam(defaultValue = "1") Integer page,
-                                                          @RequestParam(defaultValue = "50") Integer size) {
-        return Result.success(bookingService.getPendingBookingsPage(page, size));
+    public Result<PageResult<BookingVO>> getPendingBookingsPage(@RequestParam(required=false) Integer page,@RequestParam(required=false) Integer pageSize,
+                                                          @RequestParam(required=false) Integer size) {
+        return Result.success(bookingService.pagePendingBookings(page, pageSize!=null?pageSize:size));
     }
 
     @PostMapping("/{bookingId}/approve")
@@ -71,36 +72,36 @@ public class AdminBookingController {
     }
     @GetMapping("/status")
     @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
-    public Result<List<BookingVO>> getBookingsByStatus(@RequestParam Integer status,
-                                                       @RequestParam(defaultValue = "1") Integer page,
-                                                       @RequestParam(defaultValue = "50") Integer size) {
-        return Result.success(bookingService.getBookingsByStatus(status, page, size));
+    public Result<PageResult<BookingVO>> getBookingsByStatus(@RequestParam Integer status,
+                                                       @RequestParam(required=false) Integer page,@RequestParam(required=false)Integer pageSize,
+                                                       @RequestParam(required=false) Integer size) {
+        return Result.success(bookingService.pageBookingsByStatus(status, page, pageSize!=null?pageSize:size));
     }
 
     @GetMapping("/user")
     @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
-    public Result<List<BookingVO>> getBookingsByUserId(@RequestParam Long userId,
-                                                       @RequestParam(defaultValue = "1") Integer page,
-                                                       @RequestParam(defaultValue = "50") Integer size) {
-        return Result.success(bookingService.getBookingsByUserId(userId, page, size));
+    public Result<PageResult<BookingVO>> getBookingsByUserId(@RequestParam Long userId,
+                                                       @RequestParam(required=false) Integer page,@RequestParam(required=false)Integer pageSize,
+                                                       @RequestParam(required=false) Integer size) {
+        return Result.success(bookingService.pageBookingsByUserId(userId, page, pageSize!=null?pageSize:size));
     }
 
     @GetMapping("/check-in-range")
     @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
-    public Result<List<BookingVO>> getBookingsByCheckInDateRange(@RequestParam LocalDate startDate,
+    public Result<PageResult<BookingVO>> getBookingsByCheckInDateRange(@RequestParam LocalDate startDate,
                                                                  @RequestParam LocalDate endDate,
-                                                                 @RequestParam(defaultValue = "1") Integer page,
-                                                                 @RequestParam(defaultValue = "50") Integer size) {
-        return Result.success(bookingService.getBookingsByCheckInDateRange(startDate, endDate, page, size));
+                                                                 @RequestParam(required=false) Integer page,@RequestParam(required=false)Integer pageSize,
+                                                                 @RequestParam(required=false) Integer size) {
+        return Result.success(bookingService.pageBookingsByCheckInDateRange(startDate, endDate, page, pageSize!=null?pageSize:size));
     }
 
     @GetMapping("/check-out-range")
     @PreAuthorize("hasAnyRole('STAFF', 'MANAGER', 'OWNER', 'SUPER_ADMIN')")
-    public Result<List<BookingVO>> getBookingsByCheckOutDateRange(@RequestParam LocalDate startDate,
+    public Result<PageResult<BookingVO>> getBookingsByCheckOutDateRange(@RequestParam LocalDate startDate,
                                                                   @RequestParam LocalDate endDate,
-                                                                  @RequestParam(defaultValue = "1") Integer page,
-                                                                  @RequestParam(defaultValue = "50") Integer size) {
-        return Result.success(bookingService.getBookingsByCheckOutDateRange(startDate, endDate, page, size));
+                                                                  @RequestParam(required=false) Integer page,@RequestParam(required=false)Integer pageSize,
+                                                                  @RequestParam(required=false) Integer size) {
+        return Result.success(bookingService.pageBookingsByCheckOutDateRange(startDate, endDate, page, pageSize!=null?pageSize:size));
     }
 
     @GetMapping("/{bookingId}")

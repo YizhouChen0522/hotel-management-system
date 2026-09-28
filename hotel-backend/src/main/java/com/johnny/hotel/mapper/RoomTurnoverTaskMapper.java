@@ -21,6 +21,8 @@ public interface RoomTurnoverTaskMapper {
         ORDER BY t.id DESC LIMIT #{offset},#{size}</script>
         """)
     List<RoomTurnoverTask> page(@Param("status") Integer status,@Param("roomId") Long roomId,@Param("offset") int offset,@Param("size") int size);
+    @Select("<script>SELECT COUNT(*) FROM room_turnover_task t JOIN hotel_task h ON h.id=t.task_id <where><if test='status != null'>h.status=#{status}</if><if test='roomId != null'> AND t.room_id=#{roomId}</if></where></script>")
+    long count(@Param("status")Integer status,@Param("roomId")Long roomId);
     @Insert("INSERT INTO room_turnover_task(task_id,room_id,stay_id,assignment_id) VALUES(#{taskId},#{roomId},#{stayId},#{assignmentId})")
     @Options(useGeneratedKeys=true,keyProperty="id")
     int insert(RoomTurnoverTask task);

@@ -35,6 +35,7 @@ public class SysUserServiceImpl implements SysUserService {
     private final com.johnny.hotel.wallet.WalletOpeningService walletOpening;
     private final com.johnny.hotel.organization.OrganizationMapper organization;
     private final com.johnny.hotel.pricing.DynamicPricingBootstrapService pricingBootstrap;
+    private final com.johnny.hotel.pagination.PaginationSupport pagination;
 
     public SysUserServiceImpl(SysUserMapper sysUserMapper,
                               SysRoleMapper sysRoleMapper,
@@ -44,7 +45,8 @@ public class SysUserServiceImpl implements SysUserService {
                               SysAuditLogMapper sysAuditLogMapper,
                               com.johnny.hotel.wallet.WalletOpeningService walletOpening,
                               com.johnny.hotel.organization.OrganizationMapper organization,
-                              com.johnny.hotel.pricing.DynamicPricingBootstrapService pricingBootstrap) {
+                              com.johnny.hotel.pricing.DynamicPricingBootstrapService pricingBootstrap,
+                              com.johnny.hotel.pagination.PaginationSupport pagination) {
         this.sysUserMapper = sysUserMapper;
         this.sysRoleMapper = sysRoleMapper;
         this.sysUserRoleMapper = sysUserRoleMapper;
@@ -54,6 +56,7 @@ public class SysUserServiceImpl implements SysUserService {
         this.walletOpening = walletOpening;
         this.organization = organization;
         this.pricingBootstrap = pricingBootstrap;
+        this.pagination = pagination;
     }
 
     @Override
@@ -230,7 +233,7 @@ public class SysUserServiceImpl implements SysUserService {
 
     @Override
     public List<PendingUserVO> getPendingUsers() {
-        return sysUserMapper.selectPendingUsers()
+        return sysUserMapper.selectPendingUsers(0,100)
                 .stream()
                 .map(user -> PendingUserVO.builder()
                         .id(user.getId())
@@ -245,6 +248,7 @@ public class SysUserServiceImpl implements SysUserService {
                         .build())
                 .toList();
     }
+    @Override public com.johnny.hotel.pagination.PageResult<PendingUserVO> getPendingUsers(Integer page,Integer size){var w=pagination.window(page,size,true);var items=sysUserMapper.selectPendingUsers(w.offset(),pagination.limit(w)).stream().map(user->PendingUserVO.builder().id(user.getId()).username(user.getUsername()).realName(user.getRealName()).phone(user.getPhone()).email(user.getEmail()).status(user.getStatus()).applyRoleCode(user.getApplyRoleCode()).applyReason(user.getApplyReason()).createTime(user.getCreateTime()).build()).toList();return pagination.result(w,items,sysUserMapper.countPendingUsers());}
     private boolean canApprove(String approverRole, String applyRoleCode) {
         return switch (approverRole) {
             case "HR_ADMIN" -> "STAFF".equals(applyRoleCode);
