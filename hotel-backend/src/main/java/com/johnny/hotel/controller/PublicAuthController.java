@@ -1,0 +1,3 @@
+package com.johnny.hotel.controller;
+import com.johnny.hotel.common.Result;import com.johnny.hotel.dto.*;import com.johnny.hotel.service.SysUserService;import com.johnny.hotel.vo.*;import jakarta.validation.Valid;import lombok.RequiredArgsConstructor;import org.springframework.web.bind.annotation.*;
+@RestController @RequiredArgsConstructor @RequestMapping("/api/public/auth/customer") public class PublicAuthController {private final SysUserService users;@PostMapping("/register")public Result<UserVO> register(@Valid @RequestBody RegisterCustomerRequest r){return Result.success(users.registerCustomer(r));}@PostMapping("/login")public Result<LoginVO> login(@Valid @RequestBody LoginRequest r){return Result.success(users.loginCustomer(r));}}

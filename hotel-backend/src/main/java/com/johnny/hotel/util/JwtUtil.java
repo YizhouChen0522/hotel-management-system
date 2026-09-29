@@ -9,6 +9,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
+import com.johnny.hotel.security.AuthenticationSurface;
 
 @Component
 public class JwtUtil {
@@ -34,6 +35,11 @@ public class JwtUtil {
                                 String email,
                                 String username,
                                 List<String> roles) {
+        AuthenticationSurface surface=roles.size()==1&&roles.contains("CUSTOMER")?AuthenticationSurface.CUSTOMER_PUBLIC:AuthenticationSurface.PMS_INTERNAL;
+        return generateToken(userId,email,username,roles,surface);
+    }
+
+    public String generateToken(Long userId,String email,String username,List<String> roles,AuthenticationSurface surface) {
 
         Date now = new Date();
         Date expiration = new Date(now.getTime() + expirationTime);
@@ -43,10 +49,16 @@ public class JwtUtil {
                 .claim("email", email)
                 .claim("username", username)
                 .claim("roles", roles)
+                .claim("surface", surface.name())
                 .issuedAt(now)
                 .expiration(expiration)
                 .signWith(getSigningKey())
                 .compact();
+    }
+
+    public AuthenticationSurface getSurface(Claims claims) {
+        String value=claims.get("surface",String.class);
+        return value==null?null:AuthenticationSurface.valueOf(value);
     }
 
     public Claims parseToken(String token) {

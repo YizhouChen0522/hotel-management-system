@@ -14,7 +14,7 @@ import java.util.List;
 import com.johnny.hotel.pagination.PageResult;
 
 @RestController
-@RequestMapping("/api/bookings")
+@RequestMapping({"/api/bookings","/api/public/customer/bookings"})
 @RequiredArgsConstructor
 public class BookingController {
 

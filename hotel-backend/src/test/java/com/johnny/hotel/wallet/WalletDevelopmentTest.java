@@ -70,7 +70,13 @@ class WalletDevelopmentTest extends WalletDevelopmentFixture {
     @ParameterizedTest @ValueSource(strings={"CUSTOMER","STAFF","HR_ADMIN","MANAGER","OWNER","SUPER_ADMIN"})
     void mvcOwnershipRoleMatrixAndIdor(String actor)throws Exception{
         long self=wid(actor),customer=wid("OTHER_CUSTOMER"),employee=wid(actor.equals("STAFF")?"MANAGER":"STAFF");
-        mvc.perform(get("/api/wallets/me").with(authentication(auth(actor)))).andExpect(status().isOk()).andExpect(jsonPath("$.data.id").value(self));
+        mvc.perform(get(actor.equals("CUSTOMER")?"/api/public/customer/wallet":"/api/wallets/me").with(authentication(auth(actor)))).andExpect(status().isOk()).andExpect(jsonPath("$.data.id").value(self));
+        if(actor.equals("CUSTOMER")) {
+            mvc.perform(get("/api/public/customer/wallet/transactions").with(authentication(auth(actor)))).andExpect(status().isOk());
+            mvc.perform(get("/api/public/customer/wallet/top-ups").with(authentication(auth(actor)))).andExpect(status().isOk());
+            mvc.perform(get("/api/wallets/"+customer).with(authentication(auth(actor)))).andExpect(status().isForbidden());
+            return;
+        }
         for(String suffix:new String[]{"","/transactions","/top-ups"}) {
             mvc.perform(get("/api/wallets/"+self+suffix).with(authentication(auth(actor)))).andExpect(status().isOk());
             mvc.perform(get("/api/wallets/"+customer+suffix).with(authentication(auth(actor)))).andExpect(status().is(Set.of("STAFF","MANAGER","OWNER","SUPER_ADMIN").contains(actor)?200:403));
@@ -129,10 +135,10 @@ class WalletDevelopmentTest extends WalletDevelopmentFixture {
         assertThrows(Exception.class,()->users.registerEmployee(request));
     }
     @Test void actualJwtAndMvcValidationStillWork()throws Exception{
-        var user=users.getUserById(uid("CUSTOMER"));var login=new LoginRequest();login.setEmail(user.getEmail());login.setPassword("wallet-test-only");String token=users.login(login).getToken();
-        mvc.perform(get("/api/wallets/me").header("Authorization","Bearer "+token)).andExpect(status().isOk()).andExpect(jsonPath("$.data.userId").value(user.getId()));
-        mvc.perform(get("/api/wallets/me")).andExpect(status().isUnauthorized());
-        mvc.perform(post("/api/wallets/"+wid("CUSTOMER")+"/top-ups").with(authentication(auth("CUSTOMER"))).contentType("application/json").content("{\"amount\":0.001,\"requestKey\":\"create_01\"}")).andExpect(status().isBadRequest());
+        var user=users.getUserById(uid("CUSTOMER"));var login=new LoginRequest();login.setEmail(user.getEmail());login.setPassword("wallet-test-only");String token=users.loginCustomer(login).getToken();
+        mvc.perform(get("/api/public/customer/wallet").header("Authorization","Bearer "+token)).andExpect(status().isOk()).andExpect(jsonPath("$.data.userId").value(user.getId()));
+        mvc.perform(get("/api/public/customer/wallet")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/public/customer/wallet/top-ups").with(authentication(auth("CUSTOMER"))).contentType("application/json").content("{\"amount\":0.001,\"requestKey\":\"create_01\"}")).andExpect(status().isBadRequest());
         mvc.perform(put("/api/wallets/"+wid("CUSTOMER")+"/balance").with(authentication(auth("SUPER_ADMIN"))).contentType("application/json").content("{\"balance\":999}")).andExpect(status().isNotFound());
         mvc.perform(delete("/api/wallets/"+wid("CUSTOMER")+"/transactions/1").with(authentication(auth("SUPER_ADMIN")))).andExpect(status().isNotFound());
     }

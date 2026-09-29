@@ -16,6 +16,8 @@ public interface SysUserService {
     UserVO getUserByEmail(String email);
     UserVO registerCustomer(RegisterCustomerRequest request);
     LoginVO login(LoginRequest request);
+    LoginVO loginCustomer(LoginRequest request);
+    LoginVO loginInternal(LoginRequest request);
     UserVO registerEmployee(RegisterEmployeeRequest request);
     List<PendingUserVO> getPendingUsers();
     com.johnny.hotel.pagination.PageResult<PendingUserVO> getPendingUsers(Integer page,Integer size);

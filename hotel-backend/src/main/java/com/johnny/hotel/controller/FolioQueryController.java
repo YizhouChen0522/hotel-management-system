@@ -20,7 +20,7 @@ public class FolioQueryController {
     @GetMapping("/api/admin/billing/folios/{folioId}")
     @PreAuthorize("hasAnyRole('STAFF','FINANCE','MANAGER','OWNER','SUPER_ADMIN')")
     public Result<FolioVO> folio(@PathVariable Long folioId) { return Result.success(queries.byFolioForOperations(folioId)); }
-    @GetMapping("/api/bookings/{bookingId}/folio")
+    @GetMapping({"/api/bookings/{bookingId}/folio","/api/public/customer/bookings/{bookingId}/folio"})
     @PreAuthorize("hasRole('CUSTOMER')")
     public Result<FolioVO> mine(@PathVariable Long bookingId, Authentication auth) {
         return Result.success(queries.byBookingForCustomer(bookingId, (Long) auth.getDetails()));

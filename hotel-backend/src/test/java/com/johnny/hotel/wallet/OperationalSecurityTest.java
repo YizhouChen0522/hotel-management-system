@@ -29,7 +29,7 @@ class OperationalSecurityTest extends FinancialDevelopmentFixture {
 
 
     @Autowired MockMvc mvc;
-    RequestPostProcessor role(String role,long id){var auth=new UsernamePasswordAuthenticationToken("test",null,List.of(new SimpleGrantedAuthority("ROLE_"+role)));auth.setDetails(uid(role.equals("CUSTOMER") && id==3?"OTHER_CUSTOMER":role));return authentication(auth);}
+    RequestPostProcessor role(String role,long id){var auth=new UsernamePasswordAuthenticationToken("test",null,List.of(new SimpleGrantedAuthority("ROLE_"+role),new SimpleGrantedAuthority("SURFACE_"+("CUSTOMER".equals(role)?"CUSTOMER_PUBLIC":"PMS_INTERNAL"))));auth.setDetails(uid(role.equals("CUSTOMER") && id==3?"OTHER_CUSTOMER":role));return authentication(auth);}
     @ParameterizedTest @ValueSource(strings={"STAFF","MANAGER","OWNER","SUPER_ADMIN"}) void operationalRolesCanReadAndWriteLifecycle(String role) throws Exception {
         long b=create();mvc.perform(get("/api/admin/bookings").with(role(role,2))).andExpect(status().isOk()).andExpect(jsonPath("$.code").value(200));
         mvc.perform(post("/api/admin/bookings/{id}/approve",b).with(role(role,2)).contentType("application/json").content("{\"assignedRoomId\":"+room1+"}"))
@@ -57,17 +57,17 @@ class OperationalSecurityTest extends FinancialDevelopmentFixture {
         mvc.perform(post("/api/admin/room-types/1/disable").with(role("HR_ADMIN",2))).andExpect(status().isForbidden());
     }
     @Test void customerOnlyOwnBookingAndFolio() throws Exception {
-        long b=checkIn();mvc.perform(get("/api/bookings/{id}/folio",b).with(role("CUSTOMER",1))).andExpect(status().isOk()).andExpect(jsonPath("$.data.bookingId").value(b))
+        long b=checkIn();mvc.perform(get("/api/public/customer/bookings/{id}/folio",b).with(role("CUSTOMER",1))).andExpect(status().isOk()).andExpect(jsonPath("$.data.bookingId").value(b))
                 .andExpect(jsonPath("$.data.password").doesNotExist()).andExpect(jsonPath("$.data.totalAmount").value(300));
-        mvc.perform(get("/api/bookings/{id}/folio",b).with(role("CUSTOMER",3))).andExpect(status().isNotFound());
-        mvc.perform(get("/api/bookings/{id}",b).with(role("CUSTOMER",3))).andExpect(status().is4xxClientError());
+        mvc.perform(get("/api/public/customer/bookings/{id}/folio",b).with(role("CUSTOMER",3))).andExpect(status().isNotFound());
+        mvc.perform(get("/api/public/customer/bookings/{id}",b).with(role("CUSTOMER",3))).andExpect(status().is4xxClientError());
         mvc.perform(post("/api/bookings/{id}/cancel",b).with(role("CUSTOMER",3))).andExpect(status().is4xxClientError());
         mvc.perform(get("/api/admin/billing/folios/{id}",folio(b)).with(role("CUSTOMER",1))).andExpect(status().isForbidden());invariants(b);
     }
     @Test void validAndMalformedRequestsReturnHttp400WithResult() throws Exception {
-        mvc.perform(post("/api/bookings").with(role("CUSTOMER",1)).contentType("application/json").content("{}"))
+        mvc.perform(post("/api/public/customer/bookings").with(role("CUSTOMER",1)).contentType("application/json").content("{}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(400));
-        mvc.perform(post("/api/bookings").with(role("CUSTOMER",1)).contentType("application/json").content("{"))
+        mvc.perform(post("/api/public/customer/bookings").with(role("CUSTOMER",1)).contentType("application/json").content("{"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("Invalid request"));
         long b=checkIn();mvc.perform(post("/api/admin/billing/folios/{id}/payments",folio(b)).with(role("STAFF",2)).contentType("application/json").content("{\"amount\":0,\"paymentMethod\":\"CASH\",\"idempotencyKey\":\"x\"}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(400));

@@ -9,6 +9,6 @@ public class AuthRateLimitConfig implements WebMvcConfigurer {
     private final AuthRateLimitInterceptor limiter;
     @Override public void addInterceptors(InterceptorRegistry registry){
         // Only the socket peer is used. Arbitrary X-Forwarded-For is intentionally ignored.
-        registry.addInterceptor(limiter).addPathPatterns("/api/auth/login","/api/auth/register/customer","/api/auth/register/employee");
+        registry.addInterceptor(limiter).addPathPatterns("/api/auth/login","/api/auth/register/customer","/api/auth/register/employee","/api/public/auth/customer/login","/api/public/auth/customer/register","/api/internal/auth/login");
     }
 }

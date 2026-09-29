@@ -38,9 +38,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Long userId = Long.valueOf(claims.getSubject());
             String email = claims.get("email", String.class);
             List<String> roles = jwtUtil.getRolesFromToken(token);
-            List<SimpleGrantedAuthority> authorities = roles.stream()
+            AuthenticationSurface surface=jwtUtil.getSurface(claims);
+            if(surface==null)throw new IllegalArgumentException("Token surface is missing");
+            List<SimpleGrantedAuthority> authorities = new java.util.ArrayList<>(roles.stream()
                     .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-                    .toList();
+                    .toList());
+            authorities.add(new SimpleGrantedAuthority("SURFACE_"+surface.name()));
 
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(

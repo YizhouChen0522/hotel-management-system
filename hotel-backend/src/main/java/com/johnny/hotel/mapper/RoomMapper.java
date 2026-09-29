@@ -40,6 +40,10 @@ public interface RoomMapper {
 
     @Select("SELECT * FROM room WHERE floor = #{floor} ORDER BY id DESC")
     List<Room> selectByFloor(@Param("floor") Integer floor);
+    @Select("SELECT * FROM room WHERE room_type_id=#{typeId} AND status IN (1,2,4) ORDER BY id")
+    List<Room> sellableCandidates(@Param("typeId") Long typeId);
+    @Select("SELECT COUNT(*) FROM room WHERE room_type_id=#{typeId} AND status IN (1,2,4)")
+    int sellableCount(@Param("typeId") Long typeId);
 
     @Update("""
         UPDATE room

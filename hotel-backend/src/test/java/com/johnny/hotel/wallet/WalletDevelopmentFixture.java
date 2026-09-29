@@ -68,7 +68,7 @@ abstract class WalletDevelopmentFixture {
     RegisterEmployeeRequest employeeRequest(String role){var r=new RegisterEmployeeRequest();String name=run+"_"+(sequence++);r.setUsername(name);r.setEmail(name+"@example.test");r.setPassword("wallet-test-only");r.setRealName("Wallet test fixture");r.setApplyRoleCode(role);return r;}
     @BeforeEach void seedOnlyNewUsers(){
         assertEquals("hotel_management",jdbc.queryForObject("SELECT DATABASE()",String.class));assertEquals(3306,jdbc.queryForObject("SELECT @@port",Integer.class));
-        for(String role:List.of("CUSTOMER","OTHER_CUSTOMER","STAFF","HR_ADMIN","MANAGER","OWNER","SUPER_ADMIN")) {
+        for(String role:List.of("CUSTOMER","OTHER_CUSTOMER","STAFF","HR_ADMIN","MANAGER","OWNER","SUPER_ADMIN","FINANCE")) {
             long id=role.contains("CUSTOMER")?users.registerCustomer(customerRequest()).getId():users.registerEmployee(employeeRequest(role.equals("SUPER_ADMIN")?"STAFF":role)).getId();
             created.add(id);actors.put(role,id);
             if(!role.contains("CUSTOMER")) {
@@ -107,7 +107,7 @@ abstract class WalletDevelopmentFixture {
     }
     long uid(String role){return actors.get(role);}
     long wid(String role){return wallets.byUser(uid(role)).getId();}
-    UsernamePasswordAuthenticationToken auth(String role){var a=new UsernamePasswordAuthenticationToken("wallet-test",null,List.of(new SimpleGrantedAuthority("ROLE_"+(role.equals("OTHER_CUSTOMER")?"CUSTOMER":role))));a.setDetails(uid(role));return a;}
+    UsernamePasswordAuthenticationToken auth(String role){String actual=role.equals("OTHER_CUSTOMER")?"CUSTOMER":role;var a=new UsernamePasswordAuthenticationToken("wallet-test",null,List.of(new SimpleGrantedAuthority("ROLE_"+actual),new SimpleGrantedAuthority("SURFACE_"+("CUSTOMER".equals(actual)?"CUSTOMER_PUBLIC":"PMS_INTERNAL"))));a.setDetails(uid(role));return a;}
     void as(String role){SecurityContextHolder.getContext().setAuthentication(auth(role));}
     WalletRequests.TopUp amount(String amount,String key){return WalletRequests.TopUp.builder().amount(new BigDecimal(amount)).requestKey(key).build();}
     WalletRequests.Decision decision(String key){return WalletRequests.Decision.builder().requestKey(key).reason("Cash receipt verified in test").build();}

@@ -14,7 +14,7 @@ public class AuthRateLimitInterceptor implements HandlerInterceptor {
         if(!"POST".equals(request.getMethod()))return true;
         // Use the resolved MVC route, so percent-encoded path characters cannot bypass the limiter.
         String path=String.valueOf(request.getAttribute(org.springframework.web.servlet.HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE));
-        String operation=switch(path){case "/api/auth/login"->"login";case "/api/auth/register/customer","/api/auth/register/employee"->"register";default->null;};
+        String operation=switch(path){case "/api/auth/login","/api/public/auth/customer/login","/api/internal/auth/login"->"login";case "/api/auth/register/customer","/api/auth/register/employee","/api/public/auth/customer/register"->"register";default->null;};
         if(operation==null)return true;
         AuthRateLimiter.Decision decision;
         try {decision=limiter.acquire(operation,request.getRemoteAddr());}

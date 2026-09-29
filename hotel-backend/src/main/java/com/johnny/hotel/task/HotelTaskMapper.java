@@ -13,4 +13,6 @@ import org.apache.ibatis.annotations.*; import java.time.LocalDateTime; import j
  @Update("UPDATE hotel_task SET status=2,completed_time=#{now} WHERE id=#{id} AND status IN (0,1,4)") int forceComplete(@Param("id")Long id,@Param("now")LocalDateTime now);
  @Select("SELECT * FROM hotel_task WHERE parent_task_id=#{id} ORDER BY id FOR UPDATE") List<HotelTask> children(Long id);
  @Update("UPDATE hotel_task SET execution_type=1,assignment_mode=2 WHERE id=#{id} AND task_type=3 AND execution_type=0 AND status IN (0,1,4)") int promoteMaintenanceShared(Long id);
+ @Insert("INSERT INTO task_eligible_role(task_id,role_code) VALUES(#{task},#{role})") int addEligibleRole(@Param("task")Long task,@Param("role")String role);
+ @Select("SELECT role_code FROM task_eligible_role WHERE task_id=#{task} ORDER BY role_code") List<String> eligibleRoles(Long task);
 }

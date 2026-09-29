@@ -1,0 +1,12 @@
+package com.johnny.hotel.group;
+import com.johnny.hotel.entity.RoomType;import com.johnny.hotel.exception.BusinessException;import com.johnny.hotel.mapper.*;import org.junit.jupiter.api.*;import java.time.*;import static org.junit.jupiter.api.Assertions.*;import static org.mockito.Mockito.*;
+class RoomTypeCapacityGuardTest{RoomTypeMapper types=mock(RoomTypeMapper.class);RoomMapper rooms=mock(RoomMapper.class);GroupMapper groups=mock(GroupMapper.class);RoomTypeCapacityGuard guard=new RoomTypeCapacityGuard(types,rooms,groups);LocalDate start=LocalDate.of(2027,10,1),end=LocalDate.of(2027,10,3);
+ @BeforeEach void setup(){when(types.selectByIdForUpdate(1L)).thenReturn(RoomType.builder().id(1L).build());when(rooms.sellableCount(1L)).thenReturn(30);}
+ @Test void blockAndPickupAreCountedOnce(){when(groups.lockedGroupCommitments(eq(1L),any(),any())).thenReturn(java.util.List.of(10));var c=guard.lockAndRead(1L,start,end);assertEquals(20,c.availableForMarket());}
+ @Test void releasedSlotsReduceCommitmentInsteadOfPickedUpSlots(){when(groups.lockedGroupCommitments(eq(1L),any(),any())).thenReturn(java.util.List.of(8));assertEquals(22,guard.lockAndRead(1L,start,end).availableForMarket());}
+ @Test void multiNightCapacityUsesTheTightestNight(){when(groups.lockedGroupCommitments(eq(1L),any(),any())).thenReturn(java.util.List.of(4),java.util.List.of(10));assertEquals(20,guard.lockAndRead(1L,start,end).availableForMarket());}
+ @Test void normalReservationsAndGroupCommitmentShareCapacity(){when(groups.lockedNormalCommitments(eq(1L),any(),any())).thenReturn(java.util.Collections.nCopies(15,1L));when(groups.lockedGroupCommitments(eq(1L),any(),any())).thenReturn(java.util.List.of(10));assertEquals(5,guard.lockAndRead(1L,start,end).availableForMarket());}
+ @Test void oversizedBlockIsRejected(){when(groups.lockedNormalCommitments(eq(1L),any(),any())).thenReturn(java.util.Collections.nCopies(15,1L));when(groups.lockedGroupCommitments(eq(1L),any(),any())).thenReturn(java.util.List.of(10));assertThrows(BusinessException.class,()->guard.requireBlockCapacity(1L,start,end,6));}
+ @Test void ordinaryApprovalIsRejectedAtZeroCapacity(){when(groups.lockedNormalCommitments(eq(1L),any(),any())).thenReturn(java.util.Collections.nCopies(20,1L));when(groups.lockedGroupCommitments(eq(1L),any(),any())).thenReturn(java.util.List.of(10));assertThrows(BusinessException.class,()->guard.requireMarketCapacity(1L,start,end));}
+ @Test void roomTypeRowIsAlwaysLocked(){guard.requireMarketCapacity(1L,start,end);verify(types).selectByIdForUpdate(1L);}
+}

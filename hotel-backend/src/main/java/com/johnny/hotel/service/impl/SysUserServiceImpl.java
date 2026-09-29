@@ -145,6 +145,11 @@ public class SysUserServiceImpl implements SysUserService {
     }
     @Override
     public LoginVO login(LoginRequest request) {
+        return loginInternal(request);
+    }
+    @Override public LoginVO loginCustomer(LoginRequest request){return authenticate(request,true);}
+    @Override public LoginVO loginInternal(LoginRequest request){return authenticate(request,false);}
+    private LoginVO authenticate(LoginRequest request,boolean customerSurface) {
         SysUser user = sysUserMapper.selectByEmail(request.getEmail());
 
         if (user == null) {
@@ -166,6 +171,9 @@ public class SysUserServiceImpl implements SysUserService {
         List<String> roles = roleList.stream()
                 .map(SysRole::getRoleCode)
                 .toList();
+        boolean customer=roles.size()==1&&roles.contains("CUSTOMER");
+        if(customerSurface&&!customer)throw new BusinessException("Customer account required");
+        if(!customerSurface&&customer)throw new BusinessException("Internal employee account required");
 
         UserVO userVO = UserVO.builder()
                 .id(user.getId())
@@ -180,7 +188,7 @@ public class SysUserServiceImpl implements SysUserService {
                 user.getId(),
                 user.getEmail(),
                 user.getUsername(),
-                roles
+                roles,customerSurface?com.johnny.hotel.security.AuthenticationSurface.CUSTOMER_PUBLIC:com.johnny.hotel.security.AuthenticationSurface.PMS_INTERNAL
         );
         return LoginVO.builder()
                 .token(token)

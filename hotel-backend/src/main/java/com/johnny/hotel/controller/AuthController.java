@@ -32,7 +32,7 @@ public class AuthController {
     }
     @PostMapping("/login")
     public Result<LoginVO> login(@Valid @RequestBody LoginRequest request) {
-        LoginVO user = sysUserService.login(request);
+        LoginVO user = sysUserService.loginInternal(request);
         return Result.success(user);
     }
     @GetMapping("/me")

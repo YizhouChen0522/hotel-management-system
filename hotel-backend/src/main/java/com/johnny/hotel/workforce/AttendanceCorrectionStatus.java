@@ -1,0 +1,1 @@
+package com.johnny.hotel.workforce;public enum AttendanceCorrectionStatus {PENDING(0),APPROVED(1),REJECTED(2);private final int code;AttendanceCorrectionStatus(int code){this.code=code;}public int getCode(){return code;}}

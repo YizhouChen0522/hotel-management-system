@@ -50,6 +50,8 @@ public class HotelTaskServiceImpl implements HotelTaskService {
  private boolean cash(HotelTask t){return t.getSourceKey()!=null&&t.getSourceKey().startsWith("CASH_TRANSFER:");}
  private void legacyOperator(Actor a){if(!a.manager()&&!a.roles().contains("STAFF"))throw denied();}
  private boolean eligible(HotelTask t,Actor a){
+  var pool=tasks.eligibleRoles(t.getId());
+  if(!pool.isEmpty())return pool.stream().anyMatch(a.roles()::contains);
   if(t.getTargetRole()==null)return a.manager()||a.roles().contains("STAFF");
   return a.roles().contains(t.getTargetRole())||a.roles().contains("OWNER")||a.roles().contains("SUPER_ADMIN");
  }
@@ -69,6 +71,7 @@ public class HotelTaskServiceImpl implements HotelTaskService {
   var chain=new ArrayList<Long>();var t=found(tasks.find(id));
   if(t.getDepartmentId()!=null||departmentRouting.isRoot(t))departmentRouting.guard();
   if(t.getTaskType()==2)throw new BusinessException(409,"Use the Organization approval workflow");
+  if(Set.of(7,8).contains(t.getTaskType()))throw new BusinessException(409,"Use the workforce source-domain approval endpoint");
   while(true){require(!chain.contains(t.getId())&&chain.size()<32,"Invalid task hierarchy");chain.add(t.getId());if(t.getParentTaskId()==null)break;t=found(tasks.find(t.getParentTaskId()));}
   Collections.reverse(chain);
   for(Long task:chain){t=found(tasks.lock(task));conflict(open(t));}
@@ -148,8 +151,8 @@ public class HotelTaskServiceImpl implements HotelTaskService {
  }
  @Override public com.johnny.hotel.pagination.PageResult<HotelTask> page(Integer status,Integer type,String targetRole,Long assigneeId,Boolean unassigned,Boolean claimable,Integer page,Integer size){var a=actor();if(status!=null)require(status>=0&&status<=4,"Invalid task status");if(type!=null)require(Set.of(0,1,4,5,6).contains(type),"Invalid task type");String role=targetRole==null?null:targetRole.trim().toUpperCase();if(role!=null)require(Set.of("STAFF","FINANCE","MANAGER","OWNER","SUPER_ADMIN").contains(role),"Invalid target role");if(a.roles().contains("FINANCE")&&!a.manager()){role="FINANCE";if(assigneeId!=null&&!assigneeId.equals(a.id()))throw denied();}boolean search=status!=null||type!=null||role!=null||assigneeId!=null||Boolean.TRUE.equals(unassigned)||Boolean.TRUE.equals(claimable);var w=this.pagination.window(page,size,search);var rows=this.pagination.limit(w)==0?List.<HotelTask>of():tasks.page(status,type,role,assigneeId,unassigned,claimable,w.offset(),this.pagination.limit(w));return this.pagination.result(w,rows,tasks.count(status,type,role,assigneeId,unassigned,claimable));}
  private int[] pagination(Integer page,Integer size){int p=page==null?1:page,s=size==null?50:size;require(p>0&&s>0&&s<=100&&((long)p-1)*s<=Integer.MAX_VALUE,"Invalid pagination");return new int[]{(p-1)*s,s};}
- @Override public TaskView get(Long id){var a=actor();var t=found(tasks.find(id));if(t.getTaskType()==2||!readable(t,a))throw denied();return view(t);}
- @Override public com.johnny.hotel.pagination.PageResult<TaskRecord> records(Long id,Integer type,Long actorId,Integer page,Integer size){var a=actor();var t=found(tasks.find(id));if(t.getTaskType()==2||!readable(t,a))throw denied();var w=pagination.window(page,size,true);int limit=pagination.limit(w);var rows=limit==0?List.<TaskRecord>of():records.page(id,type,actorId,w.offset(),limit);return pagination.result(w,rows,records.count(id,type,actorId));}
+ @Override public TaskView get(Long id){var a=actor();var t=found(tasks.find(id));if(Set.of(2,7,8).contains(t.getTaskType())||!readable(t,a))throw denied();return view(t);}
+ @Override public com.johnny.hotel.pagination.PageResult<TaskRecord> records(Long id,Integer type,Long actorId,Integer page,Integer size){var a=actor();var t=found(tasks.find(id));if(Set.of(2,7,8).contains(t.getTaskType())||!readable(t,a))throw denied();var w=pagination.window(page,size,true);int limit=pagination.limit(w);var rows=limit==0?List.<TaskRecord>of():records.page(id,type,actorId,w.offset(),limit);return pagination.result(w,rows,records.count(id,type,actorId));}
  @Override public List<TaskAssignment> myTodo(){return assignments.todo(actor().id());}
  private TaskView view(HotelTask t){return TaskView.builder().task(t).assignments(assignments.byTask(t.getId())).records(records.byTask(t.getId())).build();}
  @Override public List<Todo> todos(Integer page,Integer size){var a=actor();int[] p=pagination(page,size);return todos.mine(a.id(),p[0],p[1]);}

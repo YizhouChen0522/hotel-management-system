@@ -1,0 +1,1 @@
+package com.johnny.hotel.workforce;public enum LeaveRequestStatus {DRAFT(0),PENDING_APPROVAL(1),APPROVED(2),REJECTED(3),CANCELLED(4);private final int code;LeaveRequestStatus(int code){this.code=code;}public int getCode(){return code;}}

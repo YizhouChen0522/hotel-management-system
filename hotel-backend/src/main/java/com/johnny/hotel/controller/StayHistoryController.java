@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/stay-history")
+@RequestMapping({"/api/stay-history","/api/public/customer/stay-history"})
 @org.springframework.security.access.prepost.PreAuthorize("hasRole('CUSTOMER')")
 @RequiredArgsConstructor
 public class StayHistoryController {

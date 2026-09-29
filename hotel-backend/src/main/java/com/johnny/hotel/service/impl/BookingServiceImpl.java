@@ -46,6 +46,7 @@ public class BookingServiceImpl implements BookingService {
     private final com.johnny.hotel.reservation.ReservationPolicyService reservationPolicies;
     private final com.johnny.hotel.reservation.ReservationLifecycleService reservationLifecycle;
     private final com.johnny.hotel.pagination.PaginationSupport pagination;
+    private final com.johnny.hotel.group.RoomTypeCapacityGuard groupCapacity;
 
     private com.johnny.hotel.pagination.PageResult<BookingVO> page(com.johnny.hotel.pagination.PaginationSupport.Window w,List<Booking> rows,long total){return pagination.result(w,rows.stream().map(this::toVO).toList(),total);}
 
@@ -351,6 +352,10 @@ public class BookingServiceImpl implements BookingService {
         }
 
         deposits.requireFullGuarantee(bookingId);
+
+        if (booking.getGroupBlockId() == null) {
+            groupCapacity.requireMarketCapacity(booking.getRoomTypeId(), booking.getCheckInDate(), booking.getCheckOutDate());
+        }
 
         Room room =
                 roomMapper.selectByIdForUpdate(

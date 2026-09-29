@@ -1,0 +1,3 @@
+package com.johnny.hotel.controller;
+import com.johnny.hotel.common.Result;import com.johnny.hotel.dto.LoginRequest;import com.johnny.hotel.service.SysUserService;import com.johnny.hotel.vo.LoginVO;import jakarta.validation.Valid;import lombok.RequiredArgsConstructor;import org.springframework.web.bind.annotation.*;
+@RestController @RequiredArgsConstructor @RequestMapping("/api/internal/auth") public class InternalAuthController {private final SysUserService users;@PostMapping("/login")public Result<LoginVO> login(@Valid @RequestBody LoginRequest r){return Result.success(users.loginInternal(r));}}

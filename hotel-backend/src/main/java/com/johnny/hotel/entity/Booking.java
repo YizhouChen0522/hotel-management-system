@@ -23,6 +23,8 @@ public class Booking {
     private String walkInRequestKey;
     private String staffDirectRequestKey;
     private Long reservationPolicyId;
+    private Long groupId;
+    private Long groupBlockId;
     private Integer guestCount;
     private LocalDate checkInDate;
     private LocalDate checkOutDate;

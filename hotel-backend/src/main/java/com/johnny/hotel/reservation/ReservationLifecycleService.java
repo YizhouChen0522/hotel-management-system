@@ -28,6 +28,7 @@ public class ReservationLifecycleService {
     private final SysAuditLogMapper audits;
     private final Clock clock;
     private final com.johnny.hotel.businessdate.BusinessDateService businessDates;
+    private final com.johnny.hotel.group.GroupSlotService groupSlots;
 
     private String reason(String value){require(value!=null&&!value.isBlank()&&value.length()<=500,"Reason is required (500 characters maximum)");return value.trim();}
     private void hotel(Long actor){access.employee(actor);}
@@ -77,6 +78,7 @@ public class ReservationLifecycleService {
         var forfeit=available.subtract(refund).setScale(2);
         var businessDate=businessDates.postingDate();
         if(a!=null){settle(a,b,"REFUND",refund,actor,"cancel-refund:"+bookingId,businessDate);settle(a,b,"FORFEIT",forfeit,actor,"cancel-forfeit:"+bookingId,businessDate);}
+        groupSlots.returnAfterCancellation(b);
         one(bookings.transitionStatus(bookingId,b.getStatus(),BookingStatus.CANCELLED.getCode()));
         var fact=ReservationCancellation.builder().bookingId(bookingId).initiator(initiator).operatorUserId(actor).reason(why)
                 .policyId(b.getReservationPolicyId()).leadDays(lead).refundPercent(percent).depositBefore(before)

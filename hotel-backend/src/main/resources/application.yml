@@ -43,6 +43,11 @@ jwt:
 
 hotel:
   currency: CNY
+  security:
+    public-surface:
+      allowed-origins: ${PUBLIC_ALLOWED_ORIGINS:}
+    internal:
+      allowed-origins: ${INTERNAL_ALLOWED_ORIGINS:}
   payments:
     checkout-ttl-minutes: ${PAYMENT_CHECKOUT_TTL_MINUTES:15}
     mock:
@@ -59,3 +64,5 @@ hotel:
   pagination:
     max-page-size: 100
     browse-limit: 100
+  workforce:
+    missing-checkout-hours: ${WORKFORCE_MISSING_CHECKOUT_HOURS:24}
