@@ -7,6 +7,22 @@ import java.sql.DriverManager;
 /** Runs before the context creates DataSource/Flyway. Fail closed, including accidental contextLoads. */
 public class IsolatedDatabaseGuard implements ApplicationContextInitializer<ConfigurableApplicationContext> {
     @Override public void initialize(ConfigurableApplicationContext context) {
+        if (Boolean.getBoolean("hotel.v62.fresh.smoke")) {
+            var env=context.getEnvironment();String url=env.getProperty("spring.datasource.url","");
+            if(!url.matches("jdbc:mysql://localhost:3306/hotel_v62_smoke_[0-9a-f]{12}\\?.*")||env.getProperty("spring.flyway.url")!=null)
+                throw new IllegalStateException("Refusing unexpected V62 smoke database");
+            try(var connection=DriverManager.getConnection(url,env.getProperty("spring.datasource.username"),env.getProperty("spring.datasource.password"));var statement=connection.createStatement();var result=statement.executeQuery("SELECT @@port,DATABASE()")){result.next();if(result.getInt(1)!=3306||!url.contains("/"+result.getString(2)+"?"))throw new IllegalStateException("V62 smoke database identity mismatch");}catch(java.sql.SQLException e){throw new IllegalStateException("V62 smoke database unavailable",e);}return;
+        }
+        if (Boolean.getBoolean("hotel.v61.fresh.smoke")) {
+            var env=context.getEnvironment();String url=env.getProperty("spring.datasource.url","");
+            if(!url.matches("jdbc:mysql://localhost:3306/hotel_v61_smoke_[0-9a-f]{12}\\?.*")||env.getProperty("spring.flyway.url")!=null)
+                throw new IllegalStateException("Refusing unexpected V61 smoke database");
+            try(var connection=DriverManager.getConnection(url,env.getProperty("spring.datasource.username"),env.getProperty("spring.datasource.password"));
+                var statement=connection.createStatement();var result=statement.executeQuery("SELECT @@port,DATABASE()")){
+                result.next();if(result.getInt(1)!=3306||!url.contains("/"+result.getString(2)+"?"))throw new IllegalStateException("V61 smoke database identity mismatch");
+            }catch(java.sql.SQLException e){throw new IllegalStateException("V61 smoke database unavailable",e);}
+            return;
+        }
         if (Boolean.getBoolean("hotel.payment.fresh.tests")) {
             var env=context.getEnvironment();String url=env.getProperty("spring.datasource.url","");
             if(!url.matches("jdbc:mysql://localhost:3306/hotel_payment_core_verify_v44\\?.*")||env.getProperty("spring.flyway.url")!=null)

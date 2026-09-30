@@ -1,0 +1,1 @@
+package com.johnny.hotel.cms;import org.springframework.web.multipart.MultipartFile;public interface MediaStorageService{record Stored(String key,String url,long size,String checksum){}Stored store(MultipartFile file,String type);}

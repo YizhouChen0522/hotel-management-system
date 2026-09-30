@@ -77,11 +77,11 @@ class WalkInDevelopmentTest extends FinancialDevelopmentFixture {
         creditWallet("500");clock.day(3);assertThrows(BusinessException.class,()->stays.checkOut(stay.getId(),uid("STAFF")));assertEquals(new BigDecimal("500.00"),wallets.find(wid("CUSTOMER")).getBalance());
         as("MANAGER");assertThrows(BusinessException.class,()->refundService.list(folio(x.bookingId())));
         mvc.perform(get("/api/bookings/{id}",x.bookingId()).with(authentication(auth("CUSTOMER")))).andExpect(status().is4xxClientError());
-        mvc.perform(get("/api/stays/{id}",stay.getId()).with(authentication(auth("CUSTOMER")))).andExpect(status().isNotFound());
-        mvc.perform(get("/api/stays/{id}/folio",stay.getId()).with(authentication(auth("CUSTOMER")))).andExpect(status().isNotFound());}
+        mvc.perform(get("/api/public/customer/stays/{id}",stay.getId()).with(authentication(auth("CUSTOMER")))).andExpect(status().isNotFound());
+        mvc.perform(get("/api/public/customer/bookings/{id}/folio",x.bookingId()).with(authentication(auth("CUSTOMER")))).andExpect(status().isNotFound());}
 
     @Test void offlinePaymentSettlesAndChecksOutWithRealOperatorAudit(){var x=create("walkin07");var stay=stays.checkIn(x.bookingId(),uid("STAFF"));clock.day(3);assertThrows(BusinessException.class,()->stays.checkOut(stay.getId(),uid("STAFF")));
-        payments.recordPayment(folio(x.bookingId()),RecordPaymentRequest.builder().amount(new BigDecimal("300")).paymentMethod("CASH").idempotencyKey(java.util.UUID.randomUUID().toString()).build(),uid("STAFF"));
+        payments.recordPayment(folio(x.bookingId()),RecordPaymentRequest.builder().amount(new BigDecimal("300")).paymentMethod("OTHER").idempotencyKey(java.util.UUID.randomUUID().toString()).build(),uid("STAFF"));
         stays.checkOut(stay.getId(),uid("STAFF"));assertEquals(2,stayState(x.bookingId()));assertEquals(0,queries.byBookingForOperations(x.bookingId()).balanceAmount().signum());
         assertTrue(jdbc.queryForObject("SELECT COUNT(*) FROM sys_audit_log WHERE operator_id=? AND action IN ('CREATE_WALK_IN_BOOKING','RECORD_PAYMENT','CHECK_OUT')",Integer.class,uid("STAFF"))>=3);}
 }

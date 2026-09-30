@@ -79,13 +79,15 @@ class StayCoreDevelopmentTest extends FinancialDevelopmentFixture {
     @Test void reservationAndActualGuestHaveSeparateOwnership()throws Exception{
         long b=approved();var actual=actualStays.checkIn(b,uid("MANAGER"));
         assertNull(jdbc.queryForObject("SELECT linked_user_id FROM guest_profile WHERE id=?",Long.class,actual.getPrimaryGuestId()));
-        mvc.perform(get("/api/stays/{id}",actual.getId()).with(authentication(auth("CUSTOMER")))).andExpect(status().isOk());
+        mvc.perform(get("/api/public/customer/stays/{id}",actual.getId()).with(authentication(auth("CUSTOMER")))).andExpect(status().isOk());
         for(String suffix:java.util.List.of("","/guests","/assignments","/folio")){
-            mvc.perform(get("/api/stays/"+actual.getId()+suffix).with(authentication(auth("OTHER_CUSTOMER")))).andExpect(status().isNotFound());
-            mvc.perform(get("/api/stays/"+Long.MAX_VALUE+suffix).with(authentication(auth("OTHER_CUSTOMER")))).andExpect(status().isNotFound());
+            if (!"/folio".equals(suffix)) {
+                mvc.perform(get("/api/public/customer/stays/"+actual.getId()+suffix).with(authentication(auth("OTHER_CUSTOMER")))).andExpect(status().isNotFound());
+                mvc.perform(get("/api/public/customer/stays/"+Long.MAX_VALUE+suffix).with(authentication(auth("OTHER_CUSTOMER")))).andExpect(status().isNotFound());
+            }
         }
-        mvc.perform(get("/api/stays").param("bookingId",String.valueOf(b)).with(authentication(auth("OTHER_CUSTOMER")))).andExpect(status().isOk()).andExpect(jsonPath("$.data.items.length()").value(0));
-        mvc.perform(get("/api/stays/{id}/folio",actual.getId()).with(authentication(auth("CUSTOMER")))).andExpect(status().isOk()).andExpect(jsonPath("$.data.stayId").value(actual.getId()));
+        mvc.perform(get("/api/public/customer/stays").param("bookingId",String.valueOf(b)).with(authentication(auth("OTHER_CUSTOMER")))).andExpect(status().isOk()).andExpect(jsonPath("$.data.items.length()").value(0));
+        mvc.perform(get("/api/public/customer/bookings/{id}/folio",b).with(authentication(auth("CUSTOMER")))).andExpect(status().isOk()).andExpect(jsonPath("$.data.stayId").value(actual.getId()));
     }
     @Test void stayApiRejectsCustomerHrAndAnonymousWrites()throws Exception{
         long b=approved();
@@ -115,8 +117,8 @@ class StayCoreDevelopmentTest extends FinancialDevelopmentFixture {
         var profile=guests.saveMe(uid("OTHER_CUSTOMER"),com.johnny.hotel.guest.GuestRequests.Profile.builder().firstName("Actual").lastName("Guest").nationality("CA").documentType("PASSPORT").documentNumber(run+"actual").build());
         guests.addToBooking(b,com.johnny.hotel.guest.GuestRequests.Add.builder().guestId(profile.id()).role(com.johnny.hotel.guest.GuestRole.PRIMARY).build(),uid("MANAGER"));
         guests.confirm(b,uid("MANAGER"));var stay=actualStays.checkIn(b,uid("MANAGER"));assertEquals(profile.id(),stay.getPrimaryGuestId());
-        mvc.perform(get("/api/stays/{id}/folio",stay.getId()).with(authentication(auth("OTHER_CUSTOMER")))).andExpect(status().isNotFound());
-        mvc.perform(get("/api/stays/{id}/folio",stay.getId()).with(authentication(auth("CUSTOMER")))).andExpect(status().isOk());
+        mvc.perform(get("/api/public/customer/bookings/{id}/folio",b).with(authentication(auth("OTHER_CUSTOMER")))).andExpect(status().isNotFound());
+        mvc.perform(get("/api/public/customer/bookings/{id}/folio",b).with(authentication(auth("CUSTOMER")))).andExpect(status().isOk());
     }
     @Test void reservationCancellationAndRejectionKeepDepositsOutsideStay(){
         long b=createBooking("CUSTOMER");bookings.rejectBooking(b,uid("MANAGER"));

@@ -66,3 +66,7 @@ hotel:
     browse-limit: 100
   workforce:
     missing-checkout-hours: ${WORKFORCE_MISSING_CHECKOUT_HOURS:24}
+  cms:
+    media:
+      local-root: ${CMS_MEDIA_LOCAL_ROOT:./data/cms-media}
+      max-bytes: ${CMS_MEDIA_MAX_BYTES:52428800}

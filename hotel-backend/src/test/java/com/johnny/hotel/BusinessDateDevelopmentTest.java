@@ -38,7 +38,7 @@ class BusinessDateDevelopmentTest {
         dates.initializeOnce();
         var after=dates.current();assertEquals(before.getBusinessDate(),after.getBusinessDate());assertEquals(version,after.getVersion());assertEquals(1,history);
         assertEquals(history,jdbc.queryForObject("SELECT COUNT(*) FROM hotel_business_date_history WHERE event_type='INITIALIZED'",Integer.class));
-        assertEquals("49",jdbc.queryForObject("SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1",String.class));
+        assertEquals("61",jdbc.queryForObject("SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1",String.class));
     }
 
     @Test void readApiEnforcesOperationalRolesAndSeparatesWallClock() throws Exception {
@@ -90,5 +90,5 @@ class BusinessDateDevelopmentTest {
 
     private <T>T tx(java.util.concurrent.Callable<T> body){return new TransactionTemplate(transactions).execute(status->{try{return body.call();}catch(Exception e){throw new RuntimeException(e);}});}
     private void await(CountDownLatch latch){try{if(!latch.await(5,TimeUnit.SECONDS))throw new IllegalStateException("latch timeout");}catch(InterruptedException e){Thread.currentThread().interrupt();throw new RuntimeException(e);}}
-    private UsernamePasswordAuthenticationToken auth(String role){var a=new UsernamePasswordAuthenticationToken("test","n/a",List.of(new SimpleGrantedAuthority("ROLE_"+role)));a.setDetails(1L);return a;}
+    private UsernamePasswordAuthenticationToken auth(String role){var a=new UsernamePasswordAuthenticationToken("test","n/a",List.of(new SimpleGrantedAuthority("ROLE_"+role),new SimpleGrantedAuthority("SURFACE_PMS_INTERNAL")));a.setDetails(1L);return a;}
 }
