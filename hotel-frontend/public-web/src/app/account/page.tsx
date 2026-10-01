@@ -1,0 +1,1 @@
+import{ProtectedShell}from"@/components/auth/ProtectedShell";export default function Account(){return <ProtectedShell><main className="protected-page"><p className="eyebrow">YOUR STAY</p><h1>客户账户</h1><p>Booking History、Wallet、Folio、Invoice 与 Payment 将在受保护客户页面中逐步接入。</p></main></ProtectedShell>}

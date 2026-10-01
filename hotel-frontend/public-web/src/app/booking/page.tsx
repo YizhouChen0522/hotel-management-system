@@ -1,0 +1,1 @@
+import{ProtectedShell}from"@/components/auth/ProtectedShell";export default function Booking(){return <ProtectedShell><main className="protected-page"><p className="eyebrow">RESERVATION</p><h1>预订入口</h1><p>账户验证已完成。完整预订界面将在下一阶段接入现有 Reservation API。</p></main></ProtectedShell>}
