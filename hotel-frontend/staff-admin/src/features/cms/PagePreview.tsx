@@ -1,0 +1,4 @@
+import type { CmsPageView } from '../../types/cms'
+function payload(raw: string) { try { return JSON.parse(raw) as Record<string, unknown> } catch { return {} } }
+const value = (candidate: unknown) => typeof candidate === 'string' ? candidate : ''
+export function PagePreview({ page }: { page: CmsPageView }) { return <section className="preview"><header><small>管理员 Draft/Published Preview · v{page.version}</small><h2>{page.title}</h2></header>{page.sections.map((section) => { const data = payload(section.payload); return <article key={section.id}><strong>{section.sectionType}</strong><h3>{value(data.title)}</h3><p>{value(data.subtitle) || value(data.body) || value(data.description)}</p>{!['HERO', 'TEXT', 'CTA'].includes(section.sectionType) ? <pre>{JSON.stringify(data, null, 2)}</pre> : null}</article> })}</section> }
