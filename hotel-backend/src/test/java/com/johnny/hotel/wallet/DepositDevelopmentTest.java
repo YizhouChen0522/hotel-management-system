@@ -58,7 +58,10 @@ class DepositDevelopmentTest extends FinancialDevelopmentFixture {
         assertEquals(new BigDecimal("200.00"),deposits.summary(b).balance());
     }
     @Test void customerOwnershipAndHrBoundary() throws Exception {
-        long b=reservation();as("OTHER_CUSTOMER");assertThrows(BusinessException.class,()->deposits.summary(b));
+        long b=reservation();
+        mvc.perform(get("/api/public/customer/bookings/{id}/deposit",b).with(authentication(auth("CUSTOMER")))).andExpect(status().isOk());
+        mvc.perform(get("/api/public/customer/bookings/{id}/deposit",b).with(authentication(auth("OTHER_CUSTOMER")))).andExpect(status().isNotFound());
+        as("OTHER_CUSTOMER");assertThrows(BusinessException.class,()->deposits.summary(b));
         mvc.perform(get("/api/bookings/{id}/deposit",b).with(authentication(auth("HR_ADMIN")))).andExpect(status().isForbidden());
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
         mvc.perform(get("/api/bookings/{id}/deposit",b).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous())).andExpect(status().isUnauthorized());

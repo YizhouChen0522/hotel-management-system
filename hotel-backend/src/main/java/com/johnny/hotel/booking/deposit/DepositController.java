@@ -9,7 +9,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController @RequiredArgsConstructor
-@RequestMapping("/api/bookings/{bookingId}/deposit")
+@RequestMapping({"/api/bookings/{bookingId}/deposit","/api/public/customer/bookings/{bookingId}/deposit"})
 @PreAuthorize("hasAnyRole('CUSTOMER','STAFF','FINANCE','MANAGER','OWNER','SUPER_ADMIN')")
 public class DepositController {
     private final DepositService service;

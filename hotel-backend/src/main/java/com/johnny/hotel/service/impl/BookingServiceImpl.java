@@ -239,8 +239,8 @@ public class BookingServiceImpl implements BookingService {
         booking.setCreatedByUserId(currentUserId);
         booking.setReservationSource(com.johnny.hotel.enums.ReservationSource.CUSTOMER_PORTAL.name());
         booking.setPortalRequestKey(request.getRequestKey());
-        var activePolicy=reservationPolicies.activeForBooking(false);
-        booking.setReservationPolicyId(activePolicy==null?null:activePolicy.getId());
+        var activePolicy = reservationPolicies.activeForBooking(true);
+        booking.setReservationPolicyId(activePolicy.getId());
         booking.setRoomTypeId(request.getRoomTypeId());
         booking.setReservedRoomId(null);
         booking.setGuestCount(request.getGuestCount());

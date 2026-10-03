@@ -1,4 +1,51 @@
 "use client";
-import{createContext,useContext,useEffect,useState,type ReactNode}from"react";
-export interface Customer{ id:number;username:string;realName:string|null;email:string;phone:string|null;status:number }type Session={token:string;user:Customer;roles:string[]};type Auth={session:Session|null;ready:boolean;login:(email:string,password:string)=>Promise<void>;register:(x:{username:string;password:string;realName:string;phone:string;email:string})=>Promise<void>;logout:()=>void};const C=createContext<Auth|null>(null);const KEY='hotel.customer.session';async function post<T>(path:string,body:unknown){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),j=await r.json();if(!r.ok||j.code!==200)throw new Error(j.message||'请求失败');return j.data as T}
-export function AuthProvider({children}:{children:ReactNode}){const[session,setSession]=useState<Session|null>(null),[ready,setReady]=useState(false);useEffect(()=>{try{const raw=localStorage.getItem(KEY);if(raw)setSession(JSON.parse(raw))}finally{setReady(true)}},[]);const save=(x:Session|null)=>{setSession(x);if(x)localStorage.setItem(KEY,JSON.stringify(x));else localStorage.removeItem(KEY)};return <C.Provider value={{session,ready,login:async(email,password)=>save(await post<Session>('/api/public/auth/customer/login',{email,password})),register:async x=>{await post('/api/public/auth/customer/register',x)},logout:()=>save(null)}}>{children}</C.Provider>}export function useAuth(){const x=useContext(C);if(!x)throw new Error('AuthProvider missing');return x}
+
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { clientApi, jsonBody } from "@/lib/api/client-fetch";
+
+export interface Customer { id: number; username: string; realName: string | null; email: string; phone: string | null; status: number }
+export interface CustomerSession { token: string; user: Customer; roles: string[] }
+type Registration = { username: string; password: string; realName: string; phone: string; email: string };
+type Auth = { session: CustomerSession | null; ready: boolean; login: (email: string, password: string) => Promise<void>; register: (value: Registration) => Promise<void>; logout: () => void };
+
+const AuthContext = createContext<Auth | null>(null);
+const STORAGE_KEY = "hotel.customer.session";
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<CustomerSession | null>(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) setSession(JSON.parse(raw) as CustomerSession);
+      } catch { localStorage.removeItem(STORAGE_KEY); }
+      finally { setReady(true); }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+  const save = useCallback((value: CustomerSession | null) => {
+    setSession(value);
+    if (value) localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+    else localStorage.removeItem(STORAGE_KEY);
+  }, []);
+  const login = useCallback(async (email: string, password: string) => {
+    save(await clientApi<CustomerSession>("/api/public/auth/customer/login", { method: "POST", ...jsonBody({ email, password }) }));
+  }, [save]);
+  const register = useCallback(async (value: Registration) => {
+    await clientApi<Customer>("/api/public/auth/customer/register", { method: "POST", ...jsonBody(value) });
+  }, []);
+  const logout = useCallback(() => save(null), [save]);
+  const value = useMemo(() => ({ session, ready, login, register, logout }), [session, ready, login, register, logout]);
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const value = useContext(AuthContext);
+  if (!value) throw new Error("AuthProvider missing");
+  return value;
+}
+
+export function safeReturnTo(value: string | null, fallback = "/account") {
+  return value?.startsWith("/") && !value.startsWith("//") ? value : fallback;
+}

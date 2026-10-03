@@ -65,9 +65,24 @@ class ReservationPolicyDevelopmentTest extends FinancialDevelopmentFixture {
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM reservation_policy WHERE status=1",Integer.class));
     }
 
-    @Test void staffDirectRequiresActivePolicy(){as("STAFF");var r=request("no-policy");
+    @Test void newReservationsRequireActivePolicy(){as("STAFF");var r=request("no-policy");
         assertThrows(BusinessException.class,()->direct.create(r));
-        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM booking WHERE staff_direct_request_key=?",Integer.class,r.getRequestKey()));}
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM booking WHERE staff_direct_request_key=?",Integer.class,r.getRequestKey()));
+
+        fundReservation("CUSTOMER");
+        var portal = new com.johnny.hotel.dto.CreateBookingRequest();
+        portal.setRequestKey(run + "portal-no-policy");
+        portal.setRoomTypeId(type1);
+        portal.setGuestCount(1);
+        portal.setCheckInDate(arrival);
+        portal.setCheckOutDate(arrival.plusDays(2));
+        assertThrows(BusinessException.class, () -> bookings.createBooking(portal, uid("CUSTOMER")));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM booking WHERE portal_request_key=?",
+                Integer.class,
+                portal.getRequestKey()
+        ));
+    }
 
     @Test void directCannotConfirmWithoutConcreteRoomOrSuccessfulFullReceipt(){activate("guarantee","0","100");as("STAFF");
         var noRoom=request("no-room");noRoom.setReservedRoomId(null);

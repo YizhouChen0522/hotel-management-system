@@ -1,1 +1,19 @@
-import type{PublicLocation}from"@/types/cms";export function Footer({location}:{location:PublicLocation|null}){return <footer className="site-footer"><div><p className="footer-brand">{location?.hotelName||'Hotel Retreat'}</p><p>{location?.address}</p></div><div><p>{location?.phone}</p><p>{location?.contact}</p></div><p>© {new Date().getFullYear()} HOTEL RETREAT</p></footer>}
+import type { PublicLocation } from "@/types/cms";
+
+export function Footer({ location }: { location: PublicLocation | null }) {
+    return (
+        <footer className="site-footer">
+            <div>
+                <p className="footer-brand">
+                    {location?.hotelName || 'Hotel Retreat'}
+                </p>
+                <p>{location?.address}</p>
+            </div>
+            <div>
+                <p>{location?.phone}</p>
+                <p>{location?.contact}</p>
+            </div>
+            <p>© {new Date().getFullYear()} HOTEL RETREAT</p>
+        </footer>
+    );
+}

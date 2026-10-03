@@ -93,6 +93,7 @@ class ReservationSettlementDevelopmentTest {
         assertThrows(BusinessException.class,()->lifecycle.cancel(b,id("OTHER_CUSTOMER"),"CUSTOMER","Not mine"));}
 
     @Test @Transactional void fullPortalDepositIsPolicyBase(){policy("0","80");long b=portal(10);
+        assertNotNull(jdbc.queryForObject("SELECT reservation_policy_id FROM booking WHERE id=?",Long.class,b));
         as("CUSTOMER");var fact=lifecycle.cancel(b,id("CUSTOMER"),"CUSTOMER","Changed travel plans");
         assertEquals(0,new BigDecimal("240.00").compareTo(fact.getRefundObligation()));
         assertEquals(0,new BigDecimal("60.00").compareTo(fact.getForfeitedAmount()));
