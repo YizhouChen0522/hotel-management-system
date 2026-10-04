@@ -44,6 +44,9 @@ public interface BookingPriceVersionMapper {
             @Param("bookingId") Long bookingId
     );
 
+    @Select("SELECT * FROM booking_price_version WHERE booking_id=#{bookingId} AND is_active=1")
+    BookingPriceVersion selectActiveReadByBookingId(@Param("bookingId") Long bookingId);
+
     @Select("""
             SELECT COALESCE(MAX(version_no), 0)
             FROM booking_price_version

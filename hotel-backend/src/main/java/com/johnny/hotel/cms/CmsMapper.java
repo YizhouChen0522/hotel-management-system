@@ -6,6 +6,7 @@ import com.johnny.hotel.cms.CmsModels.*;import org.apache.ibatis.annotations.*;i
  @Select("SELECT * FROM site_page WHERE id=#{id}")Page page(Long id);@Select("SELECT * FROM site_page WHERE id=#{id} FOR UPDATE")Page lockPage(Long id);
  @Select("SELECT * FROM site_page_version WHERE page_id=#{page} AND status='DRAFT' ORDER BY version_no DESC LIMIT 1")PageVersion draft(Long page);
  @Select("SELECT * FROM site_page_version WHERE page_id=#{page} AND status='PUBLISHED' ORDER BY version_no DESC LIMIT 1")PageVersion published(Long page);
+ @Select("SELECT * FROM site_page_version WHERE page_id=#{page} ORDER BY version_no DESC LIMIT 1")PageVersion latest(Long page);
  @Select("SELECT COALESCE(MAX(version_no),0) FROM site_page_version WHERE page_id=#{page}")int maxVersion(Long page);
  @Update("UPDATE site_page_version SET title=#{title},seo_title=#{seoTitle},seo_description=#{seoDescription},social_preview_media_id=#{socialPreviewMediaId},updated_by=#{updatedBy},version_no=version_no+1 WHERE id=#{id} AND status='DRAFT' AND version_no=#{versionNo}")int updateDraft(PageVersion x);
  @Update("UPDATE site_page_version SET status='ARCHIVED',updated_by=#{actor} WHERE page_id=#{page} AND status='PUBLISHED'")int archivePublished(@Param("page")Long page,@Param("actor")Long actor);

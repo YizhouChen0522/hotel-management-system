@@ -1,2 +1,96 @@
-"use client";import Link from"next/link";import{useEffect,useState}from"react";import{useAuth}from"@/features/auth/AuthProvider";import type{PublicNavigation}from"@/types/cms";import{AuthGate}from"@/components/auth/AuthGate";function href(i:PublicNavigation){if(i.targetType==='EXTERNAL_URL')return i.targetValue||'#';if(i.targetType==='INTERNAL_PAGE')return i.targetValue?`/${i.targetValue}`:'/';return i.targetType==='BOOKING'?'/booking':'/account'}export function Header({navigation,hotelName}:{navigation:PublicNavigation[];hotelName?:string}){const[open,setOpen]=useState(false),[scrolled,setScrolled]=useState(false),{session,logout}=useAuth();useEffect(()=>{const onScroll=()=>setScrolled(scrollY>40);onScroll();addEventListener("scroll",onScroll,{passive:true});return()=>removeEventListener("scroll",onScroll)},[]);return <header className={scrolled?"site-header scrolled":"site-header"}><div className="header-inner"><Link href="/" className="wordmark"><span>{hotelName||'Hotel'}</span><small>STAY · DISCOVER · REMEMBER</small></Link><button className="menu-toggle" onClick={()=>setOpen(!open)} aria-label="打开导航">☰</button><nav className={open?'main-nav open':'main-nav'}><Link className="nav-link" href="/rooms">房型</Link>{navigation.map(i=>i.targetType==='BOOKING'||i.targetType==='CUSTOMER_ACCOUNT'?<AuthGate key={i.label} label={i.label} target={href(i)} className="nav-link"/>:i.targetType==='INTERNAL_PAGE'?<Link className="nav-link" key={i.label} href={href(i)}>{i.label}</Link>:<a className="nav-link" key={i.label} href={href(i)} target={i.openMode==='NEW_TAB'?'_blank':undefined}>{i.label}</a>)}<Link className="nav-link locale" href="/?locale=en">中 / EN</Link>{session?<><Link className="nav-link" href="/bookings">我的预订</Link><Link className="nav-link" href="/account">{session.user.realName||session.user.username}</Link><button className="nav-link" onClick={logout}>退出</button></>:<><Link className="nav-link" href="/login">登录</Link><Link className="nav-pill" href="/register">注册</Link></>}</nav></div></header>}
+"use client";
 
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/features/auth/AuthProvider";
+import type { PublicNavigation } from "@/types/cms";
+import { AuthGate } from "@/components/auth/AuthGate";
+
+function href(i: PublicNavigation) {
+    if (i.targetType === 'EXTERNAL_URL') return i.targetValue || '#';
+    if (i.targetType === 'INTERNAL_PAGE') return i.targetValue ? `/${i.targetValue}` : '/';
+    return i.targetType === 'BOOKING' ? '/booking' : '/account';
+}
+
+export function Header({
+    navigation,
+    hotelName,
+}: {
+    navigation: PublicNavigation[];
+    hotelName?: string;
+}) {
+    const [open, setOpen] = useState(false);
+    const [scrolled, setScrolled] = useState(false);
+    const { session, logout } = useAuth();
+
+    useEffect(() => {
+        const onScroll = () => setScrolled(scrollY > 40);
+        onScroll();
+        addEventListener("scroll", onScroll, { passive: true });
+        return () => removeEventListener("scroll", onScroll);
+    }, []);
+
+    return (
+        <header className={scrolled ? "site-header scrolled" : "site-header"}>
+            <div className="header-inner">
+                <Link href="/" className="wordmark">
+                    <span>{hotelName || 'Hotel'}</span>
+                    <small>STAY · DISCOVER · REMEMBER</small>
+                </Link>
+
+                <button
+                    className="menu-toggle"
+                    onClick={() => setOpen(!open)}
+                    aria-label="打开导航"
+                >
+                    ☰
+                </button>
+
+                <nav className={open ? 'main-nav open' : 'main-nav'}>
+                    <Link className="nav-link" href="/rooms">房型</Link>
+
+                    {navigation.map(i =>
+                        i.targetType === 'BOOKING' || i.targetType === 'CUSTOMER_ACCOUNT' ? (
+                            <AuthGate
+                                key={i.label}
+                                label={i.label}
+                                target={href(i)}
+                                className="nav-link"
+                            />
+                        ) : i.targetType === 'INTERNAL_PAGE' ? (
+                            <Link className="nav-link" key={i.label} href={href(i)}>
+                                {i.label}
+                            </Link>
+                        ) : (
+                            <a
+                                className="nav-link"
+                                key={i.label}
+                                href={href(i)}
+                                target={i.openMode === 'NEW_TAB' ? '_blank' : undefined}
+                            >
+                                {i.label}
+                            </a>
+                        )
+                    )}
+
+                    <Link className="nav-link locale" href="/?locale=en">中 / EN</Link>
+
+                    {session ? (
+                        <>
+                            <Link className="nav-link" href="/bookings">我的预订</Link>
+                            <Link className="nav-link" href="/account">
+                                {session.user.realName || session.user.username}
+                            </Link>
+                            <button className="nav-link" onClick={logout}>退出</button>
+                        </>
+                    ) : (
+                        <>
+                            <Link className="nav-link" href="/login">登录</Link>
+                            <Link className="nav-pill" href="/register">注册</Link>
+                        </>
+                    )}
+                </nav>
+            </div>
+        </header>
+    );
+}

@@ -58,4 +58,12 @@ public interface BookingNightlyRateMapper {
     List<BookingNightlyRate> selectActiveByBookingId(
             @Param("bookingId") Long bookingId
     );
+
+    @Select("""
+            SELECT bnr.* FROM booking_nightly_rate bnr
+            INNER JOIN booking_price_version bpv ON bpv.id=bnr.price_version_id
+            WHERE bnr.booking_id=#{bookingId} AND bpv.is_active=1
+            ORDER BY bnr.stay_date
+            """)
+    List<BookingNightlyRate> selectActiveReadByBookingId(@Param("bookingId") Long bookingId);
 }

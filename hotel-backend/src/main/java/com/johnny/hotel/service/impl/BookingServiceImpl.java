@@ -52,6 +52,9 @@ public class BookingServiceImpl implements BookingService {
 
     private BookingVO toVO(com.johnny.hotel.entity.Booking booking) {
         RoomType roomType = roomTypeMapper.selectById(booking.getRoomTypeId());
+        var booker = booking.getBookerGuestProfileId() == null
+                ? null
+                : guestMapper.profile(booking.getBookerGuestProfileId());
 
         Room assignedRoom = null;
         if (booking.getReservedRoomId() != null) {
@@ -65,6 +68,9 @@ public class BookingServiceImpl implements BookingService {
                 .id(booking.getId())
                 .userId(booking.getUserId())
                 .bookerGuestProfileId(booking.getBookerGuestProfileId())
+                .bookerName(booker == null ? null : (booker.getFirstName() + " " + booker.getLastName()).trim())
+                .bookerEmail(booker == null ? null : booker.getEmail())
+                .bookerPhone(booker == null ? null : booker.getPhone())
                 .createdByUserId(booking.getCreatedByUserId())
                 .roomTypeId(booking.getRoomTypeId())
                 .roomTypeName(roomType == null ? null : roomType.getTypeName())

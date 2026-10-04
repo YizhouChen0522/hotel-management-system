@@ -1,7 +1,7 @@
 export interface PageResult<T> { items: T[]; page: number; pageSize: number; total: number; hasNext: boolean; searchMode: boolean; }
 export interface CmsPageSummary { id: number; slug: string; locale: string; createdBy: number; createTime: string; updateTime: string; }
 export interface CmsSection { id: number; pageVersionId: number; sectionKey: string; sectionType: string; sortOrder: number; payload: string; visibility: 'PUBLIC' | 'INTERNAL'; status: string; version: number; createTime: string; updateTime: string; }
-export interface CmsPageView { id: number; slug: string; locale: string; title: string; seoTitle: string | null; seoDescription: string | null; socialPreviewMediaId: number | null; version: number; publishedAt: string | null; sections: CmsSection[]; }
+export interface CmsPageView { id: number; slug: string; locale: string; status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'; title: string; seoTitle: string | null; seoDescription: string | null; socialPreviewMediaId: number | null; version: number; publishedAt: string | null; sections: CmsSection[]; }
 export interface PageCreateRequest { slug: string; locale: string; title: string; seoTitle?: string; seoDescription?: string; socialPreviewMediaId?: number | null; }
 export interface PageEditRequest { title: string; seoTitle?: string; seoDescription?: string; socialPreviewMediaId?: number | null; expectedVersion: number; }
 export interface SectionWriteRequest { sectionKey: string; sectionType: string; sortOrder: number; payload: string; visibility: 'PUBLIC' | 'INTERNAL'; expectedVersion: number; }

@@ -6,11 +6,14 @@ import { bookingApi } from "@/features/booking/booking-api";
 import { bookingStatus, dateText, money } from "@/features/booking/format";
 import { ClientApiError } from "@/lib/api/client-fetch";
 import type { Booking, DepositBalance } from "@/types/booking";
+import type { Folio } from "@/types/financial";
+import { accountApi } from "@/features/account/account-api";
 
 export function BookingDetail({ id }: { id: number }) {
   const { session, logout } = useAuth();
   const [booking, setBooking] = useState<Booking | null>(null);
   const [deposit, setDeposit] = useState<DepositBalance | null>(null);
+  const [folio, setFolio] = useState<Folio | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -21,6 +24,8 @@ export function BookingDetail({ id }: { id: number }) {
       setBooking(value);
       try { const balance = await bookingApi.deposit(session.token, id); if (active) setDeposit(balance); }
       catch { if (active) setDeposit(null); }
+      try { const bill = await accountApi.folioByBooking(session.token, id); if (active) setFolio(bill); }
+      catch { if (active) setFolio(null); }
     }).catch((reason: unknown) => {
       if (!active) return;
       if (reason instanceof ClientApiError && reason.status === 401) logout();
@@ -40,6 +45,6 @@ export function BookingDetail({ id }: { id: number }) {
     <dl className="detail-grid"><div><dt>入住</dt><dd>{dateText(booking.checkInDate)}</dd></div><div><dt>离店</dt><dd>{dateText(booking.checkOutDate)}</dd></div><div><dt>住客</dt><dd>{booking.guestCount} 人</dd></div><div><dt>合同金额</dt><dd>{money(booking.totalPrice)}</dd></div><div><dt>来源</dt><dd>{booking.reservationSource}</dd></div><div><dt>预留房间</dt><dd>{booking.reservedRoomNumber || "待酒店分配"}</dd></div></dl>
     <div className="deposit-card"><h2>Reservation Deposit</h2>{deposit ? <dl className="quote-lines"><div><dt>已收订金</dt><dd>{money(deposit.received)}</dd></div><div><dt>已退款</dt><dd>{money(deposit.refunded + deposit.externalRefunded)}</dd></div><div><dt>已转入住账务</dt><dd>{money(deposit.transferred)}</dd></div><div className="quote-total"><dt>当前可用</dt><dd>{money(deposit.available)}</dd></div></dl> : <p>订金摘要暂不可用。</p>}</div>
     {error && <p className="form-error">{error}</p>}
-    <div className="form-actions"><Link className="button-secondary" href="/bookings">返回列表</Link>{[0, 1].includes(booking.status) && <button className="danger-button" disabled={busy} onClick={cancel}>{busy ? "处理中…" : "取消预订"}</button>}</div>
+    <div className="form-actions"><Link className="button-secondary" href="/bookings">返回列表</Link>{folio && <Link className="button-primary" href={`/folios/${booking.id}`}>查看住宿账单</Link>}{[0, 1].includes(booking.status) && <button className="danger-button" disabled={busy} onClick={cancel}>{busy ? "处理中…" : "取消预订"}</button>}</div>
   </section>;
 }

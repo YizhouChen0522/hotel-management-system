@@ -14,6 +14,9 @@ public class BookingVO {
 
     private Long userId;
     private Long bookerGuestProfileId;
+    private String bookerName;
+    private String bookerEmail;
+    private String bookerPhone;
     private Long createdByUserId;
 
     private Long roomTypeId;
