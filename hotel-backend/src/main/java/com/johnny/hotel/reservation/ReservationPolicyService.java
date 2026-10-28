@@ -18,7 +18,18 @@ public class ReservationPolicyService {
     public List<ReservationPolicy> list(){access.policyReader();return mapper.list();}
     private View view(ReservationPolicy p){return new View(p,mapper.bands(p.getId()));}
     public View bound(Long id){var p=mapper.find(id);if(p==null)throw new BusinessException("Bound policy is missing");return view(p);}
-    public ReservationPolicy activeForBooking(boolean required){var p=mapper.active();if(required)require(p!=null,"An active reservation policy is required");return p;}
+    /**
+     * The schema permits only one ACTIVE policy. That policy is therefore the
+     * hotel's default contract policy for every newly created reservation.
+     */
+    public ReservationPolicy defaultForBooking(boolean required){
+        var policy=mapper.active();
+        if(required)require(policy!=null,"A default active reservation policy is required");
+        return policy;
+    }
+
+    /** Kept for callers compiled against the original V38 service contract. */
+    public ReservationPolicy activeForBooking(boolean required){return defaultForBooking(required);}
     public BigDecimal percent(Long policyId,int leadDays){
         var bands=bound(policyId).bands();
         return bands.stream().filter(b->leadDays>=b.getMinLeadDays()&&(b.getMaxLeadDays()==null||leadDays<=b.getMaxLeadDays()))

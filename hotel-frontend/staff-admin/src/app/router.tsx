@@ -13,6 +13,9 @@ import { CmsLocationPage } from '../pages/CmsLocationPage'
 import { CmsScenesPage } from '../pages/CmsScenesPage'
 import { ReservationsPage } from '../pages/ReservationsPage'
 import { ReservationDetailPage } from '../pages/ReservationDetailPage'
+import { StaysPage } from '../pages/StaysPage'
+import { StayDetailPage } from '../pages/StayDetailPage'
+import { HousekeepingPage } from '../pages/HousekeepingPage'
 
 export const router = createBrowserRouter([
   {
@@ -30,6 +33,9 @@ export const router = createBrowserRouter([
           children: [
             { path: '/reservations', element: <ReservationsPage /> },
             { path: '/reservations/:id', element: <ReservationDetailPage /> },
+            { path: '/stays', element: <StaysPage /> },
+            { path: '/stays/:id', element: <StayDetailPage /> },
+            { path: '/housekeeping', element: <HousekeepingPage /> },
           ],
         },
         {

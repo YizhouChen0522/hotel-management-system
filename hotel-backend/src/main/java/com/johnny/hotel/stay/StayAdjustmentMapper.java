@@ -5,6 +5,8 @@ import java.util.List;
 public interface StayAdjustmentMapper {
     @Select("SELECT * FROM stay_adjustment WHERE stay_id=#{id} ORDER BY id FOR UPDATE")
     List<StayAdjustment> forStay(Long id);
+    @Select("SELECT * FROM stay_adjustment WHERE stay_id=#{id} ORDER BY id")
+    List<StayAdjustment> readByStayId(Long id);
     @Select("SELECT * FROM stay_extension_nightly_rate WHERE stay_id=#{id} ORDER BY stay_date FOR UPDATE")
     List<ExtensionNightlyRate> nights(Long id);
     @Insert("""

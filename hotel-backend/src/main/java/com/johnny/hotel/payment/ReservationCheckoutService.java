@@ -35,7 +35,7 @@ public class ReservationCheckoutService {
         require(roomType!=null&&roomType.getStatus()== RoomTypeStatus.ENABLED.getCode(),"Room type does not exist or is disabled");
         require(request.getGuestCount()<=roomType.getCapacity(),"Guest count exceeds room type capacity");
         var quote=pricing.quoteRoomType(request.getRoomTypeId(),request.getCheckInDate(),request.getCheckOutDate());
-        var policy=policies.activeForBooking(true);
+        var policy=policies.defaultForBooking(true);
         var session=ReservationCheckoutSession.builder().customerUserId(customerId).roomTypeId(request.getRoomTypeId())
                 .checkInDate(request.getCheckInDate()).checkOutDate(request.getCheckOutDate()).guestCount(request.getGuestCount())
                 .currency(currency).quotedTotal(money(quote.getTotalPrice(),12)).reservationPolicyId(policy.getId())

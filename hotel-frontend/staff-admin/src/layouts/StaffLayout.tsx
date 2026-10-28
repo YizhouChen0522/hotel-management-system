@@ -21,6 +21,8 @@ export function StaffLayout() {
         <nav className="primary-nav">
           <NavLink to="/" end>概览</NavLink>
           <NavLink to="/reservations">预订管理</NavLink>
+          <NavLink to="/stays">住宿与退房</NavLink>
+          <NavLink to="/housekeeping">客房清洁</NavLink>
           {canUseCms && <NavLink to="/cms">官网内容 CMS</NavLink>}
         </nav>
         {canUseCms && (

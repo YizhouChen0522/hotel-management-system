@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../lib/api/client'
 import {
   approveReservation,
@@ -23,9 +23,17 @@ import type {
   Reservation,
   Room,
 } from '../types/reservation'
+import {
+  checkInReservation,
+  confirmGuestRegistration,
+  getRoom,
+  getStayByBooking,
+} from '../features/stay/stay-api'
+import type { Room as AssignedRoom } from '../types/reservation'
 
 export function ReservationDetailPage() {
   const id = Number(useParams().id)
+  const navigate = useNavigate()
   const [booking, setBooking] = useState<Reservation | null>(null)
   const [guests, setGuests] = useState<BookingGuest[]>([])
   const [deposit, setDeposit] = useState<DepositBalance | null>(null)
@@ -33,6 +41,8 @@ export function ReservationDetailPage() {
   const [refunds, setRefunds] = useState<DepositRefund[]>([])
   const [price, setPrice] = useState<PriceSnapshot | null>(null)
   const [rooms, setRooms] = useState<Room[]>([])
+  const [assignedRoom, setAssignedRoom] = useState<AssignedRoom | null>(null)
+  const [existingStayId, setExistingStayId] = useState<number | null>(null)
   const [roomId, setRoomId] = useState('')
   const [reason, setReason] = useState('Front desk reassignment')
   const [loading, setLoading] = useState(true)
@@ -61,6 +71,12 @@ export function ReservationDetailPage() {
       setPrice(priceResult.status === 'fulfilled' ? priceResult.value : null)
       setRooms(roomResult.status === 'fulfilled' ? roomResult.value : [])
       setRoomId(current.reservedRoomId ? String(current.reservedRoomId) : '')
+      const [assignedRoomResult, stayResult] = await Promise.allSettled([
+        current.reservedRoomId ? getRoom(current.reservedRoomId) : Promise.resolve(null),
+        getStayByBooking(id),
+      ])
+      setAssignedRoom(assignedRoomResult.status === 'fulfilled' ? assignedRoomResult.value : null)
+      setExistingStayId(stayResult.status === 'fulfilled' ? stayResult.value.items[0]?.id ?? null : null)
     } catch (cause) {
       setError(message(cause))
     } finally {
@@ -88,12 +104,30 @@ export function ReservationDetailPage() {
     }
   }
 
+  async function checkIn() {
+    if (!window.confirm('确认住客资料、房间和订金均已复核，并办理入住？')) return
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      await confirmGuestRegistration(id)
+      const stay = await checkInReservation(id)
+      navigate(`/stays/${stay.id}`, { replace: true })
+    } catch (cause) {
+      setError(message(cause))
+      await load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (!Number.isInteger(id) || id <= 0) return <p className="error-banner">预订 ID 无效</p>
   if (loading && !booking) return <p className="state-card">正在读取预订详情…</p>
   if (!booking) return <p className="error-banner">{error || '预订不存在'}</p>
 
   const selectedRoom = Number(roomId)
   const assignedOptionMissing = booking.reservedRoomId != null && !rooms.some((room) => room.id === booking.reservedRoomId)
+  const checkInReady = guests.length > 0 && assignedRoom != null && [1, 2].includes(assignedRoom.status)
 
   return (
     <section>
@@ -113,7 +147,7 @@ export function ReservationDetailPage() {
       <div className="summary-grid">
         <article className="summary-card"><span>合同金额</span><strong>{money(booking.totalPrice)}</strong><small>以后端已接受报价为准</small></article>
         <article className="summary-card"><span>已收订金</span><strong>{money(deposit?.received || 0)}</strong><small>可用 {money(deposit?.available || 0)}</small></article>
-        <article className="summary-card"><span>具体房间</span><strong>{booking.reservedRoomNumber || '待分配'}</strong><small>Room ID {booking.reservedRoomId || '—'}</small></article>
+        <article className="summary-card"><span>具体房间</span><strong>{booking.reservedRoomNumber || '待分配'}</strong><small>{assignedRoom ? roomStatus(assignedRoom.status) : `Room ID ${booking.reservedRoomId || '—'}`}</small></article>
         <article className="summary-card"><span>来源</span><strong>{booking.reservationSource}</strong><small>{dateTime(booking.createTime)}</small></article>
       </div>
 
@@ -202,8 +236,39 @@ export function ReservationDetailPage() {
           {rooms.length === 0 && <p className="warning-banner">当前日期没有可分配房间；请勿强行确认。</p>}
         </article>
       )}
+
+      {booking.status === 1 && booking.reservedRoomId && !existingStayId && (
+        <article className="action-panel checkin-panel">
+          <div>
+            <p className="kicker">ARRIVAL</p>
+            <h3>办理入住</h3>
+            <p>将先确认正式 Guest Registration，再由后端原子创建 Stay、实际住客、房间分配和 Folio，并转入 Reservation Deposit。</p>
+          </div>
+          <dl className="detail-list compact">
+            <div><dt>计划入住</dt><dd>{booking.checkInDate}</dd></div>
+            <div><dt>计划离店</dt><dd>{booking.checkOutDate}</dd></div>
+            <div><dt>房间</dt><dd>{booking.reservedRoomNumber} · {assignedRoom ? roomStatus(assignedRoom.status) : '房态读取中'}</dd></div>
+            <div><dt>住客</dt><dd>{guests.length} / 合同 {booking.guestCount}</dd></div>
+            <div><dt>可用订金</dt><dd>{money(deposit?.available || 0)}</dd></div>
+          </dl>
+          <div className="actions">
+            <button className="primary-button" disabled={busy || !checkInReady} onClick={() => void checkIn()}>确认登记并办理入住</button>
+          </div>
+          {assignedRoom && ![1, 2].includes(assignedRoom.status) && <p className="warning-banner">当前房态不允许入住：{roomStatus(assignedRoom.status)}</p>}
+        </article>
+      )}
+
+      {existingStayId && (
+        <article className="success-banner linked-stay">
+          该 Reservation 已形成实际住宿。<Link to={`/stays/${existingStayId}`}>打开 Stay #{existingStayId}</Link>
+        </article>
+      )}
     </section>
   )
+}
+
+function roomStatus(status: number) {
+  return ({ 0: 'DISABLED', 1: 'AVAILABLE', 2: 'BOOKED', 3: 'MAINTENANCE', 4: 'OCCUPIED' } as Record<number, string>)[status] || `状态 ${status}`
 }
 
 function message(cause: unknown) {

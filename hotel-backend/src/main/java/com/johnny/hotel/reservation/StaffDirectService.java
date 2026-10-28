@@ -90,7 +90,7 @@ public class StaffDirectService {
         require(request.getGuestCount()!=null&&request.getGuestCount()>0,"Guest count must be positive");
         var type=roomTypes.selectById(request.getRoomTypeId());
         require(type!=null&&type.getStatus()==RoomTypeStatus.ENABLED.getCode()&&request.getGuestCount()<=type.getCapacity(),"Invalid room type or guest count");
-        var policy=policies.activeForBooking(true);
+        var policy=policies.defaultForBooking(true);
         Long booker=guest(request.getBookerGuestId(),request.getBookerProfile(),actor.id(),"booker");
         Long primary=request.getPrimaryGuestId()==null&&request.getPrimaryProfile()==null?booker:
                 guest(request.getPrimaryGuestId(),request.getPrimaryProfile(),actor.id(),"primary guest");

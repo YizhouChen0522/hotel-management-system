@@ -48,6 +48,9 @@ export function Header({
 
                 <nav className={open ? 'main-nav open' : 'main-nav'}>
                     <Link className="nav-link" href="/rooms">房型</Link>
+                    <Link className="nav-link" href="/hotel">酒店</Link>
+                    <Link className="nav-link" href="/activities">活动</Link>
+                    <Link className="nav-link" href="/promotions">促销</Link>
 
                     {navigation.map(i =>
                         i.targetType === 'BOOKING' || i.targetType === 'CUSTOMER_ACCOUNT' ? (

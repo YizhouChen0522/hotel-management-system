@@ -7,6 +7,7 @@ import com.johnny.hotel.guest.*;
 import com.johnny.hotel.stay.StayApplicationService;
 import com.johnny.hotel.walkin.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import java.math.BigDecimal;
@@ -21,6 +22,28 @@ class WalkInDevelopmentTest extends FinancialDevelopmentFixture {
     @Autowired StayApplicationService stays;
     @Autowired DepositService deposits;
     @Autowired com.johnny.hotel.wallet.RefundService refundService;
+    @Autowired com.johnny.hotel.reservation.ReservationPolicyService reservationPolicies;
+
+    @BeforeEach
+    void ensureDefaultPolicyForPortalScenario() {
+        if (jdbc.queryForObject(
+                "SELECT COUNT(*) FROM reservation_policy WHERE status=1",
+                Integer.class
+        ) > 0) {
+            return;
+        }
+        as("OWNER");
+        var band = com.johnny.hotel.reservation.ReservationPolicyRequests.Band.builder()
+                .minLeadDays(0)
+                .refundPercent(new BigDecimal("100.00"))
+                .build();
+        var request = com.johnny.hotel.reservation.ReservationPolicyRequests.Save.builder()
+                .name(run + " walk-in test default policy")
+                .bands(java.util.List.of(band))
+                .build();
+        var draft = reservationPolicies.create(request);
+        reservationPolicies.activate(draft.policy().getId());
+    }
 
     GuestRequests.Profile profile(String first,String doc){return GuestRequests.Profile.builder().firstName(first).lastName("Walkin")
             .nationality("CA").documentType("PASSPORT").documentNumber(run+doc).build();}

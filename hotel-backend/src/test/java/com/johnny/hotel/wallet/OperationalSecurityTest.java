@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import static org.junit.jupiter.api.Assertions.*;
 import com.johnny.hotel.support.IsolatedMysqlTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,29 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class OperationalSecurityTest extends FinancialDevelopmentFixture {
     @Autowired com.johnny.hotel.booking.deposit.DepositService deposits;
+    @Autowired com.johnny.hotel.reservation.ReservationPolicyService reservationPolicies;
+
+    @BeforeEach
+    void ensureDefaultReservationPolicy() {
+        if (jdbc.queryForObject(
+                "SELECT COUNT(*) FROM reservation_policy WHERE status=1",
+                Integer.class
+        ) > 0) {
+            return;
+        }
+        as("OWNER");
+        var band = com.johnny.hotel.reservation.ReservationPolicyRequests.Band.builder()
+                .minLeadDays(0)
+                .refundPercent(new BigDecimal("100.00"))
+                .build();
+        var request = com.johnny.hotel.reservation.ReservationPolicyRequests.Save.builder()
+                .name(run + " security default policy")
+                .bands(List.of(band))
+                .build();
+        var draft = reservationPolicies.create(request);
+        reservationPolicies.activate(draft.policy().getId());
+    }
+
     long create(){return createBooking("CUSTOMER");}
     void approve(long b){var r=new ApproveBookingRequest();r.setAssignedRoomId(room1);bookings.approveBooking(b,r,uid("MANAGER"));register(b);}
     long checkIn(){return stay();}

@@ -34,8 +34,12 @@ public class StayAdjustmentService {
     private final com.johnny.hotel.guest.GuestAccess operationalAccess;
     private final SysAuditLogMapper audits;
     private Long actor(){Long id=access.actor();access.operational(id,false);return id;}
-    @Transactional
-    public List<StayAdjustment> list(Long stayId){actor();require(stayContext.lockReservation(stayId)!=null,"Booking does not exist");return adjustments.forStay(stayId);}
+    @Transactional(readOnly=true)
+    public List<StayAdjustment> list(Long stayId) {
+        actor();
+        require(stayContext.reservation(stayId) != null, "Booking does not exist");
+        return adjustments.readByStayId(stayId);
+    }
     @Transactional
     public StayAdjustment apply(Long stayId,StayAdjustmentRequest request) {
         Long actor=actor();operationalAccess.employee(actor);require(request!=null&&request.getType()!=null,"Adjustment type is required");
