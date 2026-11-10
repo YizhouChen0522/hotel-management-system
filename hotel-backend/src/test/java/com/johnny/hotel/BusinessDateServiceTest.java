@@ -27,8 +27,20 @@ class BusinessDateServiceTest {
     @Test void postingUsesPersistedDateRatherThanWallClockDate() {
         var db=mock(BusinessDateMapper.class);
         when(db.lockForPosting()).thenReturn(BusinessDateControl.builder().id(1).businessDate(LocalDate.of(2026,9,22)).state("OPEN").build());
-        var service=new BusinessDateService(db,Clock.fixed(Instant.parse("2026-09-23T17:30:00Z"),ZoneId.of("Asia/Shanghai")));
+        var service=new BusinessDateService(db,Clock.fixed(Instant.parse("2026-09-22T17:30:00Z"),ZoneId.of("Asia/Shanghai")));
         assertEquals(LocalDate.of(2026,9,22),service.postingDate());
     }
     @Test void closingRejectsOrdinaryPostingButAllowsOnlyMatchingAuditDate(){var db=mock(BusinessDateMapper.class);var date=LocalDate.of(2026,9,22);when(db.lockForPosting()).thenReturn(BusinessDateControl.builder().businessDate(date).state("CLOSING").build());var service=new BusinessDateService(db,Clock.systemUTC());assertThrows(com.johnny.hotel.exception.BusinessException.class,service::postingDate);assertEquals(date,service.closingPostingDate(date));assertThrows(com.johnny.hotel.exception.BusinessException.class,()->service.closingPostingDate(date.minusDays(1)));}
+
+    @Test void staleAndFutureDatesCannotPost() {
+        var db = mock(BusinessDateMapper.class);
+        var today = LocalDate.of(2026, 10, 27);
+        var clock = Clock.fixed(Instant.parse("2026-10-27T16:00:00Z"), ZoneId.of("America/New_York"));
+        var service = new BusinessDateService(db, clock);
+        when(db.lockForPosting()).thenReturn(
+                BusinessDateControl.builder().businessDate(today.minusDays(2)).state("OPEN").build(),
+                BusinessDateControl.builder().businessDate(today.plusDays(1)).state("OPEN").build());
+        assertThrows(com.johnny.hotel.exception.BusinessException.class, service::postingDate);
+        assertThrows(com.johnny.hotel.exception.BusinessException.class, service::postingDate);
+    }
 }

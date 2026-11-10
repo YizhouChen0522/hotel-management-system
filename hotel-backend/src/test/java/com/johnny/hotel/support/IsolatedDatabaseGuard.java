@@ -7,6 +7,44 @@ import java.sql.DriverManager;
 /** Runs before the context creates DataSource/Flyway. Fail closed, including accidental contextLoads. */
 public class IsolatedDatabaseGuard implements ApplicationContextInitializer<ConfigurableApplicationContext> {
     @Override public void initialize(ConfigurableApplicationContext context) {
+        String clone = System.getProperty("hotel.time.clone.db", "");
+        if (clone.matches("hotel_time_clone_[0-9a-f]{12}")) {
+            var env = context.getEnvironment();
+            String url = env.getProperty("spring.datasource.url", "");
+            if (!url.startsWith("jdbc:mysql://localhost:3306/" + clone + "?")
+                    || env.getProperty("spring.flyway.url") != null) {
+                throw new IllegalStateException("Refusing a non-clone datetime test database");
+            }
+            try (var connection = DriverManager.getConnection(url,
+                    env.getProperty("spring.datasource.username"),
+                    env.getProperty("spring.datasource.password"));
+                 var statement = connection.createStatement();
+                 var result = statement.executeQuery("SELECT DATABASE(),@@port")) {
+                result.next();
+                if (!clone.equals(result.getString(1)) || result.getInt(2) != 3306) {
+                    throw new IllegalStateException("Datetime clone identity mismatch");
+                }
+            } catch (java.sql.SQLException e) {
+                throw new IllegalStateException("Datetime clone unavailable", e);
+            }
+            return;
+        }
+        if (context.getEnvironment().getProperty("hotel.wallet.isolated.fixture",Boolean.class,false)) {
+            var env=context.getEnvironment();
+            String url=env.getProperty("spring.datasource.url","");
+            if(!url.matches("jdbc:mysql://localhost:3306/hotel_wallet_isolated_[0-9a-f]{12}\\?.*")
+                    || env.getProperty("spring.flyway.url")!=null)
+                throw new IllegalStateException("Refusing non-isolated wallet fixture database");
+            try(var connection=DriverManager.getConnection(url,env.getProperty("spring.datasource.username"),
+                    env.getProperty("spring.datasource.password"));
+                var statement=connection.createStatement();
+                var result=statement.executeQuery("SELECT @@port,DATABASE()")) {
+                result.next();
+                if(result.getInt(1)!=3306 || !url.contains("/"+result.getString(2)+"?"))
+                    throw new IllegalStateException("Isolated wallet fixture identity mismatch");
+            }catch(java.sql.SQLException e){throw new IllegalStateException("Isolated wallet fixture unavailable",e);}
+            return;
+        }
         if (Boolean.getBoolean("hotel.v62.fresh.smoke")) {
             var env=context.getEnvironment();String url=env.getProperty("spring.datasource.url","");
             if(!url.matches("jdbc:mysql://localhost:3306/hotel_v62_smoke_[0-9a-f]{12}\\?.*")||env.getProperty("spring.flyway.url")!=null)

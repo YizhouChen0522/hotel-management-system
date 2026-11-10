@@ -8,6 +8,7 @@ public class NightAuditStateService {
  @Transactional(propagation=Propagation.REQUIRES_NEW) public NightAuditRun begin(String key,Long actor){
   if(key==null||key.isBlank()||key.length()>100)throw new BusinessException("Night Audit request key is required (100 characters maximum)");
   var control=dates.lockExclusive();if(control==null||control.getBusinessDate()==null)throw new BusinessException("Business Date is not initialized");
+  if(!control.getBusinessDate().isBefore(LocalDate.now(clock)))throw new BusinessException("Night Audit cannot advance Business Date beyond Hotel Date");
   var prior=db.byRequest(key);if(prior!=null&&"COMPLETED".equals(prior.getStatus()))return prior;if(prior!=null&&!control.getBusinessDate().equals(prior.getBusinessDate()))throw new BusinessException("Night Audit request key belongs to another Business Date");
   var run=prior!=null?prior:db.byDate(control.getBusinessDate());
   if("OPEN".equals(control.getState())){if(run==null){run=NightAuditRun.builder().businessDate(control.getBusinessDate()).requestKey(key).status("STARTING").lastStep("BEGIN").startedBy(actor).startedAt(LocalDateTime.now(clock)).build();if(db.insert(run)!=1)throw new BusinessException("Night Audit run could not be created");}

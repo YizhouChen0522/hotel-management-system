@@ -32,7 +32,8 @@ public final class WalletDevelopmentGuard {
     public static String url() {
         String url=settings().get("DB_URL");
         if(!url.equals("jdbc:mysql://localhost:3306/hotel_management")) throw new IllegalStateException("Unexpected development database identity");
-        return url+"?useUnicode=true&characterEncoding=UTF-8&connectionTimeZone=LOCAL";
+        return url+"?useUnicode=true&characterEncoding=UTF-8&connectionTimeZone=UTC"
+                + "&forceConnectionTimeZoneToSession=true";
     }
     public static void verify(ConfigurableApplicationContext context) {
         if(!Boolean.getBoolean("hotel.wallet.dev.tests")) throw new IllegalStateException("Wallet development tests require explicit opt-in");

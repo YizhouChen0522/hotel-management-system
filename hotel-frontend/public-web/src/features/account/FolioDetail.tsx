@@ -15,6 +15,10 @@ export function FolioDetail({ bookingId }: { bookingId: number }) {
   const [invoices, setInvoices] = useState<InvoiceView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [refundReason, setRefundReason] = useState("");
+  const [refundKey, setRefundKey] = useState("");
+  const [requestingRefund, setRequestingRefund] = useState(false);
+  const [refundError, setRefundError] = useState("");
 
   useEffect(() => {
     if (!session) return;
@@ -37,6 +41,29 @@ export function FolioDetail({ bookingId }: { bookingId: number }) {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [session, bookingId, logout]);
+
+  const credit = folio ? Math.max(0, -Number(folio.balanceAmount)) : 0;
+  const pendingRefund = refunds.some((refund) => refund.status === "PENDING");
+
+  async function requestRefund() {
+    if (!session || !folio || credit <= 0 || pendingRefund || requestingRefund || !refundReason.trim()) return;
+
+    const key = refundKey || crypto.randomUUID();
+    setRefundKey(key);
+    setRefundError("");
+    setRequestingRefund(true);
+
+    try {
+      await accountApi.requestRefund(session.token, folio.id, credit, refundReason.trim(), key);
+      setRefunds(await accountApi.refunds(session.token, folio.id));
+      setRefundKey("");
+      setRefundReason("");
+    } catch (reason) {
+      setRefundError(reason instanceof Error ? reason.message : "退款申请失败");
+    } finally {
+      setRequestingRefund(false);
+    }
+  }
 
   if (loading) return <section className="account-shell"><p className="quiet-empty">正在读取账单…</p></section>;
   if (error || !folio) return <section className="account-shell"><p className="form-error">{error || "账单不存在"}</p><Link href="/folios">返回账单列表</Link></section>;
@@ -71,6 +98,30 @@ export function FolioDetail({ bookingId }: { bookingId: number }) {
         <section className="sub-panel"><h2>支付</h2>{folio.payments.map((payment) => <article className="record-row" key={payment.id}><div><strong>{payment.paymentMethod}</strong><small>{dateTime(payment.paidTime)} · {payment.status}</small></div><b>{currency(payment.amount, folio.currency)}</b></article>)}{folio.payments.length === 0 && <p className="quiet-empty">暂无支付记录。</p>}</section>
         <section className="sub-panel"><h2>退款</h2>{refunds.map((refund) => <article className="record-row" key={refund.id}><div><strong>{refund.status}</strong><small>{refund.reason} · {dateTime(refund.createTime)}</small></div><b>{currency(refund.amount, refund.currency)}</b></article>)}{refunds.length === 0 && <p className="quiet-empty">暂无退款记录。</p>}</section>
       </div>
+
+      {credit > 0 && (
+        <section className="sub-panel">
+          <h2>申请钱包退款</h2>
+          <p>当前可申请金额：{currency(credit, folio.currency)}。申请由酒店审核，确认后计入您的酒店钱包。</p>
+          {pendingRefund ? (
+            <p>已有待审核退款申请，请等待酒店处理。</p>
+          ) : (
+            <>
+              <label htmlFor="refund-reason">退款原因</label>
+              <textarea
+                id="refund-reason"
+                value={refundReason}
+                maxLength={255}
+                onChange={(event) => setRefundReason(event.target.value)}
+              />
+              <button type="button" disabled={requestingRefund || !refundReason.trim()} onClick={() => void requestRefund()}>
+                {requestingRefund ? "正在提交…" : "提交退款申请"}
+              </button>
+            </>
+          )}
+          {refundError && <p className="form-error" role="alert">{refundError}</p>}
+        </section>
+      )}
 
       <section className="sub-panel"><h2>发票</h2>{invoices.map(({ invoice }) => <Link className="record-row" key={invoice.id} href={`/invoices/${invoice.id}`}><div><strong>{invoice.invoiceNumber}</strong><small>{dateTime(invoice.issuedTime)}</small></div><span>{invoice.status === 0 ? "ISSUED" : "VOIDED"}</span></Link>)}{invoices.length === 0 && <p className="quiet-empty">此账单尚未开具发票。</p>}</section>
     </section>

@@ -10,17 +10,17 @@ import type { Availability, Booking, CheckoutSession, PaymentAttempt, PublicQuot
 
 type Search = { roomTypeId: string; checkInDate: string; checkOutDate: string; guestCount: number };
 
-const tomorrow = (offset: number) => {
-  const date = new Date();
-  date.setDate(date.getDate() + offset);
-  const part = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${part(date.getMonth() + 1)}-${part(date.getDate())}`;
+const addDays = (date: string, offset: number) => {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + offset);
+  return value.toISOString().slice(0, 10);
 };
 
 export function BookingFlow() {
   const { session, logout } = useAuth();
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
-  const [search, setSearch] = useState<Search>({ roomTypeId: "", checkInDate: tomorrow(1), checkOutDate: tomorrow(2), guestCount: 1 });
+  const [hotelDate, setHotelDate] = useState("");
+  const [search, setSearch] = useState<Search>({ roomTypeId: "", checkInDate: "", checkOutDate: "", guestCount: 1 });
   const [availability, setAvailability] = useState<Availability | null>(null);
   const [quote, setQuote] = useState<PublicQuote | null>(null);
   const [checkout, setCheckout] = useState<CheckoutSession | null>(null);
@@ -34,6 +34,14 @@ export function BookingFlow() {
   const selected = useMemo(() => roomTypes.find((x) => x.id === Number(search.roomTypeId)), [roomTypes, search.roomTypeId]);
 
   useEffect(() => {
+    bookingApi.timeContext().then((context) => {
+      setHotelDate(context.hotelDate);
+      setSearch((value) => ({
+        ...value,
+        checkInDate: value.checkInDate || addDays(context.hotelDate, 1),
+        checkOutDate: value.checkOutDate || addDays(context.hotelDate, 2),
+      }));
+    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "酒店日期加载失败"));
     bookingApi.roomTypes().then((items) => {
       setRoomTypes(items);
       const requested = new URLSearchParams(location.search).get("roomTypeId");
@@ -111,7 +119,7 @@ export function BookingFlow() {
       <div className="form-grid">
         <label>房型<select value={search.roomTypeId} onChange={(e) => setSearch({ ...search, roomTypeId: e.target.value })} required>{roomTypes.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}</select></label>
         <label>住客人数<input type="number" min={1} max={selected?.capacity || 20} value={search.guestCount} onChange={(e) => setSearch({ ...search, guestCount: Number(e.target.value) })}/></label>
-        <label>入住日期<input type="date" min={tomorrow(0)} value={search.checkInDate} onChange={(e) => setSearch({ ...search, checkInDate: e.target.value })}/></label>
+        <label>入住日期<input type="date" min={hotelDate} value={search.checkInDate} onChange={(e) => setSearch({ ...search, checkInDate: e.target.value })} required disabled={!hotelDate}/></label>
         <label>离店日期<input type="date" min={search.checkInDate} value={search.checkOutDate} onChange={(e) => setSearch({ ...search, checkOutDate: e.target.value })}/></label>
       </div>
       <button className="button-primary" disabled={busy || !search.roomTypeId}>{busy ? "查询中…" : "查询房态与价格"}</button>

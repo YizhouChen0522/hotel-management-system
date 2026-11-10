@@ -49,6 +49,7 @@ export function ReservationDetailPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [confirmAction, setConfirmAction] = useState<'reject' | 'assign' | 'checkin' | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -104,8 +105,17 @@ export function ReservationDetailPage() {
     }
   }
 
+  function confirmReservationAction(action: () => Promise<Reservation>, success: string) {
+    setConfirmAction(null)
+    void run(action, success)
+  }
+
+  function confirmCheckIn() {
+    setConfirmAction(null)
+    void checkIn()
+  }
+
   async function checkIn() {
-    if (!window.confirm('确认住客资料、房间和订金均已复核，并办理入住？')) return
     setBusy(true)
     setError('')
     setNotice('')
@@ -227,12 +237,40 @@ export function ReservationDetailPage() {
             {booking.status === 0 ? (
               <>
                 <button className="primary-button" disabled={busy || !selectedRoom} onClick={() => void run(() => approveReservation(id, selectedRoom), '预订已确认，房间已分配。')}>确认并分房</button>
-                <button className="danger-button" disabled={busy} onClick={() => { if (window.confirm('确认拒绝该预订？退款与订金处理将由后端现有规则执行。')) void run(() => declineReservation(id), '预订已拒绝。') }}>拒绝申请</button>
+                <button className="danger-button" disabled={busy} onClick={() => setConfirmAction('reject')}>拒绝申请</button>
               </>
             ) : (
-              <button className="primary-button" disabled={busy || !selectedRoom || selectedRoom === booking.reservedRoomId} onClick={() => { if (window.confirm('确认把该预订调整到所选 Room ID？')) void run(() => assignRoom(id, selectedRoom, reason), '房间分配已更新。') }}>更新房间分配</button>
+              <button className="primary-button" disabled={busy || !selectedRoom || selectedRoom === booking.reservedRoomId} onClick={() => setConfirmAction('assign')}>更新房间分配</button>
             )}
           </div>
+          {confirmAction === 'reject' && (
+            <div className="inline-confirm" role="group" aria-label="拒绝预订确认">
+              <p>确认拒绝该预订？退款与订金处理将由后端现有规则执行。</p>
+              <button type="button" onClick={() => setConfirmAction(null)}>取消</button>
+              <button
+                type="button"
+                className="danger-button"
+                disabled={busy}
+                onClick={() => confirmReservationAction(() => declineReservation(id), '预订已拒绝。')}
+              >
+                确认执行
+              </button>
+            </div>
+          )}
+          {confirmAction === 'assign' && (
+            <div className="inline-confirm" role="group" aria-label="更新房间分配确认">
+              <p>确认把该预订调整到所选 Room ID？</p>
+              <button type="button" onClick={() => setConfirmAction(null)}>取消</button>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={busy || !selectedRoom}
+                onClick={() => confirmReservationAction(() => assignRoom(id, selectedRoom, reason), '房间分配已更新。')}
+              >
+                确认执行
+              </button>
+            </div>
+          )}
           {rooms.length === 0 && <p className="warning-banner">当前日期没有可分配房间；请勿强行确认。</p>}
         </article>
       )}
@@ -252,8 +290,22 @@ export function ReservationDetailPage() {
             <div><dt>可用订金</dt><dd>{money(deposit?.available || 0)}</dd></div>
           </dl>
           <div className="actions">
-            <button className="primary-button" disabled={busy || !checkInReady} onClick={() => void checkIn()}>确认登记并办理入住</button>
+            <button className="primary-button" disabled={busy || !checkInReady} onClick={() => setConfirmAction('checkin')}>确认登记并办理入住</button>
           </div>
+          {confirmAction === 'checkin' && (
+            <div className="inline-confirm" role="group" aria-label="办理入住确认">
+              <p>确认住客资料、房间和订金均已复核，并办理入住？</p>
+              <button type="button" onClick={() => setConfirmAction(null)}>取消</button>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={busy || !checkInReady}
+                onClick={confirmCheckIn}
+              >
+                确认执行
+              </button>
+            </div>
+          )}
           {assignedRoom && ![1, 2].includes(assignedRoom.status) && <p className="warning-banner">当前房态不允许入住：{roomStatus(assignedRoom.status)}</p>}
         </article>
       )}

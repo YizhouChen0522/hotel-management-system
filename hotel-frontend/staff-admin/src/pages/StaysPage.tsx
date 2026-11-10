@@ -98,20 +98,20 @@ export function StaysPage() {
       {!loading && rows.length > 0 && (
         <div className="table-card">
           <div className="responsive-table">
-            <table>
+            <table className="mobile-record-table">
               <thead>
                 <tr><th>住宿</th><th>住客 / 订房人</th><th>房间</th><th>计划日期</th><th>实际时间</th><th>状态</th><th /></tr>
               </thead>
               <tbody>
                 {rows.map(({ stay, booking, room }) => (
                   <tr key={stay.id}>
-                    <td><strong>Stay #{stay.id}</strong><small>Booking #{stay.bookingId}</small></td>
-                    <td><strong>{booking?.bookerName || `Guest #${stay.primaryGuestId}`}</strong><small>{booking?.bookerEmail || '实际住客见详情'}</small></td>
-                    <td><strong>{room ? `房间 ${room.roomNumber}` : '房间资料不可用'}</strong><small>{room?.roomTypeName || ''}</small></td>
-                    <td>{booking ? <><strong>{booking.checkInDate}</strong><small>至 {booking.checkOutDate}</small></> : '—'}</td>
-                    <td><strong>{dateTime(stay.actualCheckInTime)}</strong><small>{stay.actualCheckOutTime ? `离店 ${dateTime(stay.actualCheckOutTime)}` : '尚未退房'}</small></td>
-                    <td><span className={`stay-badge stay-${stay.status}`}>{stayStatus(stay.status)}</span></td>
-                    <td><Link className="text-link" to={`/stays/${stay.id}`}>查看住宿</Link></td>
+                    <td data-label="住宿"><strong>Stay #{stay.id}</strong><small>Booking #{stay.bookingId}</small></td>
+                    <td data-label="住客 / 订房人"><strong>{booking?.bookerName || `Guest #${stay.primaryGuestId}`}</strong><small>{booking?.bookerEmail || '实际住客见详情'}</small></td>
+                    <td data-label="房间"><strong>{room ? `房间 ${room.roomNumber}` : '房间资料不可用'}</strong><small>{room?.roomTypeName || ''}</small></td>
+                    <td data-label="计划日期">{booking ? <><strong>{booking.checkInDate}</strong><small>至 {booking.checkOutDate}</small></> : '—'}</td>
+                    <td data-label="实际时间"><strong>{dateTime(stay.actualCheckInTime)}</strong><small>{stay.actualCheckOutTime ? `离店 ${dateTime(stay.actualCheckOutTime)}` : '尚未退房'}</small></td>
+                    <td data-label="状态"><span className={`stay-badge stay-${stay.status}`}>{stayStatus(stay.status)}</span></td>
+                    <td className="record-action"><Link className="text-link" to={`/stays/${stay.id}`}>查看住宿</Link></td>
                   </tr>
                 ))}
               </tbody>

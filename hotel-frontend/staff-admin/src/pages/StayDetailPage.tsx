@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ApiError } from '../lib/api/client'
+import { useAuth } from '../features/auth/auth-context'
 import { dateTime, money } from '../features/reservation/format'
 import {
   applyStayAdjustment,
@@ -10,11 +11,14 @@ import {
   getRoom,
   getRoomChangeOptions,
   getStay,
+  getStayActionEligibility,
   getStayAssignments,
   getStayFolio,
   getStayGuests,
   listTurnovers,
   listStayAdjustments,
+  listFolioRefunds,
+  processFolioRefund,
   recordFolioPayment,
 } from '../features/stay/stay-api'
 import type { Reservation, Room } from '../types/reservation'
@@ -23,6 +27,8 @@ import type {
   RoomChangeOptions,
   Stay,
   StayAdjustment,
+  StayActionEligibility,
+  FolioRefund,
   StayAssignment,
   StayGuest,
   TurnoverTask,
@@ -30,6 +36,7 @@ import type {
 import { stayStatus } from '../features/stay/format'
 
 export function StayDetailPage() {
+  const { session } = useAuth()
   const id = Number(useParams().id)
   const [stay, setStay] = useState<Stay | null>(null)
   const [booking, setBooking] = useState<Reservation | null>(null)
@@ -39,6 +46,9 @@ export function StayDetailPage() {
   const [folio, setFolio] = useState<Folio | null>(null)
   const [turnovers, setTurnovers] = useState<TurnoverTask[]>([])
   const [adjustments, setAdjustments] = useState<StayAdjustment[]>([])
+  const [eligibility, setEligibility] = useState<StayActionEligibility | null>(null)
+  const [refunds, setRefunds] = useState<FolioRefund[]>([])
+  const [refundReason, setRefundReason] = useState('')
   const [roomChangeOptions, setRoomChangeOptions] = useState<RoomChangeOptions | null>(null)
   const [operation, setOperation] = useState<'ROOM_CHANGE' | 'EXTENSION' | 'EARLY' | 'LATE' | null>(null)
   const [selectedRoomId, setSelectedRoomId] = useState('')
@@ -53,7 +63,6 @@ export function StayDetailPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    setError('')
     try {
       const current = await getStay(id)
       const [bookingResult, guestResult, assignmentResult, folioResult, adjustmentResult] = await Promise.all([
@@ -62,6 +71,12 @@ export function StayDetailPage() {
         getStayAssignments(id),
         getStayFolio(id),
         listStayAdjustments(id),
+      ])
+      const [eligibilityResult, refundResult] = await Promise.all([
+        current.status === 1 ? getStayActionEligibility(id) : Promise.resolve(null),
+        bookingResult.userId == null || bookingResult.reservationSource === 'WALK_IN'
+          ? Promise.resolve([])
+          : listFolioRefunds(folioResult.id),
       ])
       const optionResult = current.status === 1 ? await getRoomChangeOptions(id) : null
       const roomPairs = await Promise.all(assignmentResult.map(async (assignment) => [
@@ -78,6 +93,8 @@ export function StayDetailPage() {
       setRooms(Object.fromEntries(roomPairs))
       setFolio(folioResult)
       setAdjustments(adjustmentResult)
+      setEligibility(eligibilityResult)
+      setRefunds(refundResult)
       setRoomChangeOptions(optionResult)
       setTurnovers(turnoverPages.flatMap((page) => page.items).filter((task) => task.stayId === id))
     } catch (cause) {
@@ -98,11 +115,12 @@ export function StayDetailPage() {
   )
   const currentRoom = currentAssignment ? rooms[currentAssignment.roomId] : null
   const balance = Number(folio?.balanceAmount ?? 0)
-  const effectiveEnd = roomChangeOptions?.effectiveCheckOutDate
-    ?? adjustments.reduce((end, item) => item.newEnd || end, booking?.checkOutDate ?? '')
-  const today = new Date().toISOString().slice(0, 10)
-  const canEarlyCheckout = effectiveEnd !== '' && today < effectiveEnd
-  const canLateCheckout = effectiveEnd !== '' && today === effectiveEnd
+  const effectiveEnd = eligibility?.effectiveCheckOutDate ?? booking?.checkOutDate ?? ''
+  const canEarlyCheckout = eligibility?.canEarlyCheckout ?? false
+  const canLateCheckout = eligibility?.canLateCheckout ?? false
+  const pendingRefund = refunds.find((refund) => refund.status === 'PENDING')
+  const canConfirmRefund = session?.roles.some((role) =>
+    ['FINANCE', 'MANAGER', 'OWNER', 'SUPER_ADMIN'].includes(role)) ?? false
 
   async function checkout() {
     if (!stay) return
@@ -176,6 +194,14 @@ export function StayDetailPage() {
     }
   }
 
+  async function confirmRefund() {
+    if (!folio || !pendingRefund || !refundReason.trim() || busy) return
+    await runOperation(
+      () => processFolioRefund(folio.id, pendingRefund.id, refundReason),
+      '退款已由后端确认并计入客户钱包，请复核 Folio 余额。',
+    )
+  }
+
   if (!Number.isInteger(id) || id <= 0) return <p className="error-banner">Stay ID 无效</p>
   if (loading && !stay) return <p className="state-card">正在读取住宿与账务资料…</p>
   if (!stay || !booking || !folio) return <p className="error-banner">{error || '住宿资料不存在'}</p>
@@ -199,7 +225,7 @@ export function StayDetailPage() {
         <article className="summary-card"><span>实际入住</span><strong>{dateTime(stay.actualCheckInTime)}</strong><small>计划 {booking.checkInDate}</small></article>
         <article className="summary-card"><span>当前房间</span><strong>{currentRoom?.roomNumber || '已结束'}</strong><small>{currentRoom ? roomStatus(currentRoom.status) : 'Assignment 已关闭'}</small></article>
         <article className="summary-card"><span>Folio 总额</span><strong>{money(folio.totalAmount, folio.currency)}</strong><small>Booking 合同价 {money(booking.totalPrice, folio.currency)}</small></article>
-        <article className="summary-card"><span>待结余额</span><strong>{money(balance, folio.currency)}</strong><small>{balance === 0 ? '可以尝试退房' : '必须先结清'}</small></article>
+        <article className="summary-card"><span>待结余额</span><strong>{money(balance, folio.currency)}</strong><small>{stay.status !== 1 ? '住宿已结束' : balance === 0 ? '可以尝试退房' : '必须先结清'}</small></article>
       </div>
 
       {stay.status === 1 && (
@@ -207,14 +233,14 @@ export function StayDetailPage() {
           <div className="panel-heading">
             <div>
               <h3>在住操作</h3>
-              <p>当前有效离店日 {effectiveEnd}。所有房态、库存和费用由后端在提交时重新校验。</p>
+              <p>营业日 {eligibility?.businessDate ?? '—'} · 酒店日期 {eligibility?.hotelDate ?? '—'} · 当前有效离店日 {effectiveEnd}。后端在提交时重新校验。</p>
             </div>
           </div>
           <div className="operation-tabs">
             <button type="button" className={operation === 'ROOM_CHANGE' ? 'primary-button' : ''} onClick={() => setOperation('ROOM_CHANGE')}>换房</button>
             <button type="button" className={operation === 'EXTENSION' ? 'primary-button' : ''} onClick={() => setOperation('EXTENSION')}>延住</button>
-            {canEarlyCheckout && <button type="button" className={operation === 'EARLY' ? 'primary-button' : ''} onClick={() => setOperation('EARLY')}>提前退房</button>}
-            {canLateCheckout && <button type="button" className={operation === 'LATE' ? 'primary-button' : ''} onClick={() => setOperation('LATE')}>晚退登记</button>}
+            <button type="button" className={operation === 'EARLY' ? 'primary-button' : ''} onClick={() => setOperation('EARLY')}>提前退房</button>
+            <button type="button" className={operation === 'LATE' ? 'primary-button' : ''} onClick={() => setOperation('LATE')}>晚退登记</button>
           </div>
 
           {operation === 'ROOM_CHANGE' && roomChangeOptions && (
@@ -248,6 +274,7 @@ export function StayDetailPage() {
           {operation === 'EXTENSION' && (
             <div className="operation-form">
               <div className="operation-context"><span>当前有效离店日 <strong>{effectiveEnd}</strong></span></div>
+              {!eligibility?.canExtend && <p className="warning-banner">{eligibility?.extensionReason ?? '当前不可延住'}</p>}
               <label>
                 新离店日
                 <input type="date" min={nextDate(effectiveEnd)} value={newEnd} onChange={(event) => setNewEnd(event.target.value)} />
@@ -257,7 +284,7 @@ export function StayDetailPage() {
               <ActionConfirm
                 label="确认延住"
                 message="确认提交延住？库存、锁定房价和 Folio charge 将由后端原子处理。"
-                disabled={busy || !newEnd || !adjustmentReason.trim()}
+                disabled={busy || !eligibility?.canExtend || !newEnd || !adjustmentReason.trim()}
                 onConfirm={() => void adjustStay('EXTENSION')}
               />
             </div>
@@ -267,14 +294,15 @@ export function StayDetailPage() {
             <div className="operation-form">
               <div className="operation-context">
                 <span>原有效离店日 <strong>{effectiveEnd}</strong></span>
-                <span>实际提前离店日 <strong>{today}</strong></span>
+                <span>酒店日期 <strong>{eligibility?.hotelDate ?? '—'}</strong></span>
               </div>
+              {!canEarlyCheckout && <p className="warning-banner">{eligibility?.earlyCheckoutReason ?? '当前不可办理提前退房'}</p>}
               <ReasonField value={adjustmentReason} onChange={setAdjustmentReason} placeholder="记录提前离店原因" />
               <p className="workflow-note">后端将生成未住宿夜晚的 Folio reversal；完成调整后仍需复核余额并正式 Checkout。</p>
               <ActionConfirm
                 label="确认提前退房调整"
                 message="仅登记提前离店及账务调整，不会直接关闭 Stay 或释放房间。"
-                disabled={busy || !adjustmentReason.trim()}
+                disabled={busy || !canEarlyCheckout || !adjustmentReason.trim()}
                 onConfirm={() => void adjustStay('EARLY_CHECKOUT')}
               />
             </div>
@@ -283,12 +311,13 @@ export function StayDetailPage() {
           {operation === 'LATE' && (
             <div className="operation-form">
               <div className="operation-context"><span>有效离店日 <strong>{effectiveEnd}</strong></span></div>
+              {!canLateCheckout && <p className="warning-banner">{eligibility?.lateCheckoutReason ?? '当前不可登记晚退'}</p>}
               <ReasonField value={adjustmentReason} onChange={setAdjustmentReason} placeholder="记录晚退原因" />
               <p className="workflow-note">后端根据酒店时间、下一位住客冲突和锁定房价决定是否收费；不会静默修改日期。</p>
               <ActionConfirm
                 label="确认晚退登记"
                 message="确认登记晚退？后端将按当前规则决定费用及冲突提示。"
-                disabled={busy || !adjustmentReason.trim()}
+                disabled={busy || !canLateCheckout || !adjustmentReason.trim()}
                 onConfirm={() => void adjustStay('LATE_CHECKOUT')}
               />
             </div>
@@ -412,6 +441,48 @@ export function StayDetailPage() {
         </article>
       )}
 
+      {stay.status === 1 && balance < 0 && (
+        <article className="action-panel checkout-blocker">
+          <div>
+            <p className="kicker">FOLIO CREDIT</p>
+            <h3>待退款 {money(-balance, folio.currency)}</h3>
+            <p>后端仅支持退至预订客户的钱包。客户需在账户账单中申请，再由财务或经理确认；未确认的退款会阻止退房。</p>
+          </div>
+          {booking.userId == null || booking.reservationSource === 'WALK_IN' ? (
+            <p className="warning-banner">此 Booking 没有关联客户钱包，现有 Folio 退款流程无法处理该余额；需要合法的其他退款渠道。</p>
+          ) : (
+            <>
+              {pendingRefund ? (
+                <div className="actions">
+                  <span>退款 #{pendingRefund.id} · {pendingRefund.status} · {pendingRefund.destination} · {money(pendingRefund.amount, pendingRefund.currency)}</span>
+                  {canConfirmRefund && (
+                    <>
+                      <label>审核原因<textarea value={refundReason} onChange={(event) => setRefundReason(event.target.value)} maxLength={255} /></label>
+                      <ActionConfirm label="确认钱包退款" message="确认这笔 Folio 退款并计入客户钱包？" disabled={busy || !refundReason.trim()} onConfirm={() => void confirmRefund()} />
+                    </>
+                  )}
+                </div>
+              ) : (
+                <p className="workflow-note">等待预订客户在客户账户账单中提交钱包退款申请。刷新页面可查看申请状态。</p>
+              )}
+            </>
+          )}
+        </article>
+      )}
+
+      {refunds.length > 0 && (
+        <article className="panel">
+          <h3>退款记录</h3>
+          {refunds.map((refund) => (
+            <div className="record-row" key={refund.id}>
+              <span>#{refund.id} · {refund.destination}<small>{refund.reason}</small></span>
+              <strong>{refund.status} · {money(refund.amount, refund.currency)}</strong>
+              <small>{dateTime(refund.processedTime ?? refund.createTime)}</small>
+            </div>
+          ))}
+        </article>
+      )}
+
       {stay.status === 1 && balance === 0 && (
         <article className="action-panel">
           <div><p className="kicker">READY FOR DEPARTURE</p><h3>办理退房</h3><p>后端将再次核验账务完整性。成功后房间进入 MAINTENANCE，并创建 Turnover；不会自动变为 AVAILABLE。</p></div>
@@ -464,8 +535,8 @@ function adjustmentType(type: number) {
 
 function nextDate(date: string) {
   if (!date) return undefined
-  const value = new Date(`${date}T00:00:00`)
-  value.setDate(value.getDate() + 1)
+  const value = new Date(`${date}T00:00:00Z`)
+  value.setUTCDate(value.getUTCDate() + 1)
   return value.toISOString().slice(0, 10)
 }
 
@@ -489,16 +560,38 @@ function ActionConfirm({ label, message: confirmation, onConfirm, disabled, tone
   disabled: boolean
   tone?: 'primary' | 'danger'
 }) {
+  const [open, setOpen] = useState(false)
+
+  function confirm() {
+    setOpen(false)
+    onConfirm()
+  }
+
   return (
-    <details className={`action-confirm ${disabled ? 'disabled' : ''}`}>
-      <summary className={tone === 'danger' ? 'danger-button' : 'primary-button'}>{label}</summary>
-      <div className="inline-confirm" role="alert">
-        <p>{confirmation}</p>
-        <button type="button" className={tone === 'danger' ? 'danger-button' : 'primary-button'} disabled={disabled} onClick={onConfirm}>
-          确认执行
-        </button>
-      </div>
-    </details>
+    <div className="action-confirm">
+      <button
+        type="button"
+        className={tone === 'danger' ? 'danger-button' : 'primary-button'}
+        disabled={disabled}
+        onClick={() => setOpen(true)}
+      >
+        {label}
+      </button>
+      {open && (
+        <div className="inline-confirm" role="group" aria-label={label}>
+          <p>{confirmation}</p>
+          <button type="button" onClick={() => setOpen(false)}>取消</button>
+          <button
+            type="button"
+            className={tone === 'danger' ? 'danger-button' : 'primary-button'}
+            disabled={disabled}
+            onClick={confirm}
+          >
+            确认执行
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 

@@ -38,6 +38,8 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
     @Autowired com.johnny.hotel.guest.GuestService guests;
     @Autowired private RoomTurnoverTaskService fixtureTurnovers;
     @Autowired private com.johnny.hotel.inspection.InspectionService fixtureInspections;
+    @Autowired private com.johnny.hotel.nightaudit.NightAuditService fixtureNightAudit;
+    @Autowired private com.johnny.hotel.cashier.CashierService fixtureCashier;
     void completeTurnoverAndInspect(long room){
         as("MANAGER");
         long turnover=jdbc.queryForObject("SELECT id FROM room_turnover_task WHERE room_id=? ORDER BY id DESC LIMIT 1",Long.class,room);
@@ -45,17 +47,69 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
         long inspection=jdbc.queryForObject("SELECT id FROM housekeeping_inspection WHERE turnover_task_id=? ORDER BY id DESC LIMIT 1",Long.class,turnover);
         fixtureInspections.decide(inspection,com.johnny.hotel.inspection.InspectionRequests.Decide.builder().passed(true).build());
     }
-    final LocalDate arrival=LocalDate.of(2026,10,1);
+    LocalDate arrival;
     long type1,type2,room1,room2,room3,room4;
     final List<Long> bookingIds=new ArrayList<>();
-    @BeforeEach void seedOnlyDedicatedRooms(){
-        clock.day(0);
-        jdbc.update("INSERT INTO room_type(type_name,base_price,capacity) VALUES(?,100,4),(?,150,4)",run+"_standard",run+"_deluxe");
-        type1=jdbc.queryForObject("SELECT id FROM room_type WHERE type_name=?",Long.class,run+"_standard");type2=jdbc.queryForObject("SELECT id FROM room_type WHERE type_name=?",Long.class,run+"_deluxe");
-        long[] ids=new long[4];for(int i=0;i<4;i++){jdbc.update("INSERT INTO room(room_number,room_type_id,floor,status) VALUES(?,?,1,1)",run+"_"+i,i<2?type1:type2);ids[i]=jdbc.queryForObject("SELECT id FROM room WHERE room_number=?",Long.class,run+"_"+i);}
-        room1=ids[0];room2=ids[1];room3=ids[2];room4=ids[3];
+    @BeforeEach
+    void seedOnlyDedicatedRooms() {
+        arrival = jdbc.queryForObject(
+                "SELECT business_date FROM hotel_business_date_control WHERE id=1",
+                LocalDate.class);
+        clock.baseDate(arrival);
+        jdbc.update("""
+                INSERT INTO reservation_policy(version_no,name,status,created_by,activated_by)
+                VALUES(1,?,1,?,?)
+                """, run + " policy", uid("OWNER"), uid("OWNER"));
+        long policyId = jdbc.queryForObject(
+                "SELECT id FROM reservation_policy WHERE version_no=1", Long.class);
+        jdbc.update("""
+                INSERT INTO reservation_policy_band(
+                    policy_id,min_lead_days,max_lead_days,refund_percent)
+                VALUES(?,0,NULL,100)
+                """,
+                policyId);
+        clock.onDateChange(target -> {
+            for (int day = 0; day < 30; day++) {
+                LocalDate businessDate = businessDates.current().getBusinessDate();
+                if (!businessDate.isBefore(target)) {
+                    return;
+                }
+                var audit = fixtureNightAudit.execute(
+                        "wallet-fixture-audit-" + run + "-" + businessDate, uid("MANAGER"));
+                if (audit.run() == null || !"COMPLETED".equals(audit.run().getStatus())) {
+                    return;
+                }
+            }
+            throw new IllegalStateException("Fixture Night Audit did not reach its target date");
+        });
+        jdbc.update("""
+                INSERT INTO room_type(type_name,base_price,capacity)
+                VALUES(?,100,4),(?,150,4)
+                """, run + "_standard", run + "_deluxe");
+        type1 = jdbc.queryForObject("SELECT id FROM room_type WHERE type_name=?",
+                Long.class, run + "_standard");
+        type2 = jdbc.queryForObject("SELECT id FROM room_type WHERE type_name=?",
+                Long.class, run + "_deluxe");
+        long[] ids = new long[4];
+        for (int index = 0; index < ids.length; index++) {
+            String number = run + "_" + index;
+            jdbc.update("""
+                    INSERT INTO room(room_number,room_type_id,floor,status)
+                    VALUES(?,?,1,1)
+                    """, number, index < 2 ? type1 : type2);
+            ids[index] = jdbc.queryForObject(
+                    "SELECT id FROM room WHERE room_number=?", Long.class, number);
+        }
+        room1 = ids[0];
+        room2 = ids[1];
+        room3 = ids[2];
+        room4 = ids[3];
     }
     @AfterEach void cleanupOnlyFinancialFixture(){
+        if (isIsolatedFixtureDatabase()) {
+            gate.clear();
+            return;
+        }
         gate.clear();
         // Include an idempotent request that committed even when the caller's
         // response path failed, so the fixture never leaks reservation rows.
@@ -140,8 +194,46 @@ abstract class FinancialDevelopmentFixture extends WalletDevelopmentFixture {
     void afterCheckIn(long booking){}
     long sid(long booking){return jdbc.queryForObject("SELECT id FROM stay WHERE booking_id=?",Long.class,booking);}
     long folio(long b){return jdbc.queryForObject("SELECT f.id FROM folio f JOIN stay s ON s.id=f.stay_id WHERE s.booking_id=?",Long.class,b);}
-    RecordPaymentRequest payRequest(String amount){return RecordPaymentRequest.builder().amount(new BigDecimal(amount)).paymentMethod("CASH").idempotencyKey(UUID.randomUUID().toString()).build();}
-    void pay(long b,String amount){payments.recordPayment(folio(b),payRequest(amount),uid("STAFF"));}
+    RecordPaymentRequest cardPaymentRequest(String amount) {
+        return RecordPaymentRequest.builder()
+                .amount(new BigDecimal(amount))
+                .paymentMethod("CREDIT_CARD")
+                .referenceNo("fixture-card-payment")
+                .idempotencyKey(UUID.randomUUID().toString())
+                .build();
+    }
+    void payCard(long booking, String amount) {
+        payments.recordPayment(folio(booking), cardPaymentRequest(amount), uid("STAFF"));
+    }
+
+    RecordPaymentRequest cashPaymentRequest(String amount) {
+        return RecordPaymentRequest.builder()
+                .amount(new BigDecimal(amount))
+                .paymentMethod("CASH")
+                .referenceNo("fixture-cash-payment")
+                .idempotencyKey(UUID.randomUUID().toString())
+                .build();
+    }
+
+    void prepareCashShift() {
+        Integer active = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM cashier_shift WHERE operator_user_id=? AND status='OPEN'",
+                Integer.class, uid("STAFF"));
+        if (active != null && active > 0) {
+            return;
+        }
+        as("FINANCE");
+        var drawer = fixtureCashier.createDrawer(new com.johnny.hotel.cashier.CashierModels.CreateDrawer(
+                run + "-cash", "Fixture cash drawer", "CNY"));
+        as("STAFF");
+        fixtureCashier.open(drawer.getId(), new com.johnny.hotel.cashier.CashierModels.Count(
+                BigDecimal.ZERO, null));
+    }
+
+    void payCash(long booking, String amount) {
+        prepareCashShift();
+        payments.recordPayment(folio(booking), cashPaymentRequest(amount), uid("STAFF"));
+    }
     void checkout(long b){bookings.checkOut(b,uid("MANAGER"));}
     int stayState(long b){assertEquals(1,bookingState(b));return jdbc.queryForObject("SELECT status FROM stay WHERE booking_id=?",Integer.class,b);}
     int bookingState(long b){return jdbc.queryForObject("SELECT status FROM booking WHERE id=?",Integer.class,b);}

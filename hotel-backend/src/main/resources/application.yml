@@ -6,7 +6,7 @@ spring:
     name: hotel-backend
 
   datasource:
-    url: ${DB_URL}?useUnicode=true&characterEncoding=utf-8&connectionTimeZone=LOCAL
+    url: ${DB_URL}?useUnicode=true&characterEncoding=utf-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -43,6 +43,9 @@ jwt:
 
 hotel:
   currency: CNY
+  time:
+    zone-id: ${HOTEL_TIME_ZONE:America/New_York}
+    reconciliation-delay: ${HOTEL_TIME_RECONCILIATION_DELAY:1m}
   security:
     public-surface:
       allowed-origins: ${PUBLIC_ALLOWED_ORIGINS:}

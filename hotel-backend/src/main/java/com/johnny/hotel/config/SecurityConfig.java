@@ -52,6 +52,7 @@ public class SecurityConfig {
                                 "/api/public/auth/customer/register",
                                 "/api/public/catalog/**",
                                 "/api/public/site/**",
+                                "/api/public/time-context",
                                 "/api/health",
                                 "/api/auth/register/employee",
                                 "/api/payments/webhooks/**"

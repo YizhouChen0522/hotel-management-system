@@ -1,6 +1,7 @@
 package com.johnny.hotel.wallet;
 
 import com.johnny.hotel.dto.ChangeRoomDuringStayRequest;
+import com.johnny.hotel.config.HotelDateTimeTypeHandler;
 import com.johnny.hotel.entity.RoomTurnoverTask;
 import com.johnny.hotel.enums.TurnoverTaskStatus;
 import com.johnny.hotel.exception.BusinessException;
@@ -35,9 +36,52 @@ class RoomTurnoverDevelopmentTest extends FinancialDevelopmentFixture {
     void unchanged(long b){assertEquals(1,stayState(b));assertNull(jdbc.queryForObject("SELECT end_time FROM stay_room_assignment WHERE stay_id=(SELECT id FROM stay WHERE booking_id=?)",LocalDateTime.class,b));assertEquals(4,jdbc.queryForObject("SELECT status FROM room WHERE id=?",Integer.class,room1));assertEquals(1,jdbc.queryForObject("SELECT status FROM room WHERE id=?",Integer.class,room2));assertEquals(0,count(b));assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM stay_history WHERE folio_id=?",Integer.class,folio(b)));assertNull(queries.byBooking(b,uid("CUSTOMER")).closedTime());invariantBooking(b);}
 
     @Test void migrationBackfillsClosedAssignmentsAndValidates(){flyway.validate();assertEquals(1,jdbc.queryForObject("SELECT success FROM flyway_schema_history WHERE version='14'",Integer.class));assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM stay_room_assignment a LEFT JOIN room_turnover_task t ON t.assignment_id=a.id WHERE a.end_time IS NOT NULL AND a.assignment_type IN ('CHECK_IN','ROOM_CHANGE') AND t.id IS NULL",Integer.class));for(int i=0;i<3;i++)assertEquals(i,TurnoverTaskStatus.fromCode(i).getCode());assertThrows(IllegalArgumentException.class,()->TurnoverTaskStatus.fromCode(3));}
-    @Test void checkoutClosesActualStayCreatesExactlyOnePendingTask(){long b=finished();var t=task(b);assertEquals(room1,t.getRoomId());assertEquals(sid(b),t.getStayId());assertEquals(assignment(b),t.getAssignmentId());assertEquals(0,t.getStatus());assertNull(t.getAcceptedBy());assertNull(t.getCompletedBy());assertEquals(1,count(b));assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM stay_history WHERE folio_id=?",Integer.class,folio(b)));assertEquals(arrival.plusDays(3).atTime(12,0),jdbc.queryForObject("SELECT end_time FROM stay_room_assignment WHERE stay_id=(SELECT id FROM stay WHERE booking_id=?)",LocalDateTime.class,b));invariantBooking(b);}
+    @Test
+    void checkoutClosesActualStayCreatesExactlyOnePendingTask() {
+        long booking = finished();
+        var turnover = task(booking);
+        assertEquals(room1, turnover.getRoomId());
+        assertEquals(sid(booking), turnover.getStayId());
+        assertEquals(assignment(booking), turnover.getAssignmentId());
+        assertEquals(0, turnover.getStatus());
+        assertNull(turnover.getAcceptedBy());
+        assertNull(turnover.getCompletedBy());
+        assertEquals(1, count(booking));
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM stay_history WHERE folio_id=?", Integer.class, folio(booking)));
+        assertAssignmentEndedAtUtc(booking, arrival.plusDays(3).atTime(12, 0));
+        invariantBooking(booking);
+    }
     @Test void roomChangeThenCheckoutCreatesOneTaskForEachActualSegment(){long b=stay();long old=assignment(b);clock.day(1);change(b);assertEquals(1,count(b));assertEquals(old,task(b).getAssignmentId());assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM room_turnover_task WHERE assignment_id=?",Integer.class,assignment(b)));assertEquals(3,jdbc.queryForObject("SELECT status FROM room WHERE id=?",Integer.class,room1));assertEquals(4,jdbc.queryForObject("SELECT status FROM room WHERE id=?",Integer.class,room2));clock.day(3);checkout(b);assertEquals(2,count(b));assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM stay_history WHERE folio_id=?",Integer.class,folio(b)));invariantBooking(b);}
-    @Test void earlyCheckoutCreatesTaskOnlyAfterActualDeparture(){long b=stay();clock.day(1);as("MANAGER");stays.apply(sid(b),StayAdjustmentRequest.builder().type(StayAdjustmentType.EARLY_CHECKOUT).requestKey("early_001").reason("Guest departure").build());assertEquals(0,count(b));var credit=queries.byBooking(b,uid("CUSTOMER")).balanceAmount().negate();assertTrue(credit.signum()>0);var refund=requestRefund(b,credit.toPlainString(),"early-refund");as("MANAGER");refunds.confirm(folio(b),refund.id(),process("early-refund-confirm"));checkout(b);assertEquals(1,count(b));assertEquals(arrival.plusDays(1).atTime(12,0),jdbc.queryForObject("SELECT end_time FROM stay_room_assignment WHERE stay_id=(SELECT id FROM stay WHERE booking_id=?)",LocalDateTime.class,b));invariantBooking(b);}
+    @Test
+    void earlyCheckoutCreatesTaskOnlyAfterActualDeparture() {
+        long booking = stay();
+        clock.day(1);
+        as("MANAGER");
+        stays.apply(sid(booking), StayAdjustmentRequest.builder()
+                .type(StayAdjustmentType.EARLY_CHECKOUT)
+                .requestKey("early_001")
+                .reason("Guest departure")
+                .build());
+        assertEquals(0, count(booking));
+        var credit = queries.byBooking(booking, uid("CUSTOMER")).balanceAmount().negate();
+        assertTrue(credit.signum() > 0);
+        var refund = requestRefund(booking, credit.toPlainString(), "early-refund");
+        as("MANAGER");
+        refunds.confirm(folio(booking), refund.id(), process("early-refund-confirm"));
+        checkout(booking);
+        assertEquals(1, count(booking));
+        assertAssignmentEndedAtUtc(booking, arrival.plusDays(1).atTime(12, 0));
+        invariantBooking(booking);
+    }
+
+    private void assertAssignmentEndedAtUtc(long booking, LocalDateTime hotelTime) {
+        LocalDateTime storedUtc = jdbc.queryForObject("""
+                SELECT end_time FROM stay_room_assignment
+                WHERE stay_id=(SELECT id FROM stay WHERE booking_id=?)
+                """, LocalDateTime.class, booking);
+        assertEquals(new HotelDateTimeTypeHandler(clock).toUtc(hotelTime), storedUtc);
+    }
     @Test void generationIsIdempotentAndDatabaseRejectsDuplicateOrWrongIdentity(){long b=finished();var t=task(b);assertEquals(t.getId(),create(t.getAssignmentId()).getId());assertThrows(Exception.class,()->jdbc.update("INSERT INTO room_turnover_task(room_id,stay_id,assignment_id,task_id) VALUES(?,?,?,?)",room1,sid(b),t.getAssignmentId(),t.getTaskId()));jdbc.update("DELETE FROM room_turnover_task WHERE id=?",t.getId());assertThrows(Exception.class,()->jdbc.update("INSERT INTO room_turnover_task(room_id,stay_id,assignment_id,task_id) VALUES(?,?,?,?)",room2,sid(b),t.getAssignmentId(),t.getTaskId()));assertNull(serialized("RoomTurnoverTaskMapper.insert",()->create(t.getAssignmentId()),()->create(t.getAssignmentId())));assertEquals(1,count(b));completeTurnoverAndInspect(room1);rooms.setRoomAvailable(room1);assertNotNull(create(t.getAssignmentId()));assertEquals(1,jdbc.queryForObject("SELECT status FROM room WHERE id=?",Integer.class,room1));}
     @Test void activeAssignmentAndCreationOutsideTransactionAreRejected(){long b=stay();assertThrows(BusinessException.class,()->create(assignment(b)));assertThrows(org.springframework.transaction.IllegalTransactionStateException.class,()->tasks.createForClosedAssignment(assignment(b)));assertEquals(0,count(b));}
     @Test void duplicateCheckoutDoesNotCreateSecondTask(){long b=finished();try{checkout(b);}catch(BusinessException expected){}assertEquals(1,count(b));invariantBooking(b);}

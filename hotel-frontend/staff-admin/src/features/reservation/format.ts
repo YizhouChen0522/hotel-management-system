@@ -7,5 +7,8 @@ export function money(value: number, currency = 'CNY') {
 }
 
 export function dateTime(value?: string | null) {
-  return value ? new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—'
+  if (!value) return '—'
+  const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value)
+  if (!parts) return value
+  return `${parts[1]}年${Number(parts[2])}月${Number(parts[3])}日 ${parts[4]}:${parts[5]}`
 }

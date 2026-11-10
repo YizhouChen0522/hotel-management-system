@@ -155,6 +155,9 @@ public class SysUserServiceImpl implements SysUserService {
         if (user == null) {
             throw new BusinessException("User doesn't exist");
         }
+        if ("system_night_audit".equals(user.getUsername())) {
+            throw new BusinessException("System accounts cannot sign in");
+        }
         if (user.getStatus() == null || user.getStatus() != UserStatus.ACTIVE.getCode()) {
             throw new BusinessException("Account is not active");
         }

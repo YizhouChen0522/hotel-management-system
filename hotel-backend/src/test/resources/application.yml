@@ -1,7 +1,7 @@
 # Test classpath shadows the development configuration. Never copy production secrets here.
 spring:
   datasource:
-    url: jdbc:mysql://localhost:33079/hotel_lifecycle_test?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=Asia/Shanghai
+    url: jdbc:mysql://localhost:33079/hotel_lifecycle_test?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
     username: root
     password: ""
     hikari:
@@ -18,6 +18,10 @@ mybatis:
 hotel:
   currency: CNY
   time-zone: Asia/Shanghai
+  time:
+    zone-id: Asia/Shanghai
+    reconciliation:
+      enabled: false
 jwt:
   secret: isolated-test-only-key-never-use-for-real-authentication-0123456789
   expiration: 60000

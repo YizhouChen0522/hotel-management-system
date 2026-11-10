@@ -33,14 +33,14 @@ class DatabaseConstraintTest extends FinancialDevelopmentFixture {
         assertThrows(DataAccessException.class,()->jdbc.update("INSERT INTO folio_item(folio_id,item_type,description,business_date,quantity,unit_price,amount,event_key) VALUES(?,'SERVICE_CHARGE','test',?,1,10,10,'unique-event')",f,arrival));invariantBooking(b);
     }
     @ParameterizedTest @ValueSource(strings={"0","-1"}) void paymentAmountMustBePositive(String amount){long b=stay();assertThrows(DataAccessException.class,()->jdbc.update("INSERT INTO payment(folio_id,amount,payment_method,status,paid_time,request_key) VALUES(?,?,'CASH','SUCCESS',NOW(),UUID())",folio(b),amount));invariantBooking(b);}
-    @Test void paymentKeyRequiredAndUnique(){long b=stay();var r=payRequest("10");payments.recordPayment(folio(b),r,uid("MANAGER"));
+    @Test void paymentKeyRequiredAndUnique(){long b=stay();var r=cardPaymentRequest("10");payments.recordPayment(folio(b),r,uid("MANAGER"));
         assertThrows(DataAccessException.class,()->jdbc.update("INSERT INTO payment(folio_id,amount,payment_method,status,paid_time,request_key) VALUES(?,10,'CASH','SUCCESS',NOW(),?)",folio(b),r.getIdempotencyKey()));
         assertThrows(DataAccessException.class,()->jdbc.update("INSERT INTO payment(folio_id,amount,payment_method,status,paid_time) VALUES(?,10,'CASH','SUCCESS',NOW())",folio(b)));invariantBooking(b);
     }
     @ParameterizedTest @ValueSource(strings={"zero","product","date"}) void ledgerInsertTriggerRejectsInvalidFacts(String kind){long b=stay();
         assertThrows(DataAccessException.class,()->jdbc.update("INSERT INTO folio_item(folio_id,item_type,description,business_date,quantity,unit_price,amount) VALUES(?,'SERVICE_CHARGE','test',?,1,10,?)",folio(b),kind.equals("date")?null:arrival,kind.equals("zero")?0:kind.equals("product")?9:10));invariantBooking(b);
     }
-    @Test void historicalPaymentAndLedgerCannotBeOverwritten(){long b=stay();pay(b,"10");
+    @Test void historicalPaymentAndLedgerCannotBeOverwritten(){long b=stay();payCard(b,"10");
         assertThrows(DataAccessException.class,()->jdbc.update("UPDATE payment SET status='FAILED' WHERE folio_id=?",folio(b)));
         assertThrows(DataAccessException.class,()->jdbc.update("UPDATE folio_item SET amount=1 WHERE folio_id=?",folio(b)));invariantBooking(b);
     }

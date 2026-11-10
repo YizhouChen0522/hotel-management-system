@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useState, type FormEvent } from
 import { Link } from 'react-router-dom'
 import { StatusMessage } from '../components/StatusMessage'
 import { createPage, listPages } from '../features/cms/cms-api'
+import { dateTime } from '../features/reservation/format'
 import { publicPageUrl } from '../lib/config/public-site'
 import type { CmsPageSummary, PageResult } from '../types/cms'
 
@@ -86,7 +87,7 @@ export function CmsPagesPage() {
               <article className="panel content-row" key={page.id}>
                 <div>
                   <strong>{page.slug === 'hotel' ? '酒店详情' : page.slug === 'activities' ? '活动首页' : page.slug}</strong>
-                  <p>{page.locale} · 最近更新 {new Date(page.updateTime).toLocaleString()}</p>
+                  <p>{page.locale} · 最近更新 {dateTime(page.updateTime)}</p>
                   <a href={publicPageUrl(page.slug)} target="_blank" rel="noreferrer">{publicPageUrl(page.slug)}</a>
                 </div>
                 <Link className="button-link" to={`/cms/pages/${page.id}`}>编辑内容</Link>

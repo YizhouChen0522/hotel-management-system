@@ -24,6 +24,10 @@ public class StayController {
     @PostMapping("/{id}/guests") @PreAuthorize("hasAnyRole('STAFF','MANAGER','OWNER','SUPER_ADMIN')")
     public Result<StayGuestService.Entry> addGuest(@PathVariable Long id,@Valid @RequestBody com.johnny.hotel.guest.GuestRequests.Add request){return Result.success(guests.addAccompanying(id,request));}
     @GetMapping("/{id}/assignments") public Result<java.util.List<com.johnny.hotel.entity.StayRoomAssignment>> assignments(@PathVariable Long id){return Result.success(queries.assignments(id));}
+    @GetMapping("/{id}/action-eligibility") @PreAuthorize("hasAnyRole('STAFF','MANAGER','OWNER','SUPER_ADMIN')")
+    public Result<StayQueryService.ActionEligibility> actionEligibility(@PathVariable Long id) {
+        return Result.success(queries.actionEligibility(id));
+    }
     @GetMapping("/{id}/room-change-options") @PreAuthorize("hasAnyRole('STAFF','MANAGER','OWNER','SUPER_ADMIN')")
     public Result<StayQueryService.RoomChangeOptions> roomChangeOptions(@PathVariable Long id){return Result.success(queries.roomChangeOptions(id));}
     @PostMapping("/{id}/check-out") @PreAuthorize("hasAnyRole('STAFF','MANAGER','OWNER','SUPER_ADMIN')")

@@ -36,14 +36,14 @@ class ExpenseConcurrencyTest extends FinancialDevelopmentFixture {
     void rejected(Throwable e){assertNotNull(e);while(e.getCause()!=null)e=e.getCause();assertInstanceOf(BusinessException.class,e);}
     @Test void concurrentRegistrationSameKeyCreatesOnePendingFact(){long b=checkIn();var r=expense("SERVICE_CHARGE","10",null);assertNull(pair("ExpenseMapper.insert",()->service.register(folio(b),r),()->service.register(folio(b),r)));assertEquals(1,queries.byBooking(b,uid("CUSTOMER")).expenses().size());invariants(b);}
     @Test void repeatedConfirmationHasOneLedgerEntry(){long b=checkIn(),e=pending(b);assertNull(pair("ExpenseMapper.resolve",()->service.confirm(folio(b),e),()->service.confirm(folio(b),e)));assertEquals(310,queries.byBooking(b,uid("CUSTOMER")).totalAmount().intValueExact());assertEquals(4,queries.byBooking(b,uid("CUSTOMER")).items().size());invariants(b);}
-    @ParameterizedTest @ValueSource(booleans={true,false}) void paymentAndConfirmationBothOrdersRemainConsistent(boolean expenseFirst){long b=checkIn(),e=pending(b);pay(b,"300");
-        if(expenseFirst)assertNull(pair("ExpenseMapper.resolve",()->service.confirm(folio(b),e),()->pay(b,"10")));
-        else assertNull(pair("FolioMapper.selectByIdForUpdate",()->pay(b,"10"),()->service.confirm(folio(b),e)));
+    @ParameterizedTest @ValueSource(booleans={true,false}) void paymentAndConfirmationBothOrdersRemainConsistent(boolean expenseFirst){long b=checkIn(),e=pending(b);payCard(b,"300");
+        if(expenseFirst)assertNull(pair("ExpenseMapper.resolve",()->service.confirm(folio(b),e),()->payCard(b,"10")));
+        else assertNull(pair("FolioMapper.selectByIdForUpdate",()->payCard(b,"10"),()->service.confirm(folio(b),e)));
         invariants(b);clock.day(3);bookings.checkOut(b,uid("MANAGER"));invariants(b);}
-    @Test void registrationWinsCheckoutSeesPendingFee(){long b=checkIn();pay(b,"300");clock.day(3);rejected(pair("ExpenseMapper.insert",()->service.register(folio(b),expense("SERVICE_CHARGE","10",null)),()->bookings.checkOut(b,uid("MANAGER"))));assertEquals(1,stayState(b));invariants(b);}
-    @ParameterizedTest @ValueSource(booleans={true,false}) void checkoutWinsBlocksRegistrationAndConfirmationRetry(boolean register){long b=checkIn(),e=pending(b);confirm(b,e);pay(b,"310");clock.day(3);
+    @Test void registrationWinsCheckoutSeesPendingFee(){long b=checkIn();payCard(b,"300");clock.day(3);rejected(pair("ExpenseMapper.insert",()->service.register(folio(b),expense("SERVICE_CHARGE","10",null)),()->bookings.checkOut(b,uid("MANAGER"))));assertEquals(1,stayState(b));invariants(b);}
+    @ParameterizedTest @ValueSource(booleans={true,false}) void checkoutWinsBlocksRegistrationAndConfirmationRetry(boolean register){long b=checkIn(),e=pending(b);confirm(b,e);payCard(b,"310");clock.day(3);
         rejected(pair("FolioMapper.close",()->bookings.checkOut(b,uid("MANAGER")),()->{if(register)service.register(folio(b),expense("SERVICE_CHARGE","1",null));else service.confirm(folio(b),e);}));invariants(b);}
-    @Test void cancellingLastPendingExpenseAllowsWaitingCheckout(){long b=checkIn(),e=pending(b);pay(b,"300");clock.day(3);var r=CancelExpenseRequest.builder().idempotencyKey(UUID.randomUUID().toString()).reason("error").build();
+    @Test void cancellingLastPendingExpenseAllowsWaitingCheckout(){long b=checkIn(),e=pending(b);payCard(b,"300");clock.day(3);var r=CancelExpenseRequest.builder().idempotencyKey(UUID.randomUUID().toString()).reason("error").build();
         assertNull(pair("ExpenseMapper.resolve",()->service.cancel(folio(b),e,r),()->bookings.checkOut(b,uid("MANAGER"))));invariants(b);}
     @Test void simultaneousCreditsCannotExceedOriginalCharge(){long b=checkIn(),e=pending(b);confirm(b,e);rejected(pair("ExpenseMapper.insert",()->service.register(folio(b),expense("DISCOUNT","-7",e)),()->service.register(folio(b),expense("FEE_REVERSAL","-7",e))));assertEquals(2,queries.byBooking(b,uid("CUSTOMER")).expenses().size());invariants(b);}
 }

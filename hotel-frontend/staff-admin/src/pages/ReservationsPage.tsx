@@ -93,19 +93,19 @@ export function ReservationsPage() {
       {!loading && result.items.length > 0 && (
         <div className="table-card">
           <div className="responsive-table">
-            <table>
+            <table className="mobile-record-table">
               <thead><tr><th>预订</th><th>订房人</th><th>房型 / 日期</th><th>人数</th><th>来源</th><th>金额</th><th>状态</th><th /></tr></thead>
               <tbody>
                 {result.items.map((booking) => (
                   <tr key={booking.id}>
-                    <td><strong>#{booking.id}</strong><small>{booking.reservedRoomNumber ? `房间 ${booking.reservedRoomNumber}` : '尚未分房'}</small></td>
-                    <td><strong>{booking.bookerName || '未登记姓名'}</strong><small>{booking.bookerEmail || `Guest #${booking.bookerGuestProfileId ?? '—'}`}</small></td>
-                    <td><strong>{booking.roomTypeName || `Room Type #${booking.roomTypeId}`}</strong><small>{booking.checkInDate} → {booking.checkOutDate}</small></td>
-                    <td>{booking.guestCount}</td>
-                    <td>{booking.reservationSource}</td>
-                    <td>{money(booking.totalPrice)}</td>
-                    <td><span className={`status-badge status-${booking.status}`}>{reservationStatus(booking.status)}</span></td>
-                    <td><Link className="text-link" to={`/reservations/${booking.id}`}>查看与处理</Link></td>
+                    <td data-label="预订"><strong>#{booking.id}</strong><small>{booking.reservedRoomNumber ? `房间 ${booking.reservedRoomNumber}` : '尚未分房'}</small></td>
+                    <td data-label="订房人"><strong>{booking.bookerName || '未登记姓名'}</strong><small>{booking.bookerEmail || `Guest #${booking.bookerGuestProfileId ?? '—'}`}</small></td>
+                    <td data-label="房型 / 日期"><strong>{booking.roomTypeName || `Room Type #${booking.roomTypeId}`}</strong><small>{booking.checkInDate} → {booking.checkOutDate}</small></td>
+                    <td data-label="人数">{booking.guestCount}</td>
+                    <td data-label="来源">{booking.reservationSource}</td>
+                    <td data-label="金额">{money(booking.totalPrice)}</td>
+                    <td data-label="状态"><span className={`status-badge status-${booking.status}`}>{reservationStatus(booking.status)}</span></td>
+                    <td className="record-action"><Link className="text-link" to={`/reservations/${booking.id}`}>查看与处理</Link></td>
                   </tr>
                 ))}
               </tbody>

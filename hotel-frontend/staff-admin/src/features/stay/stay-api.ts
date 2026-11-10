@@ -8,6 +8,8 @@ import type {
   StayGuest,
   RoomChangeOptions,
   TurnoverTask,
+  StayActionEligibility,
+  FolioRefund,
 } from '../../types/stay'
 
 export function listStays(page: number, pageSize: number, status?: number) {
@@ -17,6 +19,8 @@ export function listStays(page: number, pageSize: number, status?: number) {
 }
 
 export const getStay = (id: number) => apiFetch<Stay>(`/api/stays/${id}`)
+export const getStayActionEligibility = (id: number) =>
+  apiFetch<StayActionEligibility>(`/api/stays/${id}/action-eligibility`)
 
 export function getStayByBooking(bookingId: number) {
   return apiFetch<PageResult<Stay>>(`/api/stays?bookingId=${bookingId}&page=1&pageSize=1`)
@@ -94,6 +98,16 @@ export function recordFolioPayment(
       note: 'Front desk folio settlement',
       idempotencyKey: crypto.randomUUID(),
     }),
+  })
+}
+
+export const listFolioRefunds = (folioId: number) =>
+  apiFetch<FolioRefund[]>(`/api/folios/${folioId}/refunds`)
+
+export function processFolioRefund(folioId: number, refundId: number, reason: string) {
+  return apiFetch<FolioRefund>(`/api/folios/${folioId}/refunds/${refundId}/confirm`, {
+    method: 'POST',
+    body: JSON.stringify({ reason: reason.trim(), requestKey: crypto.randomUUID() }),
   })
 }
 

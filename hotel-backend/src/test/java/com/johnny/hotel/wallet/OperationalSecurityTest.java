@@ -48,7 +48,19 @@ class OperationalSecurityTest extends FinancialDevelopmentFixture {
     int state(long b){return bookingState(b);}
     void change(long b,long room){var r=new ChangeRoomDuringStayRequest();r.setNewRoomId(room);r.setReason("test move");bookings.changeRoomDuringStay(b,r,uid("MANAGER"));}
     FolioItemCommand fee(String key,String amount){return FolioItemCommand.builder().itemType("SERVICE_CHARGE").description("test service").businessDate(arrival).quantity(BigDecimal.ONE).unitPrice(new BigDecimal(amount)).amount(new BigDecimal(amount)).eventKey(key).build();}
-    @Override void pay(long b,String amount){if(jdbc.queryForObject("SELECT COUNT(*) FROM stay WHERE booking_id=?",Integer.class,b)==0){as("STAFF");deposits.receive(b,com.johnny.hotel.booking.deposit.DepositRequests.Receive.builder().amount(new BigDecimal(amount)).paymentMethod("CASH").requestKey(java.util.UUID.randomUUID().toString()).build());}else super.pay(b,amount);}
+    void payForTest(long booking, String amount) {
+        if (jdbc.queryForObject("SELECT COUNT(*) FROM stay WHERE booking_id=?", Integer.class, booking) == 0) {
+            prepareCashShift();
+            as("STAFF");
+            deposits.receive(booking, com.johnny.hotel.booking.deposit.DepositRequests.Receive.builder()
+                    .amount(new BigDecimal(amount))
+                    .paymentMethod("CASH")
+                    .requestKey(java.util.UUID.randomUUID().toString())
+                    .build());
+            return;
+        }
+        payCard(booking, amount);
+    }
     void invariants(long b){if(jdbc.queryForObject("SELECT COUNT(*) FROM stay WHERE booking_id=?",Integer.class,b)==0){assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM folio f JOIN stay s ON s.id=f.stay_id WHERE s.booking_id=?",Integer.class,b));return;} if(!jdbc.queryForObject("SELECT user_id FROM booking WHERE id=?",Long.class,b).equals(uid("CUSTOMER")))return;invariantBooking(b);}
 
 

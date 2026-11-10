@@ -55,6 +55,31 @@ export interface StayAdjustment {
   operationalNotice: string | null
 }
 
+export interface StayActionEligibility {
+  businessDate: string
+  hotelDate: string
+  effectiveCheckOutDate: string
+  canEarlyCheckout: boolean
+  earlyCheckoutReason: string | null
+  canExtend: boolean
+  extensionReason: string | null
+  canLateCheckout: boolean
+  lateCheckoutReason: string | null
+}
+
+export interface FolioRefund {
+  id: number
+  folioId: number
+  amount: number
+  currency: string
+  status: 'PENDING' | 'SUCCESS' | 'FAILED'
+  destination: string
+  reason: string
+  processReason: string | null
+  createTime: string
+  processedTime: string | null
+}
+
 export interface RoomChangeCandidate {
   id: number
   roomNumber: string

@@ -48,6 +48,12 @@ export const accountApi = {
       {},
       token,
     ),
+  requestRefund: (token: string, folioId: number, amount: number, reason: string, requestKey: string) =>
+    clientApi<FolioRefund>(
+      `/api/public/customer/folios/${folioId}/refunds`,
+      { method: "POST", ...jsonBody({ amount, reason, requestKey }) },
+      token,
+    ),
   invoicesByFolio: (token: string, folioId: number) =>
     clientApi<InvoiceView[]>(
       `/api/public/customer/folios/${folioId}/invoices`,

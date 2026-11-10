@@ -15,6 +15,7 @@ const query = (values: Record<string, string | number>) => new URLSearchParams(
 ).toString();
 
 export const bookingApi = {
+  timeContext: () => clientApi<{ hotelDate: string; zoneId: string }>("/api/public/time-context"),
   roomTypes: () => clientApi<RoomType[]>("/api/public/catalog/room-types"),
   availability: (roomTypeId: number, checkInDate: string, checkOutDate: string) =>
     clientApi<Availability>(`/api/public/catalog/availability?${query({ roomTypeId, checkInDate, checkOutDate })}`),

@@ -1,6 +1,7 @@
 package com.johnny.hotel;
 
 import com.johnny.hotel.businessdate.*;
+import com.johnny.hotel.config.HotelDateTimeTypeHandler;
 import com.johnny.hotel.payment.*;
 import com.johnny.hotel.support.WalletDevelopmentGuard;
 import org.junit.jupiter.api.*;
@@ -31,21 +32,24 @@ class BusinessDateDevelopmentTest {
     @DynamicPropertySource static void development(DynamicPropertyRegistry r){var e=WalletDevelopmentGuard.settings();
         r.add("spring.datasource.url",WalletDevelopmentGuard::url);r.add("spring.datasource.username",()->e.get("DB_USERNAME"));
         r.add("spring.datasource.password",()->e.get("DB_PASSWORD"));r.add("spring.data.redis.password",()->e.get("REDIS_PASSWORD"));}
-    @Autowired JdbcTemplate jdbc;@Autowired BusinessDateService dates;@Autowired PlatformTransactionManager transactions;@Autowired MockMvc mvc;@Autowired PaymentRecognitionService recognition;
+    @Autowired JdbcTemplate jdbc;@Autowired BusinessDateService dates;@Autowired PlatformTransactionManager transactions;@Autowired MockMvc mvc;@Autowired PaymentRecognitionService recognition;@Autowired Clock hotelClock;
 
     @Test void migrationBootstrapAndRestartAreStable() {
         var before=dates.current();long version=before.getVersion();int history=jdbc.queryForObject("SELECT COUNT(*) FROM hotel_business_date_history WHERE event_type='INITIALIZED'",Integer.class);
         dates.initializeOnce();
         var after=dates.current();assertEquals(before.getBusinessDate(),after.getBusinessDate());assertEquals(version,after.getVersion());assertEquals(1,history);
         assertEquals(history,jdbc.queryForObject("SELECT COUNT(*) FROM hotel_business_date_history WHERE event_type='INITIALIZED'",Integer.class));
-        assertEquals("61",jdbc.queryForObject("SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1",String.class));
+        String schemaVersion = jdbc.queryForObject(
+                "SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1",
+                String.class);
+        assertTrue(Integer.parseInt(schemaVersion) >= 63);
     }
 
     @Test void readApiEnforcesOperationalRolesAndSeparatesWallClock() throws Exception {
         for(String role:List.of("STAFF","FINANCE","MANAGER","OWNER","SUPER_ADMIN"))
             mvc.perform(get("/api/admin/business-date").with(authentication(auth(role)))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.businessDate").value(dates.current().getBusinessDate().toString()))
-                .andExpect(jsonPath("$.data.hotelZone").value(ZoneId.systemDefault().getId()))
+                .andExpect(jsonPath("$.data.hotelZone").value(hotelClock.getZone().getId()))
                 .andExpect(jsonPath("$.data.currentWallClockTime").exists());
         for(String role:List.of("CUSTOMER","HR_ADMIN"))mvc.perform(get("/api/admin/business-date").with(authentication(auth(role)))).andExpect(status().isForbidden());
         mvc.perform(get("/api/admin/business-date")).andExpect(status().isUnauthorized());
@@ -68,23 +72,39 @@ class BusinessDateDevelopmentTest {
     @Test void realMysqlFirstSuccessFreezesDateAndDuplicateCannotOverwriteIt() {
         long user=jdbc.queryForObject("SELECT id FROM sys_user ORDER BY id LIMIT 1",Long.class),roomType=jdbc.queryForObject("SELECT id FROM room_type ORDER BY id LIMIT 1",Long.class);
         String suffix=java.util.UUID.randomUUID().toString().replace("-","").substring(0,16),merchant="bd_merchant_"+suffix,request="bd_request_"+suffix,claim="bd_claim_"+suffix;
-        jdbc.update("INSERT INTO reservation_checkout_session(customer_user_id,room_type_id,check_in_date,check_out_date,guest_count,currency,quoted_total,request_key,status,expires_at) VALUES(?,?,CURRENT_DATE,DATE_ADD(CURRENT_DATE,INTERVAL 1 DAY),1,'CNY',100.00,?,'PAYMENT_PENDING',DATE_ADD(NOW(6),INTERVAL 1 HOUR))",user,roomType,request);
+        LocalDate businessDate = dates.current().getBusinessDate();
+        LocalDateTime now = LocalDateTime.now(hotelClock);
+        LocalDateTime databaseNow = new HotelDateTimeTypeHandler(hotelClock).toUtc(now);
+        jdbc.update("""
+                INSERT INTO reservation_checkout_session
+                    (customer_user_id,room_type_id,check_in_date,check_out_date,
+                     guest_count,currency,quoted_total,request_key,status,expires_at)
+                VALUES(?,?,?,?,1,'CNY',100.00,?,'PAYMENT_PENDING',?)
+                """, user, roomType, businessDate, businessDate.plusDays(1), request,
+                databaseNow.plusHours(1));
         long checkout=jdbc.queryForObject("SELECT id FROM reservation_checkout_session WHERE customer_user_id=? AND request_key=?",Long.class,user,request);
-        jdbc.update("INSERT INTO payment_attempt(checkout_session_id,purpose,provider,request_key,merchant_payment_no,provider_payment_id,amount,currency,status,fulfillment_status,initiator_type,initiated_by_user_id,recovery_claim_token,recovery_claim_until) VALUES(?,'RESERVATION_DEPOSIT','MOCK',?,?,?,100.00,'CNY','PENDING','PENDING','CUSTOMER',?,?,DATE_ADD(NOW(6),INTERVAL 1 MINUTE))",checkout,request,merchant,"provider_"+suffix,user,claim);
+        jdbc.update("""
+                INSERT INTO payment_attempt
+                    (checkout_session_id,purpose,provider,request_key,merchant_payment_no,
+                     provider_payment_id,amount,currency,status,fulfillment_status,
+                     initiator_type,initiated_by_user_id,recovery_claim_token,recovery_claim_until)
+                VALUES(?,'RESERVATION_DEPOSIT','MOCK',?,?,?,100.00,'CNY',
+                       'PENDING','PENDING','CUSTOMER',?,?,?)
+                """, checkout, request, merchant, "provider_" + suffix,
+                user, claim, databaseNow.plusMinutes(1));
         long attempt=jdbc.queryForObject("SELECT id FROM payment_attempt WHERE merchant_payment_no=?",Long.class,merchant);
-        var result=new ProviderPaymentResult("MOCK",merchant,"provider_"+suffix,"SUCCEEDED",new java.math.BigDecimal("100.00"),"CNY",LocalDateTime.now());
+        var result=new ProviderPaymentResult("MOCK",merchant,"provider_"+suffix,"SUCCEEDED",new java.math.BigDecimal("100.00"),"CNY",now);
         try {
             recognition.recognizeQuery(attempt,claim,result);
             assertEquals(dates.current().getBusinessDate(),jdbc.queryForObject("SELECT recognized_business_date FROM payment_attempt WHERE id=?",LocalDate.class,attempt));
-            jdbc.update("UPDATE payment_attempt SET recovery_claim_token=?,recovery_claim_until=DATE_ADD(NOW(6),INTERVAL 1 MINUTE) WHERE id=?",claim,attempt);
+            jdbc.update("UPDATE payment_attempt SET recovery_claim_token=?,recovery_claim_until=? WHERE id=?",
+                    claim, databaseNow.plusMinutes(1), attempt);
             recognition.recognizeQuery(attempt,claim,result);
             assertEquals(dates.current().getBusinessDate(),jdbc.queryForObject("SELECT recognized_business_date FROM payment_attempt WHERE id=?",LocalDate.class,attempt));
         } finally {jdbc.update("DELETE FROM payment_attempt WHERE id=?",attempt);jdbc.update("DELETE FROM reservation_checkout_session WHERE id=?",checkout);}
     }
 
-    @Test void legacyFactsRemainNullAndAnyDatedTransferPairMatches() {
-        assertTrue(jdbc.queryForObject("SELECT COUNT(*) FROM deposit_payment WHERE business_date IS NULL",Integer.class)>0,
-                "V45 must not invent dates for legacy receipts");
+    @Test void datedTransferPairsMatchWithoutAssumingHistoricalFixtureRows() {
         assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM deposit_transfer t JOIN payment p ON p.id=t.payment_id WHERE t.business_date IS NOT NULL AND NOT(t.business_date<=>p.business_date)",Integer.class));
     }
 

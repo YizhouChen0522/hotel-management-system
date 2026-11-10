@@ -1,13 +1,11 @@
 package com.johnny.hotel;
 
-import com.johnny.hotel.config.HotelClockConfig;
 import com.johnny.hotel.support.WalletDevelopmentGuard;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
 import java.sql.DriverManager;
-import java.sql.SQLException;
 import java.time.*;
 import java.util.TimeZone;
 
@@ -30,28 +28,28 @@ class JdbcSessionTimezoneDevelopmentTest {
         }
     }
 
-    @Test void baselineIsReadOnlyAndForcedSessionsAreEitherAlignedOrExplicitlyUnsupported() throws Exception {
-        Snapshot before=snapshot(WalletDevelopmentGuard.url());
-        System.out.printf("JDBC_TIMEZONE_BEFORE session=%s global=%s system=%s now=%s utc=%s offsetSeconds=%d%n",
-                before.session(),before.global(),before.system(),before.now(),before.utcNow(),before.offsetSeconds());
-
-        TimeZone original=TimeZone.getDefault();
+    @Test
+    void utcSessionAndLocalDateTimeRoundTripIgnoreJvmZone() throws Exception {
+        String url = WalletDevelopmentGuard.url();
+        TimeZone original = TimeZone.getDefault();
         try {
-            for(String id:new String[]{"Asia/Shanghai","America/Toronto"}) {
+            for (String id : new String[]{"Asia/Shanghai", "America/Toronto"}) {
                 TimeZone.setDefault(TimeZone.getTimeZone(id));
-                ZoneId system=ZoneId.systemDefault();
-                Clock clock=new HotelClockConfig().hotelClock();
-                assertEquals(system,clock.getZone());
-                Instant instant=Instant.now(clock);
-                int expected=system.getRules().getOffset(instant).getTotalSeconds();
-                try {
-                    Snapshot after=snapshot(WalletDevelopmentGuard.url()+"&forceConnectionTimeZoneToSession=true");
-                    System.out.printf("JDBC_TIMEZONE_AFTER zone=%s session=%s global=%s system=%s now=%s utc=%s dbOffsetSeconds=%d jvmOffsetSeconds=%d%n",
-                            system,after.session(),after.global(),after.system(),after.now(),after.utcNow(),after.offsetSeconds(),expected);
-                    assertEquals(expected,after.offsetSeconds(),"MySQL session offset must follow the current JVM zone");
-                } catch (SQLException unsupported) {
-                    System.out.printf("JDBC_TIMEZONE_FORCE_UNSUPPORTED zone=%s errorCode=%d%n",system,unsupported.getErrorCode());
-                    assertEquals(1298,unsupported.getErrorCode(),"Only missing MySQL named-timezone support is an accepted incompatibility");
+                Snapshot after = snapshot(url);
+                assertEquals(0, after.offsetSeconds());
+                assertTrue(after.session().equals("+00:00") || after.session().equals("UTC"));
+                assertTrue(Math.abs(Duration.between(after.utcNow(), after.now()).toSeconds()) <= 1);
+
+                var settings = WalletDevelopmentGuard.settings();
+                try (var connection = DriverManager.getConnection(url,
+                        settings.get("DB_USERNAME"), settings.get("DB_PASSWORD"));
+                     var statement = connection.prepareStatement("SELECT CAST(? AS DATETIME(6))")) {
+                    LocalDateTime value = LocalDateTime.of(2026, 11, 9, 12, 34, 56);
+                    statement.setObject(1, value);
+                    try (var result = statement.executeQuery()) {
+                        assertTrue(result.next());
+                        assertEquals(value, result.getObject(1, LocalDateTime.class));
+                    }
                 }
             }
         } finally {

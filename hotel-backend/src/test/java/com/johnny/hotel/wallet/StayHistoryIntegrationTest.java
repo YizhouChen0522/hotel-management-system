@@ -94,7 +94,7 @@ class StayHistoryIntegrationTest extends FinancialDevelopmentFixture {
     @Test
     void singleStayWithoutRoomChangeCreatesExactlyOneHistoryRow() {
         long b = checkIn();
-        pay(b, "300");
+        payCard(b, "300");
         clock.day(3);
         assertEquals(0, historyCount(folio(b)));
         bookings.checkOut(b, uid("MANAGER"));
@@ -124,7 +124,7 @@ class StayHistoryIntegrationTest extends FinancialDevelopmentFixture {
         long b = checkIn();
         clock.day(1);
         change(b, room3);
-        pay(b, "400");
+        payCard(b, "400");
         clock.day(3);
         bookings.checkOut(b, uid("MANAGER"));
 
@@ -170,7 +170,7 @@ class StayHistoryIntegrationTest extends FinancialDevelopmentFixture {
         // during the stay, even after a room change: no history
         assertEquals(0, historyCount(folio(b)));
 
-        pay(b, "299");
+        payCard(b, "299");
         clock.day(3);
         assertThrows(BusinessException.class, () -> bookings.checkOut(b, uid("MANAGER")));
         assertEquals(0, historyCount(folio(b)));
@@ -184,7 +184,7 @@ class StayHistoryIntegrationTest extends FinancialDevelopmentFixture {
     @Test
     void checkoutFailureAfterHistoryInsertRollsBackAndRetryCreatesExactlyOneRow() {
         long b = checkIn();
-        pay(b, "300");
+        payCard(b, "300");
         clock.day(3);
         // fail a statement executed after stay_history insert: room status transition
         gate.arm(Thread.currentThread().getName(), "RoomMapper.transitionStatus", true);
@@ -207,7 +207,7 @@ class StayHistoryIntegrationTest extends FinancialDevelopmentFixture {
         long b = checkIn();
         clock.day(1);
         change(b, room3);
-        pay(b, "400");
+        payCard(b, "400");
         clock.day(3);
         bookings.checkOut(b, uid("MANAGER"));
         assertEquals(2, historyCount(folio(b)));
@@ -239,19 +239,19 @@ class StayHistoryIntegrationTest extends FinancialDevelopmentFixture {
         long ownLate = createFor(uid("CUSTOMER"), room3, arrival.plusDays(5), 3);
 
         bookings.checkIn(ownEarly, uid("MANAGER"));
-        pay(ownEarly, "300");
+        payCard(ownEarly, "300");
         clock.day(3);
         bookings.checkOut(ownEarly, uid("MANAGER"));
 
         clock.day(0);
         bookings.checkIn(otherUser, uid("MANAGER"));
-        pay(otherUser, "300");
+        payCard(otherUser, "300");
         clock.day(3);
         bookings.checkOut(otherUser, uid("MANAGER"));
 
         clock.day(5);
         bookings.checkIn(ownLate, uid("MANAGER"));
-        pay(ownLate, "450");
+        payCard(ownLate, "450");
         clock.day(8);
         bookings.checkOut(ownLate, uid("MANAGER"));
 
@@ -287,13 +287,13 @@ class StayHistoryIntegrationTest extends FinancialDevelopmentFixture {
         long otherUser = createFor(uid("OTHER_CUSTOMER"), room2, arrival, 3);
 
         bookings.checkIn(mine, uid("MANAGER"));
-        pay(mine, "300");
+        payCard(mine, "300");
         clock.day(3);
         bookings.checkOut(mine, uid("MANAGER"));
 
         clock.day(0);
         bookings.checkIn(otherUser, uid("MANAGER"));
-        pay(otherUser, "300");
+        payCard(otherUser, "300");
         clock.day(3);
         bookings.checkOut(otherUser, uid("MANAGER"));
 
@@ -320,7 +320,7 @@ class StayHistoryIntegrationTest extends FinancialDevelopmentFixture {
         long b = checkIn();
         clock.day(1);
         change(b, room3);
-        pay(b, "400");
+        payCard(b, "400");
         clock.day(3);
         bookings.checkOut(b, uid("MANAGER"));
         setEmail(uid("CUSTOMER"));

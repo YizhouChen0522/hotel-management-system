@@ -1,5 +1,15 @@
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../features/auth/auth-context'
+import { apiFetch } from '../lib/api/client'
+
+type TimeContext = {
+  zoneId: string
+  hotelDate: string
+  businessDate: string
+  businessDateStatus: string
+  reason: string | null
+}
 
 const cmsLinks = [
   ['/cms/pages', '页面与区块'],
@@ -12,6 +22,18 @@ const cmsLinks = [
 
 export function StaffLayout() {
   const { session, logout } = useAuth()
+  const [time, setTime] = useState<TimeContext | null>(null)
+  const [timeError, setTimeError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    const refresh = () => apiFetch<TimeContext>('/api/admin/time-context')
+      .then((value) => { if (active) { setTime(value); setTimeError('') } })
+      .catch((reason: unknown) => { if (active) setTimeError(reason instanceof Error ? reason.message : '时间状态读取失败') })
+    void refresh()
+    const timer = window.setInterval(() => { void refresh() }, 60_000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [])
   const canUseCms = session?.roles.some((role) => ['MANAGER', 'OWNER', 'SUPER_ADMIN'].includes(role))
 
   return (
@@ -40,6 +62,13 @@ export function StaffLayout() {
           <span className="role-chip">{session?.roles.join(' · ')}</span>
           <button type="button" onClick={logout}>退出登录</button>
         </header>
+        <div className={`time-context ${time?.businessDateStatus !== 'CURRENT' ? 'time-context-alert' : ''}`} role="status">
+          {time ? <>
+            <span>酒店日期 {time.hotelDate} · {time.zoneId}</span>
+            <span>营业日期 {time.businessDate} · {time.businessDateStatus}</span>
+            {time.reason && <span>{time.reason}</span>}
+          </> : <span>{timeError || '正在读取酒店时间…'}</span>}
+        </div>
         <main><Outlet /></main>
       </div>
     </div>

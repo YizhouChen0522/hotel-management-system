@@ -18,7 +18,19 @@ class MysqlConcurrencyTest extends FinancialDevelopmentFixture {
     int state(long b){return bookingState(b);}
     void change(long b,long room){var r=new ChangeRoomDuringStayRequest();r.setNewRoomId(room);r.setReason("test move");bookings.changeRoomDuringStay(b,r,uid("MANAGER"));}
     FolioItemCommand fee(String key,String amount){return FolioItemCommand.builder().itemType("SERVICE_CHARGE").description("test service").businessDate(arrival).quantity(BigDecimal.ONE).unitPrice(new BigDecimal(amount)).amount(new BigDecimal(amount)).eventKey(key).build();}
-    @Override void pay(long b,String amount){if(jdbc.queryForObject("SELECT COUNT(*) FROM stay WHERE booking_id=?",Integer.class,b)==0){as("STAFF");deposits.receive(b,com.johnny.hotel.booking.deposit.DepositRequests.Receive.builder().amount(new BigDecimal(amount)).paymentMethod("CASH").requestKey(java.util.UUID.randomUUID().toString()).build());}else super.pay(b,amount);}
+    void payForTest(long booking, String amount) {
+        if (jdbc.queryForObject("SELECT COUNT(*) FROM stay WHERE booking_id=?", Integer.class, booking) == 0) {
+            prepareCashShift();
+            as("STAFF");
+            deposits.receive(booking, com.johnny.hotel.booking.deposit.DepositRequests.Receive.builder()
+                    .amount(new BigDecimal(amount))
+                    .paymentMethod("CASH")
+                    .requestKey(java.util.UUID.randomUUID().toString())
+                    .build());
+            return;
+        }
+        payCard(booking, amount);
+    }
     void invariants(long b){if(jdbc.queryForObject("SELECT COUNT(*) FROM stay WHERE booking_id=?",Integer.class,b)==0){assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM folio f JOIN stay s ON s.id=f.stay_id WHERE s.booking_id=?",Integer.class,b));return;} if(!jdbc.queryForObject("SELECT user_id FROM booking WHERE id=?",Long.class,b).equals(uid("CUSTOMER")))return;invariantBooking(b);}
 
 
@@ -91,12 +103,12 @@ class MysqlConcurrencyTest extends FinancialDevelopmentFixture {
         assertEquals(1,state(b));invariants(b);
     }
     @ParameterizedTest @ValueSource(booleans={true,false}) void concurrentPaymentsSameAndDifferentKeys(boolean sameKey) {
-        long b=checkIn();long f=folio(b);var a=payRequest("10");var c=sameKey?a:payRequest("15");
+        long b=checkIn();long f=folio(b);var a=cardPaymentRequest("10");var c=sameKey?a:cardPaymentRequest("15");
         assertNull(serialized("FolioMapper.selectByIdForUpdate",()->payments.recordPayment(f,a,uid("MANAGER")),()->payments.recordPayment(f,c,uid("MANAGER"))));
         assertEquals(sameKey?1:2,queries.byBooking(b,uid("CUSTOMER")).payments().size());assertEquals(sameKey?10:25,queries.byBooking(b,uid("CUSTOMER")).paidAmount().intValueExact());invariants(b);
     }
     @Test void concurrentSameKeyDifferentContentRejectsSecond() {
-        long b=checkIn();long f=folio(b);var a=payRequest("10");var c=payRequest("11");c.setIdempotencyKey(a.getIdempotencyKey());
+        long b=checkIn();long f=folio(b);var a=cardPaymentRequest("10");var c=cardPaymentRequest("11");c.setIdempotencyKey(a.getIdempotencyKey());
         businessFailure(serialized("FolioMapper.selectByIdForUpdate",()->payments.recordPayment(f,a,uid("MANAGER")),()->payments.recordPayment(f,c,uid("MANAGER"))));invariants(b);
     }
     @ParameterizedTest @ValueSource(strings={"checkin","change","add","summary"}) void outerRepeatableReadSnapshotCannotOverwriteCommittedPayment(String operation) {
@@ -116,7 +128,7 @@ class MysqlConcurrencyTest extends FinancialDevelopmentFixture {
                     switch(operation){case "checkin"->bookings.checkIn(b,uid("MANAGER"));case "change"->change(b,room3);case "add"->folios.addItem(sid(b),fee("concurrent","20"),uid("MANAGER"));default->financial.recalculateSummary(folio(b));}
                 });
             });
-            SqlGate.await(snapshot);Future<Throwable> second=worker(pool,"payer",()->pay(b,"10"));assertNull(result(second));committed.countDown();assertNull(result(first));
+            SqlGate.await(snapshot);Future<Throwable> second=worker(pool,"payer",()->payForTest(b,"10"));assertNull(result(second));committed.countDown();assertNull(result(first));
         } finally {committed.countDown();stop(pool);}
         assertEquals(10,queries.byBooking(b,uid("CUSTOMER")).paidAmount().intValueExact());invariants(b);
     }
@@ -125,25 +137,25 @@ class MysqlConcurrencyTest extends FinancialDevelopmentFixture {
         var pool=Executors.newFixedThreadPool(2);gate.arm("booking-writer","BookingMapper.selectByIdForUpdate",false);
         try {
             var a=worker(pool,"booking-writer",()->{switch(operation){case "checkin"->bookings.checkIn(b,uid("MANAGER"));case "change"->change(b,room3);default->folios.addItem(sid(b),fee("concurrent","10"),uid("MANAGER"));}});
-            SqlGate.await(gate.reached);var p=worker(pool,"payer",()->pay(b,"5"));assertNull(result(p));gate.release.countDown();assertNull(result(a));
+            SqlGate.await(gate.reached);var p=worker(pool,"payer",()->payForTest(b,"5"));assertNull(result(p));gate.release.countDown();assertNull(result(a));
         } finally {gate.clear();stop(pool);}invariants(b);
     }
     @ParameterizedTest @ValueSource(strings={"payment","add","change"}) void checkoutWinsFinalizationBlocksContenders(String operation) {
-        long b=checkIn();pay(b,"300");clock.day(3);
+        long b=checkIn();payForTest(b,"300");clock.day(3);
         businessFailure(serialized("FolioMapper.selectByStayIdForUpdate",()->bookings.checkOut(b,uid("MANAGER")),()-> {
-            switch(operation){case "payment"->pay(b,"1");case "add"->folios.addItem(sid(b),fee("late","1"),uid("MANAGER"));default->change(b,room3);}
+            switch(operation){case "payment"->payForTest(b,"1");case "add"->folios.addItem(sid(b),fee("late","1"),uid("MANAGER"));default->change(b,room3);}
         }));assertEquals(2,stayState(b));invariants(b);
     }
     @Test void paymentWinsCheckoutSeesCreditAndCannotFinalize() {
-        long b=checkIn();pay(b,"300");clock.day(3);
-        businessFailure(serialized("FolioMapper.selectByIdForUpdate",()->pay(b,"1"),()->bookings.checkOut(b,uid("MANAGER"))));assertEquals(1,stayState(b));invariants(b);
+        long b=checkIn();payForTest(b,"300");clock.day(3);
+        businessFailure(serialized("FolioMapper.selectByIdForUpdate",()->payForTest(b,"1"),()->bookings.checkOut(b,uid("MANAGER"))));assertEquals(1,stayState(b));invariants(b);
     }
     @Test void feeWinsCheckoutSeesUnconfirmedConsumption() {
-        long b=checkIn();pay(b,"300");clock.day(3);
+        long b=checkIn();payForTest(b,"300");clock.day(3);
         businessFailure(serialized("BookingMapper.selectByIdForUpdate",()->folios.addItem(sid(b),fee("extra","1"),uid("MANAGER")),()->bookings.checkOut(b,uid("MANAGER"))));invariants(b);
     }
     @Test void roomChangeWinsCheckoutChecksLatestHistoryAndDatePolicy() {
-        long b=checkIn();pay(b,"450");
+        long b=checkIn();payForTest(b,"450");
         businessFailure(serialized("BookingMapper.selectByIdForUpdate",()->change(b,room3),()->bookings.checkOut(b,uid("MANAGER"))));
         assertEquals(room3,jdbc.queryForObject("SELECT room_id FROM stay_room_assignment WHERE stay_id=? AND end_time IS NULL",Long.class,sid(b)));invariants(b);
         clock.day(3);bookings.checkOut(b,uid("MANAGER"));invariants(b);
@@ -156,7 +168,7 @@ class MysqlConcurrencyTest extends FinancialDevelopmentFixture {
                     assertEquals(3,jdbc.queryForObject("SELECT COUNT(*) FROM folio_item WHERE folio_id=?",Integer.class,folio(b)));
                     snapshot.countDown();SqlGate.await(committed);
                     assertEquals(3,jdbc.queryForObject("SELECT COUNT(*) FROM folio_item WHERE folio_id=?",Integer.class,folio(b)));
-                    if(recordPayment)pay(b,"5");else financial.recalculateSummary(folio(b));
+                    if(recordPayment)payForTest(b,"5");else financial.recalculateSummary(folio(b));
                 });
             });SqlGate.await(snapshot);assertNull(result(worker(pool,"fee-writer",()->folios.addItem(sid(b),fee("committed","10"),uid("MANAGER")))));
             committed.countDown();assertNull(result(first));

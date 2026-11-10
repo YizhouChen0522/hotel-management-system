@@ -32,16 +32,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 
 @SpringBootTest(classes=HotelBackendApplication.class,webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties={"hotel.wallet.dev.fixture=true","debug=false","logging.level.org.springframework=WARN",
-                "logging.level.com.johnny=WARN","logging.level.org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration=ERROR"})
+        properties={"hotel.wallet.isolated.fixture=true","hotel.time.reconciliation.enabled=false",
+                "hotel.payment.recovery.enabled=false","debug=false","logging.level.org.springframework=WARN",
+                "logging.level.com.johnny=WARN","spring.flyway.clean-disabled=false",
+                "logging.level.org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration=ERROR"})
 @AutoConfigureMockMvc(print=MockMvcPrint.NONE)
 @Import(WalletDevelopmentFixture.Config.class)
 @org.junit.jupiter.api.condition.EnabledIfSystemProperty(named="hotel.wallet.dev.tests",matches="true")
 abstract class WalletDevelopmentFixture {
     static final String PREFIX="hotel:wallet-test:"+UUID.randomUUID()+":";
+    private static final IsolatedWalletDatabaseReset DATABASE_RESET = new IsolatedWalletDatabaseReset();
     @DynamicPropertySource static void development(DynamicPropertyRegistry r) {
         var e=WalletDevelopmentGuard.settings();
-        r.add("spring.datasource.url",WalletDevelopmentGuard::url);r.add("spring.datasource.username",()->e.get("DB_USERNAME"));r.add("spring.datasource.password",()->e.get("DB_PASSWORD"));
+        r.add("spring.datasource.url",IsolatedWalletDatabase::url);r.add("spring.datasource.username",()->e.get("DB_USERNAME"));r.add("spring.datasource.password",()->e.get("DB_PASSWORD"));
         r.add("spring.data.redis.host",()->"localhost");r.add("spring.data.redis.port",()->6379);r.add("spring.data.redis.password",()->e.get("REDIS_PASSWORD"));
         r.add("hotel.redis.prefix",()->PREFIX);
     }
@@ -58,6 +61,9 @@ abstract class WalletDevelopmentFixture {
     @Autowired JwtUtil jwt;
     @Autowired PlatformTransactionManager txManager;
     @Autowired StringRedisTemplate redis;
+    @Autowired org.flywaydb.core.Flyway flyway;
+    @Autowired com.johnny.hotel.businessdate.BusinessDateService businessDates;
+    @Autowired java.time.Clock hotelClock;
     @Value("${local.server.port}") int port;
     final Map<String,Long> actors=new LinkedHashMap<>();
     final List<Long> created=new ArrayList<>();
@@ -67,7 +73,22 @@ abstract class WalletDevelopmentFixture {
     RegisterCustomerRequest customerRequest(){var r=new RegisterCustomerRequest();String name=run+"_"+(sequence++);r.setUsername(name);r.setEmail(name+"@example.test");r.setPassword("wallet-test-only");r.setRealName("Wallet test fixture");return r;}
     RegisterEmployeeRequest employeeRequest(String role){var r=new RegisterEmployeeRequest();String name=run+"_"+(sequence++);r.setUsername(name);r.setEmail(name+"@example.test");r.setPassword("wallet-test-only");r.setRealName("Wallet test fixture");r.setApplyRoleCode(role);return r;}
     @BeforeEach void seedOnlyNewUsers(){
-        assertEquals("hotel_management",jdbc.queryForObject("SELECT DATABASE()",String.class));assertEquals(3306,jdbc.queryForObject("SELECT @@port",Integer.class));
+        actors.clear();
+        created.clear();
+        sequence = 0;
+        if (hotelClock instanceof MutableHotelClock mutable) {
+            mutable.onDateChange(null);
+            mutable.baseDate(java.time.LocalDate.now(mutable.getZone()));
+        }
+        if (!DATABASE_RESET.isCaptured()) {
+            flyway.clean();
+            flyway.migrate();
+            businessDates.initializeOnce();
+        }
+        DATABASE_RESET.captureOrRestore(jdbc);
+        assertTrue(jdbc.queryForObject("SELECT DATABASE()",String.class)
+                .matches("hotel_wallet_isolated_[0-9a-f]{12}"));
+        assertEquals(3306,jdbc.queryForObject("SELECT @@port",Integer.class));
         for(String role:List.of("CUSTOMER","OTHER_CUSTOMER","STAFF","HR_ADMIN","MANAGER","OWNER","SUPER_ADMIN","FINANCE")) {
             long id=role.contains("CUSTOMER")?users.registerCustomer(customerRequest()).getId():users.registerEmployee(employeeRequest(role.equals("SUPER_ADMIN")?"STAFF":role)).getId();
             created.add(id);actors.put(role,id);
@@ -78,6 +99,14 @@ abstract class WalletDevelopmentFixture {
         }
     }
     @AfterEach void cleanupOnlyCreatedRows(){
+        if (isIsolatedFixtureDatabase()) {
+            gate.clear();
+            SecurityContextHolder.clearContext();
+            try (var keys = redis.scan(ScanOptions.scanOptions().match(PREFIX + "*").count(100).build())) {
+                keys.forEachRemaining(redis::delete);
+            }
+            return;
+        }
         gate.clear();SecurityContextHolder.clearContext();
         // Privileged test teardown only: no application delete API or mapper exists for money history.
         for(long id:created) jdbc.update("DELETE FROM cleaning_record WHERE task_id IN (SELECT id FROM hotel_task WHERE created_by=?)",id);
@@ -104,6 +133,10 @@ abstract class WalletDevelopmentFixture {
             jdbc.update("DELETE FROM sys_user WHERE id=?",id);
         }
         try(var keys=redis.scan(ScanOptions.scanOptions().match(PREFIX+"*").count(100).build())) {keys.forEachRemaining(redis::delete);}
+    }
+    boolean isIsolatedFixtureDatabase() {
+        String database = jdbc.queryForObject("SELECT DATABASE()", String.class);
+        return database != null && database.matches("hotel_wallet_isolated_[0-9a-f]{12}");
     }
     long uid(String role){return actors.get(role);}
     long wid(String role){return wallets.byUser(uid(role)).getId();}
