@@ -13,6 +13,33 @@ class FinanceInvoiceDevelopmentTest extends FinancialDevelopmentFixture{
  @Test void customerOwnershipAndStaffRead(){long b=closed();as("FINANCE");var i=invoices.issue(folio(b),request("inv-owner"));as("CUSTOMER");assertEquals(i.getInvoice().getId(),invoices.get(i.getInvoice().getId()).getInvoice().getId());as("OTHER_CUSTOMER");assertThrows(BusinessException.class,()->invoices.get(i.getInvoice().getId()));as("STAFF");assertNotNull(invoices.get(i.getInvoice().getId()));}
  @Test void staffHrCustomerCannotIssueOrVoid(){long b=closed();for(String role:List.of("STAFF","HR_ADMIN","CUSTOMER")){as(role);assertThrows(AccessDeniedException.class,()->invoices.issue(folio(b),request("denied-"+role)));}}
  @Test void financeCanReadFolioWalletAndOperationalViews(){long b=closed();as("FINANCE");assertEquals(folio(b),queries.byBookingForOperations(b).id());assertNotNull(service.byUser(uid("CUSTOMER")));assertFalse(financeReads.read("bookings",1,20).getItems().isEmpty());assertFalse(financeReads.read("rooms",1,20).getItems().isEmpty());}
+ @Test
+ void completedTurnoverUsesCanonicalTaskStatusInFinanceRead() {
+  long bookingId = closed();
+  long turnoverId = jdbc.queryForObject(
+      "SELECT id FROM room_turnover_task WHERE stay_id=(SELECT id FROM stay WHERE booking_id=?)",
+      Long.class, bookingId);
+
+  completeTurnoverAndInspect(room1);
+  int legacyStatus = jdbc.queryForObject(
+      "SELECT status FROM room_turnover_task WHERE id=?", Integer.class, turnoverId);
+  int taskStatus = jdbc.queryForObject("""
+      SELECT task.status
+      FROM room_turnover_task turnover
+      JOIN hotel_task task ON task.id = turnover.task_id
+      WHERE turnover.id = ?
+      """, Integer.class, turnoverId);
+
+  as("FINANCE");
+  var record = financeReads.read("turnovers", 1, 100).getItems().stream()
+      .filter(item -> turnoverId == item.getId())
+      .findFirst()
+      .orElseThrow();
+
+  assertEquals(0, legacyStatus);
+  assertEquals(2, taskStatus);
+  assertEquals(String.valueOf(taskStatus), record.getStatus());
+ }
  @Test void financeCannotWriteOperationalHttp()throws Exception{mvc.perform(post("/api/admin/bookings/1/check-in").with(authentication(auth("FINANCE")))).andExpect(status().isForbidden());mvc.perform(post("/api/admin/rooms/1/available").with(authentication(auth("FINANCE")))).andExpect(status().isForbidden());mvc.perform(post("/api/housekeeping/inspections/1/decision").with(authentication(auth("FINANCE"))).contentType("application/json").content("{\"passed\":true}")).andExpect(status().isForbidden());mvc.perform(post("/api/work-orders").with(authentication(auth("FINANCE"))).contentType("application/json").content("{\"roomId\":1,\"requestKey\":\"finance-denied\",\"damageType\":\"TEST\",\"description\":\"Denied operation\",\"severity\":\"LOW\",\"blocksRoomRelease\":false}")).andExpect(status().isForbidden());}
  @Test void hrStillCannotReadBilling(){long b=closed();as("HR_ADMIN");assertThrows(AccessDeniedException.class,()->queries.byBookingForOperations(b));}
  @Test void financeIsAuthorizedByBillingAndRefundBoundariesButHrIsNot(){as("FINANCE");assertEquals(uid("FINANCE"),billingAccess.currentOperational());assertDoesNotThrow(()->refundAccess.operational(uid("FINANCE"),true));as("HR_ADMIN");assertThrows(AccessDeniedException.class,billingAccess::currentOperational);assertThrows(AccessDeniedException.class,()->refundAccess.operational(uid("HR_ADMIN"),true));}

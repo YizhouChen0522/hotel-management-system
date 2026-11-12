@@ -1,5 +1,6 @@
 import { apiFetch } from '../../lib/api/client'
 import type {
+  AddBookingGuestRequest,
   BookingGuest,
   DepositBalance,
   DepositPayment,
@@ -41,6 +42,11 @@ export const getReservation = (id: number) => apiFetch<Reservation>(`${root}/${i
 export const getEligibleRooms = (id: number) => apiFetch<Room[]>(`${root}/${id}/eligible-rooms`)
 export const getPriceSnapshot = (id: number) => apiFetch<PriceSnapshot>(`${root}/${id}/price-snapshot`)
 export const getBookingGuests = (id: number) => apiFetch<BookingGuest[]>(`${root}/${id}/guests`)
+export const addBookingGuest = (id: number, request: AddBookingGuestRequest) =>
+  apiFetch<BookingGuest>(`${root}/${id}/guests`, {
+    method: 'POST',
+    body: JSON.stringify(request),
+  })
 export const getDeposit = (id: number) => apiFetch<DepositBalance>(`/api/bookings/${id}/deposit`)
 export const getDepositPayments = (id: number) => apiFetch<PageResult<DepositPayment>>(`/api/bookings/${id}/deposit/payments?page=1&pageSize=100`)
 export const getDepositRefunds = (id: number) => apiFetch<PageResult<DepositRefund>>(`/api/bookings/${id}/deposit/refunds?page=1&pageSize=100`)

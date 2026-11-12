@@ -9,8 +9,8 @@ export interface PageResult<T> {
 
 export interface ReservationPolicyBand {
   id: number
-  startDays: number
-  endDays: number | null
+  minLeadDays: number
+  maxLeadDays: number | null
   refundPercent: number
 }
 
@@ -68,6 +68,19 @@ export interface BookingGuest {
   bookingId: number
   role: 'PRIMARY' | 'ACCOMPANYING'
   guest: GuestProfile
+}
+
+export interface AddBookingGuestRequest {
+  role: 'PRIMARY' | 'ACCOMPANYING'
+  profile: {
+    firstName: string
+    lastName: string
+    phone?: string
+    email?: string
+    nationality?: string
+    documentType?: string
+    documentNumber?: string
+  }
 }
 
 export interface DepositBalance {

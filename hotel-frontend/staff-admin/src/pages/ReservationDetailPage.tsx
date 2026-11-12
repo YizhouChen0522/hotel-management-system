@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../lib/api/client'
 import {
+  addBookingGuest,
   approveReservation,
   assignRoom,
   declineReservation,
@@ -13,8 +14,10 @@ import {
   getPriceSnapshot,
   getReservation,
 } from '../features/reservation/reservation-api'
+import { BookingGuestRegistration } from '../features/reservation/BookingGuestRegistration'
 import { dateTime, money, reservationStatus } from '../features/reservation/format'
 import type {
+  AddBookingGuestRequest,
   BookingGuest,
   DepositBalance,
   DepositPayment,
@@ -105,6 +108,30 @@ export function ReservationDetailPage() {
     }
   }
 
+  async function registerGuest(request: AddBookingGuestRequest): Promise<boolean> {
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      await addBookingGuest(id, request)
+      setGuests(await getBookingGuests(id))
+      setNotice('住客已登记，请复核资料后办理入住。')
+      return true
+    } catch (cause) {
+      setError(cause instanceof ApiError && cause.status === 409
+        ? `住客登记状态已变化：${cause.message}`
+        : message(cause))
+      try {
+        setGuests(await getBookingGuests(id))
+      } catch {
+        // Keep the original registration error visible.
+      }
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function confirmReservationAction(action: () => Promise<Reservation>, success: string) {
     setConfirmAction(null)
     void run(action, success)
@@ -137,7 +164,13 @@ export function ReservationDetailPage() {
 
   const selectedRoom = Number(roomId)
   const assignedOptionMissing = booking.reservedRoomId != null && !rooms.some((room) => room.id === booking.reservedRoomId)
-  const checkInReady = guests.length > 0 && assignedRoom != null && [1, 2].includes(assignedRoom.status)
+  const primaryGuest = guests.find((entry) => entry.role === 'PRIMARY')?.guest
+  const checkInReady = primaryGuest != null
+    && Boolean(primaryGuest.firstName && primaryGuest.lastName && primaryGuest.nationality
+      && primaryGuest.documentType && primaryGuest.documentNumber)
+    && guests.length <= booking.guestCount
+    && assignedRoom != null
+    && [1, 2].includes(assignedRoom.status)
 
   return (
     <section>
@@ -186,6 +219,16 @@ export function ReservationDetailPage() {
         </article>
       </div>
 
+      {(booking.status === 0 || booking.status === 1) && !existingStayId && (
+        <BookingGuestRegistration
+          registeredCount={guests.length}
+          guestCount={booking.guestCount}
+          hasPrimaryGuest={primaryGuest != null}
+          disabled={busy}
+          onRegister={registerGuest}
+        />
+      )}
+
       <article className="panel">
         <div className="panel-heading"><div><h3>价格快照</h3><p>已锁定的 BookingPriceVersion，不重新调用当前价格。</p></div><strong>{price?.version ? `${price.version.currency} ${price.version.totalPrice}` : '暂无快照'}</strong></div>
         <div className="nightly-grid">
@@ -211,7 +254,7 @@ export function ReservationDetailPage() {
           {booking.cancellationPolicy ? (
             <>
               <p><strong>{booking.cancellationPolicy.policy.name}</strong> · v{booking.cancellationPolicy.policy.versionNo}</p>
-              {booking.cancellationPolicy.bands.map((band) => <div className="policy-row" key={band.id}><span>提前 {band.startDays}{band.endDays == null ? '+' : `–${band.endDays}`} 天</span><strong>退 {band.refundPercent}%</strong></div>)}
+              {booking.cancellationPolicy.bands.map((band) => <div className="policy-row" key={band.id}><span>提前 {band.minLeadDays}{band.maxLeadDays == null ? '+' : `–${band.maxLeadDays}`} 天</span><strong>退 {band.refundPercent}%</strong></div>)}
             </>
           ) : <p className="empty-state">Legacy reservation：没有绑定取消政策。</p>}
         </article>

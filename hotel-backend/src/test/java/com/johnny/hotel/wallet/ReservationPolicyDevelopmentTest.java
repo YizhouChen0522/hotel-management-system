@@ -65,7 +65,11 @@ class ReservationPolicyDevelopmentTest extends FinancialDevelopmentFixture {
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM reservation_policy WHERE status=1",Integer.class));
     }
 
-    @Test void newReservationsRequireActivePolicy(){as("STAFF");var r=request("no-policy");
+    @Test void newReservationsRequireActivePolicy(){
+        as("OWNER");
+        policyService.disable();
+        as("STAFF");
+        var r=request("no-policy");
         assertThrows(BusinessException.class,()->direct.create(r));
         assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM booking WHERE staff_direct_request_key=?",Integer.class,r.getRequestKey()));
 

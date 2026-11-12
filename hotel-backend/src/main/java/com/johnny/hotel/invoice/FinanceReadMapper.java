@@ -9,6 +9,22 @@ import org.apache.ibatis.annotations.*;import java.util.*;
  @Select("SELECT 'cleaning' domain,id,stay_id,room_id,task_id,CAST(cleaning_type AS CHAR) status,NULL label,completed_time occurred_at,create_time updated_at FROM cleaning_record ORDER BY id DESC LIMIT #{offset},#{size}")List<FinanceOperationalRecord> cleaning(@Param("offset")int offset,@Param("size")int size);
  @Select("SELECT 'inspections' domain,id,stay_id,room_id,followup_task_id task_id,CAST(status AS CHAR) status,NULL label,inspected_time occurred_at,update_time updated_at FROM housekeeping_inspection ORDER BY id DESC LIMIT #{offset},#{size}")List<FinanceOperationalRecord> inspections(@Param("offset")int offset,@Param("size")int size);
  @Select("SELECT 'work-orders' domain,id,room_id,task_id,CAST(status AS CHAR) status,damage_type label,create_time occurred_at,update_time updated_at FROM room_work_order ORDER BY id DESC LIMIT #{offset},#{size}")List<FinanceOperationalRecord> workOrders(@Param("offset")int offset,@Param("size")int size);
- @Select("SELECT 'turnovers' domain,id,stay_id,room_id,task_id,CAST(status AS CHAR) status,NULL label,create_time occurred_at,update_time updated_at FROM room_turnover_task ORDER BY id DESC LIMIT #{offset},#{size}")List<FinanceOperationalRecord> turnovers(@Param("offset")int offset,@Param("size")int size);
+ @Select("""
+     SELECT 'turnovers' AS domain,
+            turnover.id,
+            turnover.stay_id,
+            turnover.room_id,
+            turnover.task_id,
+            CAST(task.status AS CHAR) AS status,
+            NULL AS label,
+            turnover.create_time AS occurred_at,
+            task.update_time AS updated_at
+     FROM room_turnover_task turnover
+     JOIN hotel_task task ON task.id = turnover.task_id
+     ORDER BY turnover.id DESC
+     LIMIT #{offset}, #{size}
+     """)
+ List<FinanceOperationalRecord> turnovers(@Param("offset") int offset,
+                                          @Param("size") int size);
  @Select("<script>SELECT COUNT(*) FROM <choose><when test=\"table=='booking'\">booking</when><when test=\"table=='stay_room_assignment'\">stay_room_assignment</when><when test=\"table=='room'\">room</when><when test=\"table=='stay'\">stay</when><when test=\"table=='guest_profile'\">guest_profile</when><when test=\"table=='cleaning_record'\">cleaning_record</when><when test=\"table=='housekeeping_inspection'\">housekeeping_inspection</when><when test=\"table=='room_work_order'\">room_work_order</when><otherwise>room_turnover_task</otherwise></choose></script>")long count(@Param("table")String table);
 }
